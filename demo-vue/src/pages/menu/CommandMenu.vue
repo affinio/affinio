@@ -61,8 +61,7 @@ function setAutomation(label: string) {
       <UiMenu :options="{ closeOnSelect: false }">
         <UiMenuTrigger as-child>
           <button class="menu-demo-button">
-            <span>Pulse filters</span>
-            <span>{{ activeList.length }} active</span>
+            <span>Menu</span>
           </button>
         </UiMenuTrigger>
         <UiMenuContent>

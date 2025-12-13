@@ -47,8 +47,7 @@ const lastLog = computed(() => logs.value[0] ?? "Awaiting your gesture")
       <UiMenu>
         <UiMenuTrigger as-child trigger="contextmenu">
           <button class="menu-demo-button">
-            <span>Collaboration canvas</span>
-            <span>Right-click to open</span>
+            <span>Context Menu (Right-click)</span>
           </button>
         </UiMenuTrigger>
         <UiMenuContent>

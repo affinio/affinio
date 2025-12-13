@@ -41,7 +41,7 @@ function handleSelect(label: string) {
 </script>
 
 <template>
-  <div class="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+  <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
     <div class="space-y-4">
       <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Nested flow</p>
       <h3 class="text-2xl font-semibold">Deep submenus stay responsive thanks to diagonal hover prediction.</h3>
@@ -58,8 +58,8 @@ function handleSelect(label: string) {
       <UiMenu :options="{ openDelay: 60, closeDelay: 140 }">
         <UiMenuTrigger as-child>
           <button class="menu-demo-button">
-            <span>Choose workspace stack</span>
-            <span>Arrow keys encouraged</span>
+            <span>Menu</span>
+            
           </button>
         </UiMenuTrigger>
         <UiMenuContent>

@@ -171,7 +171,7 @@ a {
 .menu-demo-button {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
+	justify-content: center;
 	gap: 1.5rem;
 	min-width: min(360px, 100%);
 	padding: 1.1rem 1.75rem;
