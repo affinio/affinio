@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from "vue"
 import {
   UiMenu,
   UiMenuTrigger,
@@ -31,6 +32,12 @@ const stacks = [
     items: ["Invite teammate", "Promote to admin", "Transfer ownership"],
   },
 ]
+
+const lastSelection = ref("Waiting for highlight")
+
+function handleSelect(label: string) {
+  lastSelection.value = label
+}
 </script>
 
 <template>
@@ -47,14 +54,12 @@ const stacks = [
         slightly longer close delay for calmer automation browsing.
       </div>
     </div>
-    <div class="rounded-3xl border border-(--glass-border) bg-white/5 p-6 text-base text-white backdrop-blur">
+    <div class="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
       <UiMenu :options="{ openDelay: 60, closeDelay: 140 }">
         <UiMenuTrigger as-child>
-          <button
-            class="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-left font-semibold"
-          >
-            Choose workspace stack
-            <span class="text-sm font-medium text-white/60">Arrow keys ready</span>
+          <button class="menu-demo-button">
+            <span>Choose workspace stack</span>
+            <span>Arrow keys encouraged</span>
           </button>
         </UiMenuTrigger>
         <UiMenuContent>
@@ -73,7 +78,7 @@ const stacks = [
               </div>
             </UiSubMenuTrigger>
             <UiSubMenuContent>
-              <UiMenuItem v-for="item in stack.items" :key="item">
+              <UiMenuItem v-for="item in stack.items" :key="item" @select="() => handleSelect(item)">
                 <span class="text-sm font-semibold">{{ item }}</span>
                 <span class="text-xs text-(--ui-menu-muted)">Enter</span>
               </UiMenuItem>
@@ -81,6 +86,9 @@ const stacks = [
           </UiSubMenu>
         </UiMenuContent>
       </UiMenu>
+      <div class="w-full text-sm text-(--text-muted)">
+        Last action: <span class="font-semibold text-white">{{ lastSelection }}</span>
+      </div>
     </div>
   </div>
 </template>

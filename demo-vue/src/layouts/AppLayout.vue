@@ -1,23 +1,16 @@
 <script setup lang="ts">
-import AppHeader from '@/layouts/AppHeader.vue'
-import AppFooter from '@/layouts/AppFooter.vue'
-import AppAside from '@/components/LeftAside.vue'
+import AppHeader from "@/layouts/AppHeader.vue"
+import AppFooter from "@/layouts/AppFooter.vue"
 </script>
 
 <template>
-  <div class="app-shell min-h-screen">
+  <div class="app-shell flex min-h-screen flex-col">
     <AppHeader />
-    <div
-      class="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 pb-12 pt-6 lg:flex-row lg:items-start lg:px-8"
-    >
-      <div class="flex w-full gap-8 lg:flex-row">
-        <AppAside />
-        <main class="w-full flex-1">
-          <router-view />
-        </main>
+    <main class="flex-1 w-full">
+      <div class="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 lg:px-8">
+        <router-view />
       </div>
-    </div>
-
+    </main>
     <AppFooter />
   </div>
 </template>

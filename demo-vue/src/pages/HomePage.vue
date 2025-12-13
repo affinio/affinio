@@ -33,7 +33,7 @@ const highlights = [
           <div class="flex flex-wrap gap-3">
             <RouterLink
               to="/menu/simple"
-              class="rounded-full bg-(--text-primary) px-6 py-3 text-sm font-semibold text-[#05060a] shadow-xl transition hover:opacity-90"
+              class="rounded-full border border-(--glass-border) hover:border-(--glass-highlight) px-6 py-3 text-sm font-semibold shadow-xl transition hover:opacity-90"
             >
               Explore live demos
             </RouterLink>

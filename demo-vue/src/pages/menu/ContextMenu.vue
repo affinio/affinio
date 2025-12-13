@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import {
   UiMenu,
   UiMenuTrigger,
@@ -26,6 +26,8 @@ function pushLog(entry: string) {
   const stamp = new Date().toLocaleTimeString()
   logs.value = [`${entry} at ${stamp}`, ...logs.value].slice(0, 3)
 }
+
+const lastLog = computed(() => logs.value[0] ?? "Awaiting your gesture")
 </script>
 
 <template>
@@ -41,25 +43,13 @@ function pushLog(entry: string) {
         Tip: pair with controller `openAt(point)` for fully custom gesture systems. The core stays framework-agnostic.
       </div>
     </div>
-    <div class="flex flex-col gap-6">
+    <div class="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
       <UiMenu>
         <UiMenuTrigger as-child trigger="contextmenu">
-          <div class="relative min-h-65 rounded-3xl border border-dashed border-white/20 bg-linear-to-br from-white/10 to-white/5 p-6 text-sm text-white">
-            <div class="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <p class="text-base font-semibold">Collaboration canvas</p>
-              <p class="text-xs text-white/70">Right-click anywhere inside this zone</p>
-              <div class="mt-4 grid w-full max-w-sm grid-cols-2 gap-3">
-                <div class="rounded-2xl border border-white/10 px-3 py-2 text-left">
-                  <p class="text-xs uppercase tracking-[0.3em] text-white/60">Nodes</p>
-                  <p class="text-lg font-semibold">18</p>
-                </div>
-                <div class="rounded-2xl border border-white/10 px-3 py-2 text-left">
-                  <p class="text-xs uppercase tracking-[0.3em] text-white/60">Links</p>
-                  <p class="text-lg font-semibold">42</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <button class="menu-demo-button">
+            <span>Collaboration canvas</span>
+            <span>Right-click to open</span>
+          </button>
         </UiMenuTrigger>
         <UiMenuContent>
           <UiMenuLabel>Canvas</UiMenuLabel>
@@ -84,14 +74,8 @@ function pushLog(entry: string) {
           </UiMenuItem>
         </UiMenuContent>
       </UiMenu>
-      <div class="rounded-3xl border border-(--glass-border) bg-black/30 p-5 text-sm text-white/80">
-        <p class="text-xs uppercase tracking-[0.3em] text-white/50">Recent actions</p>
-        <ul class="mt-3 space-y-2">
-          <li v-for="log in logs" :key="log" class="rounded-xl border border-white/10 px-3 py-2">{{ log }}</li>
-          <li v-if="!logs.length" class="rounded-xl border border-dashed border-white/20 px-3 py-2">
-            Awaiting your right-click.
-          </li>
-        </ul>
+      <div class="w-full text-sm text-(--text-muted)">
+        Last action: <span class="font-semibold text-white">{{ lastLog }}</span>
       </div>
     </div>
   </div>

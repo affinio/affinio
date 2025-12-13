@@ -28,48 +28,54 @@ function handleSelect(label: string) {
 </script>
 
 <template>
-  <div class="rounded-3xl border border-(--glass-border) bg-black/20 p-6 backdrop-blur">
-    <UiMenu>
-      <UiMenuTrigger as-child>
-        <button
-          class="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-left text-base font-semibold text-white shadow-lg transition hover:border-white/30"
-        >
-          Project actions
-          <span class="text-sm font-medium text-white/60">Press Enter</span>
-        </button>
-      </UiMenuTrigger>
-      <UiMenuContent>
-        <UiMenuLabel>Project</UiMenuLabel>
-        <UiMenuItem
-          v-for="action in primaryActions"
-          :key="action.label"
-          @select="() => handleSelect(action.label)"
-        >
-          <div class="flex flex-1 flex-col">
-            <span class="text-sm font-semibold">{{ action.label }}</span>
-            <span class="text-xs text-(--ui-menu-muted)">{{ action.description }}</span>
-          </div>
-          <span class="text-xs text-(--ui-menu-muted)">{{ action.shortcut }}</span>
-        </UiMenuItem>
-        <UiMenuSeparator />
-        <UiMenuItem
-          v-for="action in secondaryActions"
-          :key="action.label"
-          :danger="action.danger"
-          @select="() => handleSelect(action.label)"
-        >
-          <div class="flex flex-1 flex-col">
-            <span class="text-sm font-semibold">{{ action.label }}</span>
-            <span class="text-xs text-(--ui-menu-muted)">{{ action.description }}</span>
-          </div>
-          <span class="text-xs text-(--ui-menu-muted)">{{ action.shortcut }}</span>
-        </UiMenuItem>
-      </UiMenuContent>
-    </UiMenu>
-    
-    <p class="mt-16 text-sm text-white/70">
-      Last action:
-      <span class="font-semibold text-white">{{ lastAction }}</span>
-    </p>
+  <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+    <div class="space-y-4">
+      <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Primary flows</p>
+      <h3 class="text-2xl font-semibold">Single trigger, instant confirmation.</h3>
+      <p class="text-sm text-(--text-muted)">
+        Showcase the classic click-to-open surface. `UiMenu` keeps focus inside the panel and streams select events so
+        dashboards can react the moment an action fires.
+      </p>
+    </div>
+    <div class="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
+      <UiMenu>
+        <UiMenuTrigger as-child>
+          <button class="menu-demo-button">
+            <span>Menu</span>
+          </button>
+        </UiMenuTrigger>
+        <UiMenuContent>
+          <UiMenuLabel>Project</UiMenuLabel>
+          <UiMenuSeparator />
+          <UiMenuItem
+            v-for="action in primaryActions"
+            :key="action.label"
+            @select="() => handleSelect(action.label)"
+          >
+            <div class="flex flex-1 flex-col">
+              <span class="text-sm font-semibold">{{ action.label }}</span>
+              <span class="text-xs text-(--ui-menu-muted)">{{ action.description }}</span>
+            </div>
+            <span class="text-xs text-(--ui-menu-muted)">{{ action.shortcut }}</span>
+          </UiMenuItem>
+          <UiMenuSeparator />
+          <UiMenuItem
+            v-for="action in secondaryActions"
+            :key="action.label"
+            :danger="action.danger"
+            @select="() => handleSelect(action.label)"
+          >
+            <div class="flex flex-1 flex-col">
+              <span class="text-sm font-semibold">{{ action.label }}</span>
+              <span class="text-xs text-(--ui-menu-muted)">{{ action.description }}</span>
+            </div>
+            <span class="text-xs text-(--ui-menu-muted)">{{ action.shortcut }}</span>
+          </UiMenuItem>
+        </UiMenuContent>
+      </UiMenu>
+      <div class="w-full text-sm text-(--text-muted)">
+        Last action: <span class="font-semibold text-white">{{ lastAction }}</span>
+      </div>
+    </div>
   </div>
 </template>

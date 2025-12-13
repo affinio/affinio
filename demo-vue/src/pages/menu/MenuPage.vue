@@ -47,8 +47,6 @@ const activeName = computed(() => route.name)
         <div class="text-sm font-semibold">{{ tab.label }}</div>
       </RouterLink>
     </nav>
-    <div class="menu-stage">
-      <RouterView />
-    </div>
+    <RouterView />
   </section>
 </template>
