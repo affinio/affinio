@@ -1,1 +1,163 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+
+:root {
+	color-scheme: dark;
+	--page-bg: #03050b;
+	--page-gradient: radial-gradient(circle at 20% 20%, rgba(124, 90, 255, 0.25), transparent 45%),
+		radial-gradient(circle at 80% 0%, rgba(0, 169, 255, 0.25), transparent 40%),
+		linear-gradient(135deg, #050609, #090b14 60%, #050609);
+	--surface: rgba(14, 18, 29, 0.92);
+	--surface-alt: rgba(21, 26, 38, 0.85);
+	--glass-border: rgba(255, 255, 255, 0.08);
+	--glass-highlight: rgba(255, 255, 255, 0.14);
+	--text-primary: #edf2ff;
+	--text-muted: rgba(237, 242, 255, 0.7);
+	--accent: #8b5cf6;
+	--accent-soft: rgba(139, 92, 246, 0.18);
+	--accent-strong: #38bdf8;
+	--shadow-soft: 0 25px 60px rgba(5, 6, 15, 0.65);
+}
+
+[data-theme='light'] {
+	color-scheme: light;
+	--page-bg: #f5f6fb;
+	--page-gradient: radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.12), transparent 45%),
+		radial-gradient(circle at 70% 0%, rgba(14, 165, 233, 0.12), transparent 35%),
+		linear-gradient(135deg, #fbfdff, #f4f5fb 60%, #fbfdff);
+	--surface: rgba(255, 255, 255, 0.86);
+	--surface-alt: rgba(247, 248, 255, 0.94);
+	--glass-border: rgba(15, 23, 42, 0.08);
+	--glass-highlight: rgba(15, 23, 42, 0.14);
+	--text-primary: #0f172a;
+	--text-muted: rgba(15, 23, 42, 0.68);
+	--accent: #6366f1;
+	--accent-soft: rgba(99, 102, 241, 0.12);
+	--accent-strong: #0ea5e9;
+	--shadow-soft: 0 30px 80px rgba(15, 23, 42, 0.15);
+}
+
+[data-theme='dark'] {
+	color-scheme: dark;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	min-height: 100vh;
+	margin: 0;
+	font-family: "Space Grotesk", "DM Sans", sans-serif;
+	background: var(--page-gradient);
+	color: var(--text-primary);
+	-webkit-font-smoothing: antialiased;
+}
+
+body::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	background: var(--page-bg);
+	opacity: 0.65;
+	pointer-events: none;
+	z-index: -2;
+}
+
+body::after {
+	content: "";
+	position: fixed;
+	inset: 0;
+	background: var(--page-gradient);
+	pointer-events: none;
+	z-index: -1;
+}
+
+::selection {
+	background: var(--accent);
+	color: #fff;
+}
+
+a {
+	color: inherit;
+}
+
+.glass-panel {
+	background: var(--surface);
+	border: 1px solid var(--glass-border);
+	border-radius: 999px;
+	box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-soft);
+	backdrop-filter: blur(24px);
+}
+
+.shell-surface {
+	background: var(--surface-alt);
+	border: 1px solid var(--glass-border);
+	border-radius: 28px;
+	box-shadow: var(--shadow-soft);
+	backdrop-filter: blur(40px);
+}
+
+.tab-pill {
+	border-radius: 999px;
+	border: 1px solid var(--glass-border);
+	padding: 0.35rem 0.95rem;
+	font-size: 0.85rem;
+	letter-spacing: 0.01em;
+	transition: border 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.tab-pill.is-active {
+	border-color: transparent;
+	background: linear-gradient(120deg, var(--accent), var(--accent-strong));
+	color: #05060a;
+	box-shadow: 0 12px 40px rgba(99, 102, 241, 0.35);
+}
+
+.menu-stage {
+	border-radius: 26px;
+	border: 1px solid var(--glass-border);
+	background: radial-gradient(circle at 20% 0%, var(--accent-soft), transparent 55%), var(--surface-alt);
+	padding: clamp(1.5rem, 2vw, 2.5rem);
+	box-shadow: var(--shadow-soft);
+	position: relative;
+	overflow: hidden;
+}
+
+.menu-stage::after {
+	content: "";
+	position: absolute;
+	width: 240px;
+	height: 240px;
+	right: -60px;
+	top: -60px;
+	background: radial-gradient(circle, rgba(56, 189, 248, 0.25), transparent 60%);
+	filter: blur(6px);
+	z-index: 0;
+}
+
+.menu-stage > * {
+	position: relative;
+	z-index: 1;
+}
+
+.menu-spotlight {
+	border-radius: 24px;
+	padding: clamp(1.5rem, 2vw, 2.75rem);
+	background: rgba(255, 255, 255, 0.03);
+	border: 1px solid var(--glass-border);
+	backdrop-filter: blur(18px);
+}
+
+.menu-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 1rem;
+}
+
+.demo-card {
+	border-radius: 20px;
+	padding: 1.25rem;
+	border: 1px solid var(--glass-border);
+	background: rgba(255, 255, 255, 0.02);
+}

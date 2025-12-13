@@ -6,9 +6,28 @@ export const menuRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/menu/MenuPage.vue"),
     children: [
       {
+        path: "",
+        redirect: { name: "menu.simple" },
+      },
+      {
         path: "simple",
         name: "menu.simple",
         component: () => import("@/pages/menu/SimpleMenu.vue"),
+      },
+      {
+        path: "nested",
+        name: "menu.nested",
+        component: () => import("@/pages/menu/NestedMenu.vue"),
+      },
+      {
+        path: "context",
+        name: "menu.context",
+        component: () => import("@/pages/menu/ContextMenu.vue"),
+      },
+      {
+        path: "command",
+        name: "menu.command",
+        component: () => import("@/pages/menu/CommandMenu.vue"),
       },
     ],
   },
