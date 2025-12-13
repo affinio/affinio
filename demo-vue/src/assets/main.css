@@ -82,13 +82,6 @@ a {
 	color: inherit;
 }
 
-.glass-panel {
-	background: var(--surface);
-	border: 1px solid var(--glass-border);
-	border-radius: 999px;
-	box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-soft);
-	backdrop-filter: blur(24px);
-}
 
 .shell-surface {
 	background: var(--surface-alt);
