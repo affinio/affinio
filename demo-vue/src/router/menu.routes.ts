@@ -29,6 +29,11 @@ export const menuRoutes: RouteRecordRaw[] = [
         name: "menu.command",
         component: () => import("@/pages/menu/CommandMenu.vue"),
       },
+      {
+        path: "stress",
+        name: "menu.stress",
+        component: () => import("@/pages/menu/StressTestMenu.vue"),
+      },
     ],
   },
 ]

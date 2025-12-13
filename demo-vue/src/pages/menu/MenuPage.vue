@@ -27,6 +27,12 @@ const tabs = [
     summary: "Toggleable signals and pinned segments.",
     to: "/menu/command",
   },
+  {
+    name: "menu.stress",
+    label: "Stress lab",
+    summary: "Scrollable parents, RTL, and 1K items.",
+    to: "/menu/stress",
+  },
 ]
 
 const route = useRoute()
@@ -37,7 +43,7 @@ const activeName = computed(() => route.name)
   <section class="space-y-6">
     <header class="space-y-2">
       <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Menu Studio</p>
-      <h2 class="text-3xl font-semibold">Intent aware menus, rendered four different ways.</h2>
+      <h2 class="text-3xl font-semibold">Intent aware menus, rendered five different ways.</h2>
       <p class="text-base text-(--text-muted)">
         Each demo is a standalone route powered by the same `@affino/menu-vue` primitives. Tabs keep the UX discoverable
         while showcasing diagonal hover intent, context triggers, and subtree focus safety.
