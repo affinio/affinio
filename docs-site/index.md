@@ -41,26 +41,6 @@ _The block below is a static rendering of the default glassmorphic menu skin use
         <kbd>⌘⌫</kbd>
       </div>
     </div>
-    <div class="menu-preview__panel menu-preview__panel--submenu">
-      <div class="menu-preview__submenu-title">
-        <span>Share</span>
-        <kbd>⌘⇧S</kbd>
-      </div>
-      <div class="menu-preview__item">
-        <span>Copy link</span>
-      </div>
-      <div class="menu-preview__item">
-        <span>Invite teammate</span>
-      </div>
-      <div class="menu-preview__item">
-        <span>Publish snapshot</span>
-      </div>
-      <div class="menu-preview__separator"></div>
-      <div class="menu-preview__item menu-preview__item--muted">
-        <span>Advanced...</span>
-        <span class="menu-preview__submenu">›</span>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -120,9 +100,7 @@ _The block below is a static rendering of the default glassmorphic menu skin use
   margin: 0.4rem 1rem;
   background: var(--preview-separator);
 }
-.menu-preview__submenu {
-  color: var(--preview-muted);
-}
+
 .menu-preview__item--danger {
   color: var(--preview-danger);
 }
@@ -130,20 +108,7 @@ _The block below is a static rendering of the default glassmorphic menu skin use
   background: rgba(139, 92, 246, 0.08);
   margin: 0.15rem 0;
 }
-.menu-preview__panel--submenu {
-  flex: 0 0 180px;
-  background: rgba(99, 102, 241, 0.08);
-}
-.menu-preview__submenu-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.6rem 1.1rem 0.3rem;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--preview-muted);
-}
+
 .menu-preview__item--muted {
   color: var(--preview-muted);
 }
@@ -153,8 +118,7 @@ _The block below is a static rendering of the default glassmorphic menu skin use
     flex-direction: column;
   }
 
-  .menu-preview__panel,
-  .menu-preview__panel--submenu {
+  .menu-preview__panel {
     flex: 1 1 auto;
   }
 }

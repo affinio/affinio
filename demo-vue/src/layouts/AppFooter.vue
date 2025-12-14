@@ -9,7 +9,6 @@ import ThemeToggle from "@/components/ThemeToggle.vue"
       <p class="app-footer__copy">
         © 2025 Affino. Built with ❤️ using Vue.js and TypeScript.
       </p>
-      <ThemeToggle variant="compact" />
     </div>
   </footer>
 </template>
@@ -26,7 +25,7 @@ import ThemeToggle from "@/components/ThemeToggle.vue"
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 1rem;
 }
 

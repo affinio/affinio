@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ThemeToggle from "@/components/ThemeToggle.vue";
 import { RouterLink } from "vue-router"
 
 </script>
@@ -16,7 +17,10 @@ import { RouterLink } from "vue-router"
           </div>
         </RouterLink>
       </div>
-      <RouterLink to="/menu/simple" class="header-cta">Demos</RouterLink>
+      <div class="flex gap-3 items-center">
+        <ThemeToggle variant="compact" />
+        <RouterLink to="/menu/simple" class="header-cta">Demos</RouterLink>
+      </div>
     </div>
   </header>
 </template>
