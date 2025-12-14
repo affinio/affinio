@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue"
+import { ref } from 'vue'
 import {
   UiMenu,
   UiMenuTrigger,
@@ -10,30 +10,30 @@ import {
   UiSubMenu,
   UiSubMenuTrigger,
   UiSubMenuContent,
-} from "@affino/menu-vue"
+} from '@affino/menu-vue'
 
 const stacks = [
   {
-    label: "Analytics",
-    code: "AN",
-    note: "Funnels, retention, pulse",
-    items: ["Sessions", "Funnel analysis", "Cohort compare", "Pulse alerts"],
+    label: 'Analytics',
+    code: 'AN',
+    note: 'Funnels, retention, pulse',
+    items: ['Sessions', 'Funnel analysis', 'Cohort compare', 'Pulse alerts'],
   },
   {
-    label: "Automation",
-    code: "AU",
-    note: "Playbooks and jobs",
-    items: ["Create schedule", "Sync segments", "Trigger webhooks"],
+    label: 'Automation',
+    code: 'AU',
+    note: 'Playbooks and jobs',
+    items: ['Create schedule', 'Sync segments', 'Trigger webhooks'],
   },
   {
-    label: "Access",
-    code: "AC",
-    note: "Teams, roles, audit",
-    items: ["Invite teammate", "Promote to admin", "Transfer ownership"],
+    label: 'Access',
+    code: 'AC',
+    note: 'Teams, roles, audit',
+    items: ['Invite teammate', 'Promote to admin', 'Transfer ownership'],
   },
 ]
 
-const lastSelection = ref("Waiting for highlight")
+const lastSelection = ref('Waiting for highlight')
 
 function handleSelect(label: string) {
   lastSelection.value = label
@@ -44,14 +44,16 @@ function handleSelect(label: string) {
   <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
     <div class="space-y-4">
       <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Nested flow</p>
-      <h3 class="text-2xl font-semibold">Deep submenus stay responsive thanks to diagonal hover prediction.</h3>
+      <h3 class="text-2xl font-semibold">
+        Deep submenus stay responsive thanks to diagonal hover prediction.
+      </h3>
       <p class="text-sm text-(--text-muted)">
-        `UiSubMenu` instances share the same tree. Hover intent prediction ensures users can travel diagonally without
-        collapsing panels. Looping focus keeps keyboard users anchored.
+        `UiSubMenu` instances share the same tree. Hover intent prediction ensures users can travel
+        diagonally without collapsing panels. Looping focus keeps keyboard users anchored.
       </p>
       <div class="rounded-2xl border border-(--glass-border) p-4 text-sm text-(--text-muted)">
-        Pointer sampling offset, heading scores, and hover grace windows are configurable per menu. This demo uses
-        slightly longer close delay for calmer automation browsing.
+        Pointer sampling offset, heading scores, and hover grace windows are configurable per menu.
+        This demo uses slightly longer close delay for calmer automation browsing.
       </div>
     </div>
     <div class="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
@@ -59,7 +61,6 @@ function handleSelect(label: string) {
         <UiMenuTrigger as-child>
           <button class="menu-demo-button">
             <span>Menu</span>
-            
           </button>
         </UiMenuTrigger>
         <UiMenuContent>
@@ -68,7 +69,9 @@ function handleSelect(label: string) {
           <UiSubMenu v-for="stack in stacks" :key="stack.label">
             <UiSubMenuTrigger>
               <div class="flex flex-1 items-center gap-3">
-                <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xs font-semibold">
+                <span
+                  class="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xs font-semibold"
+                >
                   {{ stack.code }}
                 </span>
                 <div class="flex flex-col text-left">
@@ -78,9 +81,75 @@ function handleSelect(label: string) {
               </div>
             </UiSubMenuTrigger>
             <UiSubMenuContent>
-              <UiMenuItem v-for="item in stack.items" :key="item" @select="() => handleSelect(item)">
+              <UiMenuItem
+                v-for="item in stack.items"
+                :key="item"
+                @select="() => handleSelect(item)"
+              >
                 <span class="text-sm font-semibold">{{ item }}</span>
                 <span class="text-xs text-(--ui-menu-muted)">Enter</span>
+              </UiMenuItem>
+            </UiSubMenuContent>
+          </UiSubMenu>
+
+          <UiSubMenu>
+            <UiSubMenuTrigger>
+                Open me
+            </UiSubMenuTrigger>
+            <UiSubMenuContent>
+              <UiMenuItem>
+                <UiSubMenu>
+                  <UiSubMenuTrigger>
+                      Open me
+                  </UiSubMenuTrigger>
+                  <UiSubMenuContent>
+                    <UiMenuItem>
+                      <span class="text-sm font-semibold">Item1</span>
+                    </UiMenuItem>
+                    <UiMenuItem>
+                      <span class="text-sm font-semibold">Item2</span>
+                    </UiMenuItem>
+                    <UiMenuItem>
+                      <span class="text-sm font-semibold">Item3</span>
+                    </UiMenuItem>
+                  </UiSubMenuContent>
+                </UiSubMenu>
+              </UiMenuItem>
+              <UiMenuItem>
+                <UiSubMenu>
+                  <UiSubMenuTrigger>
+                    Open me
+                  </UiSubMenuTrigger>
+                  <UiSubMenuContent>
+                    <UiMenuItem>
+                      <span class="text-sm font-semibold">Item1</span>
+                    </UiMenuItem>
+                    <UiMenuItem>
+                      <span class="text-sm font-semibold">Item2</span>
+                    </UiMenuItem>
+                    <UiMenuItem>
+                      <span class="text-sm font-semibold">Item3</span>
+                    </UiMenuItem>
+                  </UiSubMenuContent>
+                </UiSubMenu>
+              </UiMenuItem>
+              <UiMenuItem>
+                <UiSubMenu>
+                  <UiSubMenuTrigger>
+                      Open me
+                  </UiSubMenuTrigger>
+                  <UiSubMenuContent>
+                    <UiMenuItem>
+                      <span class="text-sm font-semibold">Item1</span>
+                    </UiMenuItem>
+                    <UiMenuItem>
+                      <span class="text-sm font-semibold">Item2</span>
+                    </UiMenuItem>
+                    <UiMenuItem>
+                      <span class="text-sm font-semibold">Item3</span>
+                    </UiMenuItem>
+                  </UiSubMenuContent>
+                </UiSubMenu>
               </UiMenuItem>
             </UiSubMenuContent>
           </UiSubMenu>
