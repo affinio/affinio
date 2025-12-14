@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue"
+import { computed, onMounted, ref } from "vue"
 
 type ThemeMode = "light" | "dark"
+type ThemeVariant = "default" | "compact"
 
+const props = defineProps<{ variant?: ThemeVariant }>()
+
+const variant = computed<ThemeVariant>(() => props.variant ?? "default")
 const currentTheme = ref<ThemeMode>("dark")
 
 function applyTheme(mode: ThemeMode) {
@@ -45,15 +49,99 @@ onMounted(() => {
 <template>
   <button
     type="button"
-    class="relative flex h-10 w-24 items-center rounded-full border border-(--glass-border) bg-white/5 px-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-(--glass-highlight)] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)]"
+    class="theme-toggle"
+    :class="{ 'theme-toggle--compact': variant === 'compact' }"
     @click="toggleTheme"
-    aria-label="Toggle theme"
+    aria-label="Toggle color theme"
+    :aria-pressed="currentTheme === 'dark' ? 'true' : 'false'"
   >
     <span
-      class="pointer-events-none absolute inset-y-1 w-[calc(50%-0.35rem)] rounded-full bg-white text-[#05060a] shadow-lg transition duration-300"
-      :class="currentTheme === 'dark' ? 'translate-x-[calc(100%+0.35rem)]' : 'translate-x-0'"
+      class="theme-toggle__thumb"
+      :class="currentTheme === 'dark' ? 'is-dark' : 'is-light'"
+      aria-hidden="true"
     ></span>
-    <span class="flex-1 text-center" :class="currentTheme === 'light' ? 'text-[#05060a]' : 'text-white/60'">Light</span>
-    <span class="flex-1 text-center" :class="currentTheme === 'dark' ? 'text-[#05060a]' : 'text-white/60'">Dark</span>
+    <span class="theme-toggle__label" :class="{ 'is-active': currentTheme === 'light' }">Light</span>
+    <span class="theme-toggle__label" :class="{ 'is-active': currentTheme === 'dark' }">Dark</span>
   </button>
 </template>
+
+<style scoped>
+.theme-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+  width: 6.2rem;
+  height: 2.5rem;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--surface-alt) 88%, transparent);
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow: hidden;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.theme-toggle--compact {
+  width: 5rem;
+  height: 2.1rem;
+  padding: 0 0.45rem;
+  font-size: 0.58rem;
+}
+
+.theme-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.theme-toggle:hover {
+  border-color: var(--glass-highlight);
+}
+
+.theme-toggle__thumb {
+  position: absolute;
+  inset: 0.25rem;
+  width: calc(50% - 0.35rem);
+  border-radius: inherit;
+  background: var(--text-primary);
+  color: var(--page-bg);
+  box-shadow: 0 12px 30px rgba(5, 6, 15, 0.35);
+  transition: transform 0.3s ease;
+  will-change: transform;
+}
+
+.theme-toggle--compact .theme-toggle__thumb {
+  inset: 0.2rem;
+  width: calc(50% - 0.25rem);
+}
+
+.theme-toggle__thumb.is-dark {
+  transform: translateX(100%);
+}
+
+.theme-toggle__thumb.is-light {
+  transform: translateX(0);
+}
+
+.theme-toggle__label {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  text-align: center;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.theme-toggle__label.is-active {
+  color: var(--text-primary);
+}
+
+[data-theme='light'] .theme-toggle__thumb {
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.2);
+}
+</style>

@@ -64,7 +64,7 @@ function setAutomation(label: string) {
             <span>Menu</span>
           </button>
         </UiMenuTrigger>
-        <UiMenuContent>
+        <UiMenuContent class="menu-playground-panel">
           <UiMenuLabel>Segments</UiMenuLabel>
           <UiMenuItem
             v-for="segment in segments"
@@ -95,24 +95,20 @@ function setAutomation(label: string) {
       </UiMenu>
       <div class="w-full space-y-3 text-sm text-(--text-muted)">
         <div>
-          <p class="text-xs uppercase tracking-[0.3em] text-white/50">Active segments</p>
-          <div class="mt-2 flex flex-wrap justify-center gap-2 text-white/80">
-            <span
-              v-for="segment in activeList"
-              :key="segment"
-              class="rounded-full border border-white/15 px-3 py-1 text-xs uppercase tracking-[0.2em]"
-            >
+          <p class="text-xs uppercase tracking-[0.3em] text-(--text-soft)">Active segments</p>
+          <div class="mt-2 flex flex-wrap justify-center gap-2">
+            <span v-for="segment in activeList" :key="segment" class="demo-chip">
               {{ segment }}
             </span>
-            <span
-              v-if="!activeList.length"
-              class="rounded-full border border-dashed border-white/20 px-3 py-1 text-xs uppercase tracking-[0.2em]"
-            >
+            <span v-if="!activeList.length" class="demo-chip demo-chip--muted">
               None selected yet
             </span>
           </div>
         </div>
-        <p>Last action: <span class="font-semibold text-white">{{ lastAction }}</span></p>
+        <div class="demo-last-action">
+          <span class="demo-last-action__label">Last action</span>
+          <span class="demo-last-action__value">{{ lastAction }}</span>
+        </div>
       </div>
     </div>
   </div>

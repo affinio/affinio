@@ -63,24 +63,20 @@ function handleSelect(label: string) {
             <span>Menu</span>
           </button>
         </UiMenuTrigger>
-        <UiMenuContent>
+        <UiMenuContent class="menu-playground-panel">
           <UiMenuLabel>Stacks</UiMenuLabel>
           <UiMenuSeparator />
           <UiSubMenu v-for="stack in stacks" :key="stack.label">
             <UiSubMenuTrigger>
               <div class="flex flex-1 items-center gap-3">
-                <span
-                  class="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xs font-semibold"
-                >
-                  {{ stack.code }}
-                </span>
+                <span class="stack-code-pill">{{ stack.code }}</span>
                 <div class="flex flex-col text-left">
                   <span class="text-sm font-semibold">{{ stack.label }}</span>
                   <span class="text-xs text-(--ui-menu-muted)">{{ stack.note }}</span>
                 </div>
               </div>
             </UiSubMenuTrigger>
-            <UiSubMenuContent>
+            <UiSubMenuContent class="menu-playground-panel">
               <UiMenuItem
                 v-for="item in stack.items"
                 :key="item"
@@ -94,9 +90,26 @@ function handleSelect(label: string) {
 
         </UiMenuContent>
       </UiMenu>
-      <div class="w-full text-sm text-(--text-muted)">
-        Last action: <span class="font-semibold text-white">{{ lastSelection }}</span>
+      <div class="demo-last-action">
+        <span class="demo-last-action__label">Last action</span>
+        <span class="demo-last-action__value">{{ lastSelection }}</span>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.stack-code-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: var(--surface-button);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+</style>

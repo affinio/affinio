@@ -44,7 +44,7 @@ function handleSelect(label: string) {
             <span>Menu</span>
           </button>
         </UiMenuTrigger>
-        <UiMenuContent>
+        <UiMenuContent class="menu-playground-panel">
           <UiMenuLabel>Project</UiMenuLabel>
           <UiMenuSeparator />
           <UiMenuItem
@@ -73,8 +73,9 @@ function handleSelect(label: string) {
           </UiMenuItem>
         </UiMenuContent>
       </UiMenu>
-      <div class="w-full text-sm text-(--text-muted)">
-        Last action: <span class="font-semibold text-white">{{ lastAction }}</span>
+      <div class="demo-last-action">
+        <span class="demo-last-action__label">Last action</span>
+        <span class="demo-last-action__value">{{ lastAction }}</span>
       </div>
     </div>
   </div>

@@ -15,7 +15,7 @@ import {
 const itemCounts = [50, 200, 500, 1000]
 const selectedCount = ref<number>(200)
 const dynamicItems = reactive(
-  Array.from({ length: 20 }, (_, index) => ({ id: index + 1, label: `Dynamic ${index + 1}` })),
+  Array.from({ length: 20 }, (_, index) => ({ id: index + 1, label: `Dynamic ${index + 1}` }))
 )
 
 const enableScrollableContainer = ref(false)
@@ -179,13 +179,13 @@ function removeDynamic() {
       </div>
 
       <div class="rounded-2xl border border-(--glass-border) p-5 text-sm text-(--text-muted)">
-        <p class="text-xs uppercase tracking-[0.3em] text-white/50">Dataset controls</p>
+        <p class="text-xs uppercase tracking-[0.3em] text-(--text-soft)">Dataset controls</p>
         <div class="mt-4 grid gap-4 md:grid-cols-2">
           <label class="flex flex-col text-left">
             Items count
             <select
               v-model.number="selectedCount"
-              class="mt-2 rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-base font-semibold text-white"
+              class="dataset-select mt-2 rounded-2xl px-4 py-2 text-base font-semibold"
             >
               <option v-for="count in itemCounts" :key="count" :value="count">{{ count }}</option>
             </select>
@@ -194,7 +194,7 @@ function removeDynamic() {
             Nested depth
             <select
               v-model.number="nestedDepth"
-              class="mt-2 rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-base font-semibold text-white"
+              class="dataset-select mt-2 rounded-2xl px-4 py-2 text-base font-semibold"
             >
               <option v-for="depth in nestedDepthOptions" :key="depth" :value="depth">{{ depth }} levels</option>
             </select>
@@ -203,7 +203,7 @@ function removeDynamic() {
             Menu max width
             <select
               v-model.number="menuMaxWidth"
-              class="mt-2 rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-base font-semibold text-white"
+              class="dataset-select mt-2 rounded-2xl px-4 py-2 text-base font-semibold"
             >
               <option v-for="width in widthOptions" :key="width" :value="width">{{ width }} px</option>
             </select>
@@ -211,14 +211,14 @@ function removeDynamic() {
           <div class="flex gap-2">
             <button
               type="button"
-              class="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/50"
+              class="dataset-button rounded-full px-4 py-2 text-sm font-semibold"
               @click="addDynamic"
             >
               Add dynamic
             </button>
             <button
               type="button"
-              class="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/50"
+              class="dataset-button rounded-full px-4 py-2 text-sm font-semibold"
               @click="removeDynamic"
             >
               Remove
@@ -228,7 +228,7 @@ function removeDynamic() {
       </div>
 
       <div class="rounded-2xl border border-(--glass-border) p-5">
-        <p class="text-xs uppercase tracking-[0.3em] text-white/50">Edge-case toggles</p>
+        <p class="text-xs uppercase tracking-[0.3em] text-(--text-soft)">Edge-case toggles</p>
         <div class="mt-4 grid gap-3 md:grid-cols-2">
           <button
             v-for="toggle in toggles"
@@ -256,14 +256,11 @@ function removeDynamic() {
       :dir="dirAttr"
     >
       <div class="stress-target flex w-full flex-col items-center gap-6" :style="panelStyle">
-        <p class="text-sm text-white/60">
+        <p class="text-sm text-(--text-soft)">
           {{ enableScrollableContainer ? "Scroll parent" : "Free layout" }} ·
           {{ enableTransform ? "Transformed" : "Normal" }} container
         </p>
-        <div
-          v-if="enableScrollableContainer"
-          class="w-full space-y-3 text-left text-sm leading-relaxed text-white/70"
-        >
+        <div v-if="enableScrollableContainer" class="w-full space-y-3 text-left text-sm leading-relaxed text-(--text-muted)">
           <p>
             Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum gravida velit non orci bibendum, in
             vulputate odio aliquet. Integer cursus nibh ac tellus consequat, id tempor risus fermentum.
@@ -298,18 +295,51 @@ function removeDynamic() {
           </UiMenuContent>
         </UiMenu>
       </div>
-      <div class="w-full text-sm text-(--text-muted)">
-        Last action: <span class="font-semibold text-white">{{ lastEvent }}</span>
+      <div class="demo-last-action">
+        <span class="demo-last-action__label">Last action</span>
+        <span class="demo-last-action__value">{{ lastEvent }}</span>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.dataset-select {
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dataset-select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.dataset-button {
+  border: 1px solid var(--glass-border);
+  background: var(--surface-button);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.dataset-button:hover {
+  border-color: var(--glass-highlight);
+  background: var(--surface-button-hover);
+  transform: translateY(-1px);
+}
+
+.dataset-button:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
 .stress-toggle {
   border-radius: 1.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--glass-border);
+  background: var(--surface-card);
   padding: 1rem 1.25rem;
   text-align: left;
   display: flex;
@@ -318,20 +348,21 @@ function removeDynamic() {
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
-.stress-toggle[aria-pressed="true"] {
-  border-color: rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.08);
+.stress-toggle[aria-pressed='true'] {
+  border-color: var(--glass-highlight);
+  background: var(--surface-card-strong);
 }
 
 .toggle-indicator {
   width: 2.1rem;
   height: 1.15rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 1px solid var(--border-strong);
   position: relative;
   display: inline-flex;
   align-items: center;
   padding: 0 0.2rem;
+  background: color-mix(in srgb, var(--surface-alt) 76%, transparent);
 }
 
 .toggle-indicator::after {
@@ -339,7 +370,7 @@ function removeDynamic() {
   width: 0.9rem;
   height: 0.9rem;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--text-primary);
   transition: transform 0.2s ease;
 }
 
@@ -358,54 +389,10 @@ function removeDynamic() {
 
 .stress-target {
   border-radius: 2rem;
-  border: 1px dashed rgba(255, 255, 255, 0.25);
+  border: 1px dashed var(--glass-border);
   padding: 1.5rem;
-  background: rgba(0, 0, 0, 0.25);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   transition: transform 0.2s ease;
 }
 
-:global(.menu-playground-panel) {
-  width: var(--ui-menu-max-width, 360px);
-  max-width: min(100%, var(--ui-menu-max-width, 360px));
-  border-radius: 1.5rem;
-  background: rgba(16, 16, 16, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 25px 65px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(18px);
-  padding: 0.65rem 0;
-}
-
-:global(.menu-playground-panel[data-state="closed"]) {
-  opacity: 0;
-  transform: translateY(-4px);
-  pointer-events: none;
-}
-
-:global(.menu-playground-panel[data-state="open"]) {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 0.14s ease, transform 0.14s ease;
-}
-
-:global(.menu-playground-panel[data-motion="from-bottom"][data-state="closed"]) {
-  opacity: 0;
-  transform: translateY(6px) scale(0.95);
-}
-
-:global(.menu-playground-panel[data-motion="from-bottom"][data-state="open"]) {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.4, 1);
-}
-
-:global(.menu-playground-panel[data-motion="from-left"][data-state="closed"]) {
-  opacity: 0;
-  transform: translateX(-6px);
-}
-
-:global(.menu-playground-panel[data-motion="from-left"][data-state="open"]) {
-  opacity: 1;
-  transform: translateX(0);
-  transition: opacity 0.16s ease, transform 0.16s ease;
-}
 </style>

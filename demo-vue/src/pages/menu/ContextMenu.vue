@@ -50,7 +50,7 @@ const lastLog = computed(() => logs.value[0] ?? "Awaiting your gesture")
             <span>Context Menu (Right-click)</span>
           </button>
         </UiMenuTrigger>
-        <UiMenuContent>
+        <UiMenuContent class="menu-playground-panel">
           <UiMenuLabel>Canvas</UiMenuLabel>
           <UiMenuItem v-for="action in canvasActions" :key="action.label" @select="() => pushLog(action.label)">
             <div class="flex flex-col">
@@ -73,8 +73,9 @@ const lastLog = computed(() => logs.value[0] ?? "Awaiting your gesture")
           </UiMenuItem>
         </UiMenuContent>
       </UiMenu>
-      <div class="w-full text-sm text-(--text-muted)">
-        Last action: <span class="font-semibold text-white">{{ lastLog }}</span>
+      <div class="demo-last-action">
+        <span class="demo-last-action__label">Last action</span>
+        <span class="demo-last-action__value">{{ lastLog }}</span>
       </div>
     </div>
   </div>
