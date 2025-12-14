@@ -3,18 +3,20 @@ import { RouterLink } from "vue-router"
 
 const highlights = [
   {
-    title: "60fps pointer intent",
-    detail: "Diagonal safety zones keep nested menus open even during aggressive cursor travel.",
+    title: "Headless primitives",
+    detail: "Drop the returned props onto any trigger or panel and keep your exact DOM tree.",
   },
   {
-    title: "Headless control",
-    detail: "Spread-ready props mean you keep your DOM, design systems, and SSR flow.",
+    title: "Pointer intent engine",
+    detail: "Grace zones and timers stop submenus from closing when the cursor zigzags.",
   },
   {
-    title: "Controller APIs",
-    detail: "Programmatic open, close, highlight, and select events for automation hooks.",
+    title: "Controller automation",
+    detail: "Open, close, highlight, or select from scripts, tests, and analytics hooks.",
   },
 ]
+
+const docsUrl = import.meta.env.VITE_DOCS_URL ?? "/menu/"
 </script>
 
 <template>
@@ -22,13 +24,15 @@ const highlights = [
     <div class="menu-stage">
       <div class="flex flex-col gap-6 lg:flex-row lg:items-center">
         <div class="flex-1 space-y-4">
-          <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Affino menu suite</p>
-          <h2 class="text-4xl font-semibold leading-tight">
-            Modern intent-aware menus, ready for Vue 3 teams that obsess over control.
-          </h2>
+          <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Headless menu kit</p>
+          <h2 class="text-4xl font-semibold leading-tight">Headless menus that feel native.</h2>
           <p class="text-base text-(--text-muted)">
-            @affino/menu-vue brings the full power of @affino/menu-core into a tiny Vue binding. Pointer heuristics,
-            focus guardians, SSR-safe subscriptions, and controller APIs arrive without dictating your markup.
+            @affino/menu-vue lets Vue 3 teams keep their markup, styling, and routing while we handle intent-aware
+            pointer logic, focus safety, and keyboard maps.
+          </p>
+          <p class="text-base text-(--text-muted)">
+            Controllers expose open, close, highlight, and select so automation, analytics, and shortcuts plug in
+            without wrappers.
           </p>
           <div class="flex flex-wrap gap-3">
             <RouterLink
@@ -38,7 +42,7 @@ const highlights = [
               Explore live demos
             </RouterLink>
             <a
-              href="https://github.com/affino/menu/tree/main/docs"
+              :href="docsUrl"
               target="_blank"
               rel="noreferrer"
               class="rounded-full border border-(--glass-border) px-6 py-3 text-sm font-semibold text-(--text-primary) transition hover:border-(--glass-highlight)"
