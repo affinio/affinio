@@ -92,67 +92,6 @@ function handleSelect(label: string) {
             </UiSubMenuContent>
           </UiSubMenu>
 
-          <UiSubMenu>
-            <UiSubMenuTrigger>
-                Open me
-            </UiSubMenuTrigger>
-            <UiSubMenuContent>
-              <UiMenuItem>
-                <UiSubMenu>
-                  <UiSubMenuTrigger>
-                      Open me
-                  </UiSubMenuTrigger>
-                  <UiSubMenuContent>
-                    <UiMenuItem>
-                      <span class="text-sm font-semibold">Item1</span>
-                    </UiMenuItem>
-                    <UiMenuItem>
-                      <span class="text-sm font-semibold">Item2</span>
-                    </UiMenuItem>
-                    <UiMenuItem>
-                      <span class="text-sm font-semibold">Item3</span>
-                    </UiMenuItem>
-                  </UiSubMenuContent>
-                </UiSubMenu>
-              </UiMenuItem>
-              <UiMenuItem>
-                <UiSubMenu>
-                  <UiSubMenuTrigger>
-                    Open me
-                  </UiSubMenuTrigger>
-                  <UiSubMenuContent>
-                    <UiMenuItem>
-                      <span class="text-sm font-semibold">Item1</span>
-                    </UiMenuItem>
-                    <UiMenuItem>
-                      <span class="text-sm font-semibold">Item2</span>
-                    </UiMenuItem>
-                    <UiMenuItem>
-                      <span class="text-sm font-semibold">Item3</span>
-                    </UiMenuItem>
-                  </UiSubMenuContent>
-                </UiSubMenu>
-              </UiMenuItem>
-              <UiMenuItem>
-                <UiSubMenu>
-                  <UiSubMenuTrigger>
-                      Open me
-                  </UiSubMenuTrigger>
-                  <UiSubMenuContent>
-                    <UiMenuItem>
-                      <span class="text-sm font-semibold">Item1</span>
-                    </UiMenuItem>
-                    <UiMenuItem>
-                      <span class="text-sm font-semibold">Item2</span>
-                    </UiMenuItem>
-                    <UiMenuItem>
-                      <span class="text-sm font-semibold">Item3</span>
-                    </UiMenuItem>
-                  </UiSubMenuContent>
-                </UiSubMenu>
-              </UiMenuItem>
-            </UiSubMenuContent>
-          </UiSubMenu>
         </UiMenuContent>
       </UiMenu>
       <div class="w-full text-sm text-(--text-muted)">
