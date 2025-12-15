@@ -388,3 +388,74 @@ a {
 	border-style: dashed;
 	color: var(--text-soft);
 }
+
+.stack-code-pill {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border-radius: 999px;
+	background: var(--surface-button);
+	border: 1px solid var(--glass-border);
+	color: var(--text-primary);
+	font-size: 0.75rem;
+	font-weight: 600;
+}
+
+.framework-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.35rem;
+	border-radius: 999px;
+	border: 1px solid var(--glass-border);
+	background: color-mix(in srgb, var(--surface-alt) 92%, transparent);
+}
+
+.framework-toggle__option {
+	position: relative;
+	appearance: none;
+	border: none;
+	background: transparent;
+	color: var(--text-soft);
+	font-size: 0.8rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	padding: 0.65rem 1.1rem;
+	border-radius: 999px;
+	cursor: pointer;
+	transition: color 0.2s ease;
+}
+
+.framework-toggle__option::after {
+	content: "";
+	position: absolute;
+	inset: 0.15rem;
+	border-radius: 999px;
+	opacity: 0;
+	background: linear-gradient(120deg, var(--accent), var(--accent-strong));
+	box-shadow: 0 12px 30px rgba(5, 6, 15, 0.3);
+	transition: opacity 0.25s ease;
+	z-index: -1;
+}
+
+.framework-toggle__option.is-active {
+	color: #05060a;
+}
+
+.framework-toggle__option.is-active::after {
+	opacity: 1;
+}
+
+.framework-toggle__pill {
+	display: block;
+	margin-top: 0.15rem;
+	font-size: 0.65rem;
+	letter-spacing: 0.25em;
+}
+
+.react-mount {
+	width: 100%;
+}

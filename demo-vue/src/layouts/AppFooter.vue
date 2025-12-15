@@ -1,13 +1,10 @@
-<script setup lang="ts">
-import ThemeToggle from "@/components/ThemeToggle.vue"
 
-</script>
 
 <template>
   <footer class="app-footer">
     <div class="app-footer__content">
       <p class="app-footer__copy">
-        © 2025 Affino. Built with ❤️ using Vue.js and TypeScript.
+        © 2025 Affino. Built with ❤️ using Vue 3, React 18, and TypeScript.
       </p>
     </div>
   </footer>

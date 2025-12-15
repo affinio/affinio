@@ -1,6 +1,6 @@
 # Affino
 
-Affino is the interaction layer for product teams who obsess over control, intent, and polish. We build headless UI primitives that keep accessibility and performance predictable even inside the most demanding enterprise interfaces.
+Affino is the interaction layer for product teams who obsess over control, intent, and polish. We build headless UI primitives that keep accessibility and performance predictable even inside the most demanding enterprise interfaces. The first release ships menu adapters for **Vue 3** and **React 18**, both powered by the same framework-agnostic core.
 
 > Think “precision cockpit” rather than “themeable widget.”
 
@@ -30,6 +30,17 @@ Affino is the interaction layer for product teams who obsess over control, inten
 - **Intent-aware pointer logic** that keeps submenus open during diagonal travel and respects human hesitation.
 - **Snapshot subscriptions** that eliminate render thrash and keep large lists responsive.
 - **Positioning intelligence** with viewport-safe geometry and gutter controls, no extra runtime dependencies.
+
+---
+
+## Menu Adapters
+
+| Package | Framework | Status | Notes |
+| --- | --- | --- | --- |
+| `@affino/menu-vue` | Vue 3.4+ | Alpha | Renderless components with `asChild`, controller hooks, and Tailwind-friendly motion markers. |
+| `@affino/menu-react` | React 18+ | Alpha | Mirrors the Vue API surface with hooks, headless components, and identical controller contracts. |
+
+Use the framework toggle in the demo header to switch between adapters instantly.
 
 ---
 

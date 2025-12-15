@@ -36,6 +36,9 @@ const activeName = computed(() => route.name)
 
 <template>
   <section class="space-y-6">
+    <p class="text-xs uppercase tracking-[0.3em] text-(--text-soft)">
+      Switch frameworks via the toggle in the header to compare Vue 3 and React 18 adapters.
+    </p>
     <nav class="flex flex-wrap gap-3">
       <RouterLink
         v-for="tab in tabs"

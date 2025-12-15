@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import ThemeToggle from "@/components/ThemeToggle.vue";
+import { computed } from "vue"
 import { RouterLink } from "vue-router"
+import { storeToRefs } from "pinia"
+import ThemeToggle from "@/components/ThemeToggle.vue"
+import FrameworkToggle from "@/components/FrameworkToggle.vue"
+import { useFrameworkStore } from "@/stores/framework"
 
+const frameworkStore = useFrameworkStore()
+const { current } = storeToRefs(frameworkStore)
+const activeLabel = computed(() => (current.value === "vue" ? "@affino/menu-vue" : "@affino/menu-react"))
 </script>
 
 <template>
@@ -12,12 +19,13 @@ import { RouterLink } from "vue-router"
       <div class="space-y-1">
         <RouterLink to="/" class="hover:opacity-90">
           <div class="flex flex-wrap items-center gap-3">
-            <h1 class="text-2xl font-semibold">@affino/menu-vue</h1>
+            <h1 class="text-2xl font-semibold">{{ activeLabel }}</h1>
             <span class="header-pill">Alpha build</span>
           </div>
         </RouterLink>
       </div>
       <div class="flex gap-3 items-center">
+        <FrameworkToggle />
         <ThemeToggle variant="compact" />
         <RouterLink to="/menu/simple" class="header-cta">Demos</RouterLink>
       </div>

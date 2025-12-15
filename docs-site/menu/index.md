@@ -1,11 +1,11 @@
 ---
-title: Menu Vue
-description: Headless Vue 3 menu primitives with diagonal pointer intent.
+title: Menu Overview
+description: Headless Vue & React menu primitives with diagonal pointer intent.
 ---
 
-# Menu Vue
+# Menu Overview
 
-`@affino/menu-vue` headless Vue 3 primitives for dropdowns, context menus, and command palettes. Bring your own markup and design system—Menu Vue handles accessibility, pointer heuristics, and submenu geometry.
+Affino ships headless menu adapters for both Vue 3 (`@affino/menu-vue`) and React 18 (`@affino/menu-react`). Bring your own markup and design system—Affino handles accessibility, pointer heuristics, and submenu geometry while keeping the controller API identical across frameworks.
 
 ## Why it matters
 
@@ -28,3 +28,4 @@ You probably don’t need it if you only require a single static dropdown, alrea
 
 - [Interactive demos](https://ui.unitlab.io) – Try the live menus.
 - [Full documentation on GitHub](https://github.com/affinio/affinio/tree/main/docs) – Architecture, controller API, internals.
+- [React adapter details](/menu/react) – Installation steps and FAQ for the new React package.

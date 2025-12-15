@@ -27,8 +27,9 @@ const docsUrl = import.meta.env.VITE_DOCS_URL
           <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Headless menu kit</p>
           <h2 class="text-4xl font-semibold leading-tight">Headless menus that feel native.</h2>
           <p class="text-base text-(--text-muted)">
-            @affino/menu-vue lets Vue 3 teams keep their markup, styling, and routing while we handle intent-aware
-            pointer logic, focus safety, and keyboard maps.
+            @affino/menu-vue and @affino/menu-react let Vue 3 and React 18 teams keep their markup, styling, and routing
+            while we handle intent-aware pointer logic, focus safety, and keyboard maps. Use the toggle in the header to
+            swap frameworks inside every demo live.
           </p>
           <p class="text-base text-(--text-muted)">
             Controllers expose open, close, highlight, and select so automation, analytics, and shortcuts plug in

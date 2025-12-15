@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
+import { storeToRefs } from "pinia"
 import {
   UiMenu,
   UiMenuTrigger,
@@ -8,6 +9,9 @@ import {
   UiMenuLabel,
   UiMenuSeparator,
 } from "@affino/menu-vue"
+import ReactMount from "@/components/ReactMount.vue"
+import { useFrameworkStore } from "@/stores/framework"
+import ContextMenuDemo from "@/react-demos/ContextMenuDemo"
 
 const canvasActions = [
   { label: "Create sticky", detail: "Drop a note at cursor" },
@@ -28,6 +32,10 @@ function pushLog(entry: string) {
 }
 
 const lastLog = computed(() => logs.value[0] ?? "Awaiting your gesture")
+
+const frameworkStore = useFrameworkStore()
+const { current } = storeToRefs(frameworkStore)
+const usingVue = computed(() => current.value === "vue")
 </script>
 
 <template>
@@ -43,40 +51,43 @@ const lastLog = computed(() => logs.value[0] ?? "Awaiting your gesture")
         Tip: pair with controller `openAt(point)` for fully custom gesture systems. The core stays framework-agnostic.
       </div>
     </div>
-    <div class="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
-      <UiMenu>
-        <UiMenuTrigger as-child trigger="contextmenu">
-          <button class="menu-demo-button">
-            <span>Context Menu (Right-click)</span>
-          </button>
-        </UiMenuTrigger>
-        <UiMenuContent class="menu-playground-panel">
-          <UiMenuLabel>Canvas</UiMenuLabel>
-          <UiMenuItem v-for="action in canvasActions" :key="action.label" @select="() => pushLog(action.label)">
-            <div class="flex flex-col">
-              <span class="text-sm font-semibold">{{ action.label }}</span>
-              <span class="text-xs text-(--ui-menu-muted)">{{ action.detail }}</span>
-            </div>
-            <span v-if="action.shortcut" class="text-xs text-(--ui-menu-muted)">{{ action.shortcut }}</span>
-          </UiMenuItem>
-          <UiMenuSeparator />
-          <UiMenuItem
-            v-for="action in destructiveActions"
-            :key="action.label"
-            :danger="action.danger"
-            @select="() => pushLog(action.label)"
-          >
-            <div class="flex flex-col">
-              <span class="text-sm font-semibold">{{ action.label }}</span>
-              <span class="text-xs text-(--ui-menu-muted)">{{ action.detail }}</span>
-            </div>
-          </UiMenuItem>
-        </UiMenuContent>
-      </UiMenu>
-      <div class="demo-last-action">
-        <span class="demo-last-action__label">Last action</span>
-        <span class="demo-last-action__value">{{ lastLog }}</span>
+    <template v-if="usingVue">
+      <div class="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
+        <UiMenu>
+          <UiMenuTrigger as-child trigger="contextmenu">
+            <button class="menu-demo-button">
+              <span>Context Menu (Right-click)</span>
+            </button>
+          </UiMenuTrigger>
+          <UiMenuContent class="menu-playground-panel">
+            <UiMenuLabel>Canvas</UiMenuLabel>
+            <UiMenuItem v-for="action in canvasActions" :key="action.label" @select="() => pushLog(action.label)">
+              <div class="flex flex-col">
+                <span class="text-sm font-semibold">{{ action.label }}</span>
+                <span class="text-xs text-(--ui-menu-muted)">{{ action.detail }}</span>
+              </div>
+              <span v-if="action.shortcut" class="text-xs text-(--ui-menu-muted)">{{ action.shortcut }}</span>
+            </UiMenuItem>
+            <UiMenuSeparator />
+            <UiMenuItem
+              v-for="action in destructiveActions"
+              :key="action.label"
+              :danger="action.danger"
+              @select="() => pushLog(action.label)"
+            >
+              <div class="flex flex-col">
+                <span class="text-sm font-semibold">{{ action.label }}</span>
+                <span class="text-xs text-(--ui-menu-muted)">{{ action.detail }}</span>
+              </div>
+            </UiMenuItem>
+          </UiMenuContent>
+        </UiMenu>
+        <div class="demo-last-action">
+          <span class="demo-last-action__label">Last action</span>
+          <span class="demo-last-action__value">{{ lastLog }}</span>
+        </div>
       </div>
-    </div>
+    </template>
+    <ReactMount v-else :component="ContextMenuDemo" :key="current" />
   </div>
 </template>
