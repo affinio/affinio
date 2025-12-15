@@ -24,7 +24,7 @@ export default defineConfig({
       { text: 'Examples', link: '/menu/examples' },
       { text: 'Styling', link: '/menu/styling-and-animation' },
       { text: 'Advanced', link: '/menu/advanced' },
-      { text: 'Playground', link: 'https://ui.unitlab.io/menu/simple' }
+      { text: 'Playground', link: 'https://ui.unitlab.io' }
     ],
     sidebar: {
       '/menu/': [

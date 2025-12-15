@@ -5,7 +5,7 @@ description: Headless Vue 3 menu primitives with diagonal pointer intent.
 
 # Menu Vue
 
-`@affino/menu-vue` gives you battle-tested, headless Vue 3 primitives for dropdowns, context menus, and command palettes. Bring your own markup and design system—Menu Vue handles accessibility, pointer heuristics, and submenu geometry.
+`@affino/menu-vue` headless Vue 3 primitives for dropdowns, context menus, and command palettes. Bring your own markup and design system—Menu Vue handles accessibility, pointer heuristics, and submenu geometry.
 
 ## Why it matters
 
@@ -26,5 +26,5 @@ You probably don’t need it if you only require a single static dropdown, alrea
 
 ## Learn more
 
-- [Interactive demos](https://ui.unitlab.io/menu/simple) – Try the live menus.
+- [Interactive demos](https://ui.unitlab.io) – Try the live menus.
 - [Full documentation on GitHub](https://github.com/affinio/affinio/tree/main/docs) – Architecture, controller API, internals.

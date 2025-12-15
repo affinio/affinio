@@ -7,7 +7,7 @@ description: Experiments around intent-aware menus and UI infrastructure.
 
 This is the public workspace for Affino’s headless UI experiments. The current focus is **@affino/menu-vue** — an intent-aware menu system for Vue 3 that mirrors native desktop behavior while staying fully headless.
 
-- **Live demos:** <https://ui.unitlab.io/menu/simple>
+- **Live demos:** <https://ui.unitlab.io>
 - **Docs landing:** [/menu/](/menu/)
 - **GitHub:** <https://github.com/affinio/affinio>
 

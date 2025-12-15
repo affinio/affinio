@@ -16,7 +16,7 @@ const highlights = [
   },
 ]
 
-const docsUrl = import.meta.env.VITE_DOCS_URL ?? "/menu/"
+const docsUrl = import.meta.env.VITE_DOCS_URL
 </script>
 
 <template>
