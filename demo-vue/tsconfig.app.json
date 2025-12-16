@@ -8,7 +8,9 @@
     "jsxImportSource": "react",
     "types": ["vue", "vite/client", "react"],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@affino/selection-core": ["../packages/selection-core/src/index.ts"],
+      "@affino/selection-core/store": ["../packages/selection-core/src/store.ts"]
     }
   }
 }

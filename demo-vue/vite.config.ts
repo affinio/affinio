@@ -50,7 +50,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@affino/selection-core/store': fileURLToPath(new URL('../packages/selection-core/src/store.ts', import.meta.url)),
+      '@affino/selection-core': fileURLToPath(new URL('../packages/selection-core/src/index.ts', import.meta.url))
     },
   },
   esbuild: {

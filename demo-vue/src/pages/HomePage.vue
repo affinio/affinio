@@ -42,6 +42,12 @@ const docsUrl = import.meta.env.VITE_DOCS_URL
             >
               Explore live demos
             </RouterLink>
+            <RouterLink
+              to="/selection"
+              class="rounded-full border border-(--glass-border) hover:border-(--glass-highlight) px-6 py-3 text-sm font-semibold text-(--text-primary) transition hover:opacity-90"
+            >
+              Grid selection demo
+            </RouterLink>
             <a
               :href="docsUrl"
               target="_blank"
