@@ -14,6 +14,11 @@ const router = createRouter({
       name: "selection-demo",
       component: () => import("@/pages/SelectionPage.vue"),
     },
+    {
+      path: "/one-grid",
+      name: "one-grid-demo",
+      component: () => import("@/pages/OneGridPage.vue"),
+    },
     ...menuRoutes,
   ],
 })

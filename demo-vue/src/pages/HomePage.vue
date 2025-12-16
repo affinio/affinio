@@ -48,6 +48,12 @@ const docsUrl = import.meta.env.VITE_DOCS_URL
             >
               Grid selection demo
             </RouterLink>
+            <RouterLink
+              to="/one-grid"
+              class="rounded-full border border-(--glass-border) hover:border-(--glass-highlight) px-6 py-3 text-sm font-semibold text-(--text-primary) transition hover:opacity-90"
+            >
+              Virtual grid demo
+            </RouterLink>
             <a
               :href="docsUrl"
               target="_blank"

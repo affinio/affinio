@@ -10,7 +10,6 @@
     "paths": {
       "@/*": ["./src/*"],
       "@affino/selection-core": ["../packages/selection-core/src/index.ts"],
-      "@affino/selection-core/store": ["../packages/selection-core/src/store.ts"]
     }
   }
 }

@@ -20,6 +20,7 @@
     "@affino/menu-react": "workspace:*",
     "@affino/menu-vue": "workspace:*",
     "@affino/selection-core": "workspace:*",
+    "@affino/virtualization-core": "workspace:*",
     "@tailwindcss/vite": "^4.1.18",
     "pinia": "^3.0.4",
     "react": "^18.3.1",

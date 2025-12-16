@@ -8,7 +8,8 @@ import {
   toggleCellSelection,
   type GridSelectionContext,
 } from "@affino/selection-core"
-import { createSelectionStore } from "@affino/selection-core/store"
+import { createSelectionStore } from "@/stores/selectionStore"
+
 
 interface GridRow {
   id: string
@@ -31,6 +32,7 @@ const context: GridSelectionContext<string> = {
 }
 
 const store = createSelectionStore<string>()
+
 type SelectionSnapshot = ReturnType<typeof store.getState>
 const selection = ref(store.getState())
 const dragging = ref(false)
