@@ -82,3 +82,4 @@ vite.config.ts.timestamp*
 # Vue specific
 # -----------------------
 *.vue.ts   # Volar-generated type declarations
+.vitepress/
