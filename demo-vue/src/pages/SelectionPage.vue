@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   clearSelection,
   extendSelectionToPoint,
@@ -7,9 +7,8 @@ import {
   selectSingleCell,
   toggleCellSelection,
   type GridSelectionContext,
-} from "@affino/selection-core"
-import { createSelectionStore } from "@/stores/selectionStore"
-
+} from '@affino/selection-core'
+import { createSelectionStore } from '@/stores/selectionStore'
 
 interface GridRow {
   id: string
@@ -53,12 +52,12 @@ onMounted(() => {
   })
   store.applyResult(selectSingleCell({ point: { rowIndex: 0, colIndex: 0 }, context }))
   focusGridShell()
-  window.addEventListener("pointerup", stopDragging)
+  window.addEventListener('pointerup', stopDragging)
 })
 
 onBeforeUnmount(() => {
   unsubscribe?.()
-  window.removeEventListener("pointerup", stopDragging)
+  window.removeEventListener('pointerup', stopDragging)
 })
 
 const selectedCellCount = computed(() =>
@@ -73,7 +72,7 @@ const activeRangeLabel = computed(() => {
   const { activeRangeIndex, ranges } = selection.value
   const range = activeRangeIndex >= 0 ? ranges[activeRangeIndex] : null
   if (!range) {
-    return "—"
+    return '—'
   }
   const start = `${formatColumn(range.startCol)}${range.startRow + 1}`
   const end = `${formatColumn(range.endCol)}${range.endRow + 1}`
@@ -83,21 +82,21 @@ const activeRangeLabel = computed(() => {
 const cursorLabel = computed(() => {
   const point = selection.value.selectedPoint
   if (!point) {
-    return "—"
+    return '—'
   }
   return `${formatColumn(point.colIndex)}${point.rowIndex + 1}`
 })
 
 const interactions = [
-  { combo: "Click", detail: "start a fresh range" },
-  { combo: "Shift + Click", detail: "extend from the current anchor" },
-  { combo: "Cmd / Ctrl + Click", detail: "toggle any individual cell" },
-  { combo: "Drag", detail: "paint a live rectangular selection" },
+  { combo: 'Click', detail: 'start a fresh range' },
+  { combo: 'Shift + Click', detail: 'extend from the current anchor' },
+  { combo: 'Cmd / Ctrl + Click', detail: 'toggle any individual cell' },
+  { combo: 'Drag', detail: 'paint a live rectangular selection' },
 ]
 
 function formatColumn(index: number): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-  let label = ""
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  let label = ''
   let current = index
   do {
     label = alphabet[current % 26] + label
@@ -107,15 +106,15 @@ function formatColumn(index: number): string {
 }
 
 function cellClasses(rowIndex: number, colIndex: number): string {
-  const classes = ["grid-cell"]
+  const classes = ['grid-cell']
   if (isCellSelected(selection.value.areas, rowIndex, colIndex)) {
-    classes.push("grid-cell--selected")
+    classes.push('grid-cell--selected')
   }
   const cursor = selection.value.selectedPoint
   if (cursor && cursor.rowIndex === rowIndex && cursor.colIndex === colIndex) {
-    classes.push("grid-cell--cursor")
+    classes.push('grid-cell--cursor')
   }
-  return classes.join(" ")
+  return classes.join(' ')
 }
 
 function cellValue(rowIndex: number, colIndex: number): string {
@@ -132,7 +131,11 @@ function moveSelectionBy(rowStep: number, colStep: number, extend: boolean) {
   const currentPoint = selection.value.selectedPoint ?? { rowIndex: 0, colIndex: 0 }
   const nextRow = Math.min(Math.max(currentPoint.rowIndex + rowStep, 0), rowCount - 1)
   const nextCol = Math.min(Math.max(currentPoint.colIndex + colStep, 0), colCount - 1)
-  if (nextRow === currentPoint.rowIndex && nextCol === currentPoint.colIndex && selection.value.selectedPoint) {
+  if (
+    nextRow === currentPoint.rowIndex &&
+    nextCol === currentPoint.colIndex &&
+    selection.value.selectedPoint
+  ) {
     return
   }
 
@@ -162,16 +165,16 @@ function handleGridKeydown(event: KeyboardEvent) {
   let rowDelta = 0
   let colDelta = 0
   switch (event.key) {
-    case "ArrowUp":
+    case 'ArrowUp':
       rowDelta = -1
       break
-    case "ArrowDown":
+    case 'ArrowDown':
       rowDelta = 1
       break
-    case "ArrowLeft":
+    case 'ArrowLeft':
       colDelta = -1
       break
-    case "ArrowRight":
+    case 'ArrowRight':
       colDelta = 1
       break
     default:
@@ -233,14 +236,13 @@ function handleReset() {
 <template>
   <section class="selection-page">
     <header class="selection-hero">
-      <p class="selection-eyebrow">Grid selection primitives</p>
-      <div class="selection-title">
-        <h2>Precise ranges, zero DOM coupling.</h2>
-        <span class="powered-pill">Powered by @affino/selection-core</span>
-      </div>
+      <p class="selection-eyebrow">Selection core</p>
+
+      <h2 class="selection-title">Deterministic grid selection.</h2>
+
       <p class="selection-body">
-        This table is wired directly to the pure selection store. Every click, drag, or key combo calls the exported
-        operations, and the Vue layer just paints the cells. No overlays, no observers—just deterministic math.
+        This demo is wired directly to <strong>@affino/selection-core</strong>. All interactions are
+        pure state transitions — the table only renders.
       </p>
       <div class="chip-row">
         <div v-for="interaction in interactions" :key="interaction.combo" class="interaction-chip">
@@ -266,9 +268,7 @@ function handleReset() {
             <p class="status-pill">{{ cursorLabel }}</p>
           </div>
         </div>
-        <button type="button" class="reset-button" @click="handleReset">
-          Clear selection
-        </button>
+        <button type="button" class="reset-button" @click="handleReset">Clear selection</button>
       </aside>
 
       <div
@@ -285,7 +285,9 @@ function handleReset() {
           <thead>
             <tr>
               <th class="row-header" />
-              <th v-for="column in columns" :key="column.key" class="col-header">{{ column.label }}</th>
+              <th v-for="column in columns" :key="column.key" class="col-header">
+                {{ column.label }}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -303,6 +305,9 @@ function handleReset() {
             </tr>
           </tbody>
         </table>
+        <p class="text-xs uppercase tracking-[0.2em] mt-2 text-(--text-muted)">
+          Powered by @affino/selection-core
+        </p>
       </div>
     </div>
   </section>
@@ -317,12 +322,11 @@ function handleReset() {
 }
 
 .selection-hero {
-  background: linear-gradient(135deg, rgba(65, 99, 255, 0.08), rgba(18, 18, 23, 0.75));
-  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, transparent);
-  border-radius: 32px;
-  padding: 2.5rem;
-  color: var(--text-primary);
-  box-shadow: 0 30px 80px rgba(5, 6, 10, 0.35);
+  background: var(--surface-alt);
+  border: 1px solid var(--glass-border);
+  border-radius: 28px;
+  padding: 2.25rem;
+  box-shadow: var(--shadow-soft);
 }
 
 .selection-eyebrow {
@@ -394,8 +398,8 @@ function handleReset() {
 .selection-stage {
   display: grid;
   gap: 1.5rem;
-  grid-template-columns: minmax(220px, 280px) 1fr;
-  align-items: flex-start;
+  grid-template-columns: 260px 1fr;
+  align-items: stretch;
 }
 
 @media (max-width: 960px) {
@@ -405,14 +409,11 @@ function handleReset() {
 }
 
 .selection-status {
-  border-radius: 28px;
+  border-radius: 24px;
   border: 1px solid var(--glass-border);
-  padding: 1.75rem;
-  background: color-mix(in srgb, var(--panel, #080910) 88%, transparent);
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  box-shadow: 0 25px 60px rgba(8, 9, 16, 0.45);
+  padding: 1.5rem;
+  background: var(--surface-card);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 .status-header {
@@ -422,14 +423,14 @@ function handleReset() {
 }
 
 .status-label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 
 .status-value {
-  font-size: 2.25rem;
+  font-size: 1.75rem;
   font-weight: 600;
   margin: 0;
 }
@@ -451,28 +452,47 @@ function handleReset() {
 }
 
 .reset-button {
-  border: none;
+  margin-top: 0.5rem;
+
   border-radius: 999px;
-  padding: 0.65rem 1.4rem;
+  border: 1px dashed var(--glass-border);
+
+  padding: 0.45rem 1.1rem;
+
+  font-size: 0.75rem;
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  color: var(--text-soft);
+  background: transparent;
+
   cursor: pointer;
-  color: #05060a;
-  background: linear-gradient(120deg, #fce38a, #f38181);
-  box-shadow: 0 15px 35px rgba(243, 129, 129, 0.35);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .reset-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 20px 45px rgba(243, 129, 129, 0.45);
+  color: var(--text-primary);
+  border-color: var(--glass-highlight);
+  background: rgba(255, 255, 255, 0.04);
 }
 
+.reset-button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+
 .grid-shell {
-  border-radius: 32px;
-  padding: 1.5rem;
-  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), rgba(5, 5, 10, 0.85));
-  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, transparent);
-  box-shadow: inset 0 0 30px rgba(5, 6, 10, 0.45);
+  border-radius: 28px;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-soft);
   overflow: auto;
 }
 
@@ -512,19 +532,21 @@ function handleReset() {
 }
 
 .grid-cell {
-  background: rgba(8, 9, 16, 0.65);
-  transition: background 0.12s ease, box-shadow 0.12s ease, color 0.12s ease;
-  cursor: crosshair;
+  background: var(--surface-card);
+  transition: background 0.1s ease, box-shadow 0.1s ease;
 }
 
 .grid-cell:hover {
-  background: rgba(85, 93, 255, 0.15);
+  background: var(--surface-card-strong);
 }
 
 .grid-cell--selected {
-  background: color-mix(in srgb, rgba(87, 129, 255, 0.55) 70%, rgba(15, 18, 30, 0.8));
-  color: #f4f6ff;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  background: color-mix(
+    in srgb,
+    var(--accent) 35%,
+    var(--surface)
+  );
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25);
 }
 
 .grid-cell--cursor {

@@ -1,104 +1,90 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router"
 
-const highlights = [
+const cores = [
   {
-    title: "Headless primitives",
-    detail: "Drop the returned props onto any trigger or panel and keep your exact DOM tree.",
+    title: "Menu Core",
+    description:
+      "Headless menu engine with pointer intent prediction, keyboard maps, and deterministic controllers.",
+    to: "/menu/simple",
   },
   {
-    title: "Pointer intent engine",
-    detail: "Grace zones and timers stop submenus from closing when the cursor zigzags.",
+    title: "Selection Core",
+    description:
+      "Spreadsheet-grade selection logic for grids, trees, and canvases. Keyboard, range, and multi-anchor aware.",
+    to: "/selection",
   },
   {
-    title: "Controller automation",
-    detail: "Open, close, highlight, or select from scripts, tests, and analytics hooks.",
+    title: "Virtualization Core",
+    description:
+      "High-performance row/column virtualization for massive datasets with zero layout thrashing.",
+    to: "/one-grid",
   },
 ]
-
-const docsUrl = import.meta.env.VITE_DOCS_URL
 </script>
 
 <template>
-  <section class="space-y-10">
-    <div class="menu-stage">
-      <div class="flex flex-col gap-6 lg:flex-row lg:items-center">
-        <div class="flex-1 space-y-4">
-          <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Headless menu kit</p>
-          <h2 class="text-4xl font-semibold leading-tight">Headless menus that feel native.</h2>
-          <p class="text-base text-(--text-muted)">
-            @affino/menu-vue and @affino/menu-react let Vue 3 and React 18 teams keep their markup, styling, and routing
-            while we handle intent-aware pointer logic, focus safety, and keyboard maps. Use the toggle in the header to
-            swap frameworks inside every demo live.
-          </p>
-          <p class="text-base text-(--text-muted)">
-            Controllers expose open, close, highlight, and select so automation, analytics, and shortcuts plug in
-            without wrappers.
-          </p>
-          <div class="flex flex-wrap gap-3">
-            <RouterLink
-              to="/menu/simple"
-              class="rounded-full border border-(--glass-border) hover:border-(--glass-highlight) px-6 py-3 text-sm font-semibold shadow-xl transition hover:opacity-90"
-            >
-              Explore live demos
-            </RouterLink>
-            <RouterLink
-              to="/selection"
-              class="rounded-full border border-(--glass-border) hover:border-(--glass-highlight) px-6 py-3 text-sm font-semibold text-(--text-primary) transition hover:opacity-90"
-            >
-              Grid selection demo
-            </RouterLink>
-            <RouterLink
-              to="/one-grid"
-              class="rounded-full border border-(--glass-border) hover:border-(--glass-highlight) px-6 py-3 text-sm font-semibold text-(--text-primary) transition hover:opacity-90"
-            >
-              Virtual grid demo
-            </RouterLink>
-            <a
-              :href="docsUrl"
-              target="_blank"
-              rel="noreferrer"
-              class="rounded-full border border-(--glass-border) px-6 py-3 text-sm font-semibold text-(--text-primary) transition hover:border-(--glass-highlight)"
-            >
-              Read the docs
-            </a>
-          </div>
-        </div>
-        <div class="menu-spotlight flex-1 space-y-4">
-          <div class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Signals</div>
-          <div class="space-y-3">
-            <div class="flex items-center justify-between rounded-2xl border border-(--glass-border) px-4 py-3">
-              <div>
-                <p class="text-sm font-semibold">Mouse prediction</p>
-                <p class="text-xs text-(--text-muted)">Diagonal grace zones enabled</p>
-              </div>
-              <span class="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold text-emerald-300">Active</span>
-            </div>
-            <div class="flex items-center justify-between rounded-2xl border border-(--glass-border) px-4 py-3">
-              <div>
-                <p class="text-sm font-semibold">Focus safety</p>
-                <p class="text-xs text-(--text-muted)">Loop + restore on close</p>
-              </div>
-              <span class="rounded-full bg-sky-400/20 px-3 py-1 text-xs font-semibold text-sky-200">Pinned</span>
-            </div>
-            <div class="flex items-center justify-between rounded-2xl border border-(--glass-border) px-4 py-3">
-              <div>
-                <p class="text-sm font-semibold">Controller API</p>
-                <p class="text-xs text-(--text-muted)">open, close, highlight, select</p>
-              </div>
-              <span class="rounded-full bg-fuchsia-400/20 px-3 py-1 text-xs font-semibold text-fuchsia-200">Realtime</span>
-            </div>
-          </div>
-          <p class="text-xs uppercase tracking-[0.4em] text-(--text-muted)">Telemetry updated every 16ms</p>
-        </div>
-      </div>
-    </div>
+  <section class="space-y-16">
+    <!-- HERO -->
+    <header class="text-center space-y-6">
+      <p class="text-xs uppercase tracking-[0.45em] text-(--text-muted)">
+        Affino UI Cores
+      </p>
 
-    <div class="menu-grid">
-      <article v-for="feature in highlights" :key="feature.title" class="demo-card space-y-2">
-        <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">{{ feature.title }}</p>
-        <p class="text-base text-(--text-primary)">{{ feature.detail }}</p>
+      <h1 class="text-4xl md:text-5xl font-semibold leading-tight">
+        High-performance UI cores<br />
+        for complex interfaces
+      </h1>
+
+      <p class="mx-auto max-w-xl text-base text-(--text-muted)">
+        Affino provides framework-agnostic core engines for menus, selection systems,
+        and large virtualized layouts. Bring your own DOM, styling, and framework —
+        we handle intent, focus, and performance.
+      </p>
+
+      <div class="flex justify-center gap-4">
+        <RouterLink
+          to="/menu/simple"
+          class="rounded-full px-6 py-3 text-sm font-semibold border border-(--glass-border)
+                 hover:border-(--glass-highlight) transition"
+        >
+          View demos
+        </RouterLink>
+
+        <a
+          href="https://github.com/affinio"
+          target="_blank"
+          class="rounded-full px-6 py-3 text-sm font-semibold text-(--text-muted)
+                 hover:text-(--text-primary) transition"
+        >
+          GitHub
+        </a>
+      </div>
+    </header>
+
+    <!-- CORES -->
+    <section class="menu-grid">
+      <article
+        v-for="core in cores"
+        :key="core.title"
+        class="demo-card space-y-3"
+      >
+        <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">
+          {{ core.title }}
+        </p>
+
+        <p class="text-base text-(--text-primary)">
+          {{ core.description }}
+        </p>
+
+        <RouterLink
+          :to="core.to"
+          class="inline-block text-sm font-semibold text-(--accent)
+                 hover:underline"
+        >
+          Open demo →
+        </RouterLink>
       </article>
-    </div>
+    </section>
   </section>
 </template>

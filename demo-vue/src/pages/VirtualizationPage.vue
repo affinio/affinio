@@ -369,21 +369,6 @@ function getMetricTrend(row: RevenueRow, column: GridColumn): string {
           </div>
         </header>
 
-        <div class="grid-header">
-          <div class="grid-header-spacer" :style="{ width: `${totalWidthPx}px` }">
-            <div class="grid-header-row" :style="{ transform: `translateX(${translateX}px)` }">
-              <div
-                v-for="column in visibleColumns"
-                :key="column.id"
-                class="grid-header-cell"
-                :style="{ width: `${COLUMN_WIDTH}px` }"
-              >
-                {{ column.label }}
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div ref="viewportRef" class="grid-viewport">
           <div class="grid-spacer" :style="{ height: `${totalHeightPx}px`, width: `${totalWidthPx}px` }">
             <div class="grid-canvas" :style="{ transform: `translate(${translateX}px, ${translateY}px)` }">
@@ -397,16 +382,15 @@ function getMetricTrend(row: RevenueRow, column: GridColumn): string {
                   v-for="column in visibleColumns"
                   :key="`${row.id}-${column.id}`"
                   class="grid-cell"
-                  :class="{ 'grid-cell--pinned': column.index === 0 }"
                   :style="{ width: `${COLUMN_WIDTH}px` }"
                 >
                   <template v-if="column.index === 0">
                     <p class="company-name">{{ row.company }}</p>
-                    <p class="company-meta">{{ getMetricTrend(row, column) }}</p>
+                    <!-- <p class="company-meta">{{ getMetricTrend(row, column) }}</p> -->
                   </template>
                   <template v-else>
                     <p class="metric-value">{{ getMetricValue(row, column) }}</p>
-                    <p class="metric-meta">{{ getMetricTrend(row, column) }}</p>
+                    <!-- <p class="metric-meta">{{ getMetricTrend(row, column) }}</p> -->
                   </template>
                 </div>
               </article>

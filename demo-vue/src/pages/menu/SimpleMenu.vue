@@ -1,93 +1,265 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { storeToRefs } from 'pinia'
-import {
-  UiMenu,
-  UiMenuTrigger,
-  UiMenuContent,
-  UiMenuItem,
-  UiMenuLabel,
-  UiMenuSeparator,
-} from '@affino/menu-vue'
-import ReactMount from '@/components/ReactMount.vue'
-import { useFrameworkStore } from '@/stores/framework'
-import SimpleMenuDemo from '@/react-demos/SimpleMenuDemo'
+import { computed, onMounted, ref } from "vue"
+import { storeToRefs } from "pinia"
+import ReactMount from "@/components/ReactMount.vue"
+import { useFrameworkStore } from "@/stores/framework"
+import SimpleMenuDemo from "@/react-demos/SimpleMenuDemo"
+import SimpleMenuReactSource from "@/react-demos/SimpleMenuDemo.tsx?raw"
+import SimpleMenuExample from "./examples/SimpleMenuExample.vue"
+import SimpleMenuExampleSource from "./examples/SimpleMenuExample.vue?raw"
+import { createHighlighter } from "shiki"
 
-const primaryActions = [
-  { label: 'Edit headline', description: 'Tweak copy and CTA pairs', shortcut: 'E' },
-  { label: 'Duplicate', description: 'Clone layout and preserve bindings', shortcut: 'D' },
-  { label: 'Share preview', description: 'Generate signed review links', shortcut: 'S' },
-]
-
-const secondaryActions = [
-  { label: 'Archive', description: 'Freeze analytics without deleting', shortcut: 'A' },
-  { label: 'Delete', description: 'Remove project forever', shortcut: 'Cmd+Del', danger: true },
-]
-
-const lastAction = ref<string>('None yet')
-
-function handleSelect(label: string) {
-  lastAction.value = label
+const stylesSource = `:root {
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --surface-solid: #0e121d;
+  --surface-button-hover: rgba(255, 255, 255, 0.12);
+  --text-primary: #edf2ff;
+  --text-muted: rgba(237, 242, 255, 0.7);
+  --text-soft: rgba(237, 242, 255, 0.55);
+  --accent: #8b5cf6;
+  --accent-strong: #38bdf8;
 }
+
+.menu-demo-inline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.75rem;
+  width: fit-content;
+}
+
+.menu-demo-trigger {
+  padding: 0.7rem 1.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #05060a;
+  background: linear-gradient(120deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.menu-demo-trigger:hover {
+  transform: translateY(-1px);
+  opacity: 0.96;
+}
+
+.menu-demo-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 18px 40px rgba(15, 23, 42, 0.3);
+}
+
+.menu-playground-panel {
+  width: var(--ui-menu-max-width, 320px);
+  max-width: min(100%, var(--ui-menu-max-width, 320px));
+  border-radius: 1.25rem;
+  background: var(--surface-solid);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 18px 32px rgba(6, 9, 16, 0.28);
+  backdrop-filter: blur(18px);
+  padding: 0.55rem 0;
+  color: var(--text-primary);
+  --ui-menu-bg: transparent;
+  --ui-menu-border: color-mix(in srgb, var(--glass-border) 90%, transparent);
+  --ui-menu-hover-bg: color-mix(in srgb, var(--surface-button-hover) 78%, transparent);
+  --ui-menu-text: var(--text-primary);
+  --ui-submenu-trigger-text: var(--text-primary);
+  --ui-menu-muted: var(--text-muted);
+  --ui-menu-separator: color-mix(in srgb, var(--text-muted) 35%, transparent);
+  --ui-menu-danger: #f87171;
+  --ui-menu-focus-ring: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.menu-playground-panel[data-state="closed"] {
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+
+.menu-playground-panel[data-state="open"] {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.menu-shortcut {
+  font-size: 0.7rem;
+  color: var(--ui-menu-muted);
+}
+
+.demo-last-action {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.demo-last-action__label {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  color: var(--text-soft);
+}
+
+.demo-last-action__label::after {
+  content: ":";
+  margin-left: 0.25rem;
+}
+
+.demo-last-action__value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.demo-last-action__label,
+.demo-last-action__value {
+  margin: 0;
+}
+`
+
+const highlightedVue = ref("")
+const highlightedReact = ref("")
+const highlightedCss = ref("")
+const activeTab = ref<"vue" | "react" | "css">("vue")
+
+const keyPoints = [
+  {
+    title: "Keyboard navigation",
+    icon: "keyboard",
+  },
+  {
+    title: "Smart positioning",    
+    icon: "compass",
+  },
+  {
+    title: "Mouse intent",
+    icon: "cursor",
+  },
+]
+
+onMounted(async () => {
+  const highlighter = await createHighlighter({
+    themes: ["github-dark"],
+    langs: ["vue", "tsx", "css"],
+  })
+
+  highlightedVue.value = highlighter.codeToHtml(SimpleMenuExampleSource, {
+    lang: "vue",
+    theme: "github-dark",
+  })
+
+  highlightedReact.value = highlighter.codeToHtml(SimpleMenuReactSource, {
+    lang: "tsx",
+    theme: "github-dark",
+  })
+
+  highlightedCss.value = highlighter.codeToHtml(stylesSource, {
+    lang: "css",
+    theme: "github-dark",
+  })
+})
 
 const frameworkStore = useFrameworkStore()
 const { current } = storeToRefs(frameworkStore)
-const usingVue = computed(() => current.value === 'vue')
+const usingVue = computed(() => current.value === "vue")
 </script>
 
 <template>
-  <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-    <div class="space-y-4">
-      <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Primary flows</p>
-      <h3 class="text-2xl font-semibold">Single trigger, instant confirmation.</h3>
-      <p class="text-sm text-(--text-muted)">
-        Showcase the classic click-to-open surface. `UiMenu` keeps focus inside the panel and streams select events so
-        dashboards can react the moment an action fires.
+  <section class="menu-demo-block">
+    <div class="menu-demo-description">
+      <p class="menu-demo-eyebrow">Primary flow</p>
+      <h3 class="menu-demo-title">Single trigger. Immediate intent.</h3>
+      <p class="menu-demo-text">
+        A classic click-to-open menu surface. Affino keeps focus contained, emits deterministic select events, and
+        reacts instantly without re-render cascades.
       </p>
     </div>
-    <template v-if="usingVue">
-      <div class="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
-        <UiMenu>
-          <UiMenuTrigger as-child>
-            <button class="menu-demo-button">
-              <span>Menu</span>
-            </button>
-          </UiMenuTrigger>
-          <UiMenuContent class="menu-playground-panel">
-            <UiMenuLabel>Project</UiMenuLabel>
-            <UiMenuSeparator />
-            <UiMenuItem
-              v-for="action in primaryActions"
-              :key="action.label"
-              @select="() => handleSelect(action.label)"
-            >
-              <div class="flex flex-1 flex-col">
-                <span class="text-sm font-semibold">{{ action.label }}</span>
-                <span class="text-xs text-(--ui-menu-muted)">{{ action.description }}</span>
-              </div>
-              <span class="text-xs text-(--ui-menu-muted)">{{ action.shortcut }}</span>
-            </UiMenuItem>
-            <UiMenuSeparator />
-            <UiMenuItem
-              v-for="action in secondaryActions"
-              :key="action.label"
-              :danger="action.danger"
-              @select="() => handleSelect(action.label)"
-            >
-              <div class="flex flex-1 flex-col">
-                <span class="text-sm font-semibold">{{ action.label }}</span>
-                <span class="text-xs text-(--ui-menu-muted)">{{ action.description }}</span>
-              </div>
-              <span class="text-xs text-(--ui-menu-muted)">{{ action.shortcut }}</span>
-            </UiMenuItem>
-          </UiMenuContent>
-        </UiMenu>
-        <div class="demo-last-action">
-          <span class="demo-last-action__label">Last action</span>
-          <span class="demo-last-action__value">{{ lastAction }}</span>
+
+    <ul class="menu-key-points">
+      <li v-for="point in keyPoints" :key="point.title" class="menu-key-point">
+        <span class="menu-key-icon">
+          <svg v-if="point.icon === 'keyboard'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+            <path d="M7 10h0.01M11 10h0.01M15 10h0.01M7 14h10" />
+          </svg>
+          <svg v-else-if="point.icon === 'compass'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="12" cy="12" r="10" />
+            <polygon points="10 14 13 13 14 10 11 11" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M3 3l7.5 18 2-7 7 2L3 3z" />
+          </svg>
+        </span>
+        <div>
+          <p class="menu-key-title">{{ point.title }}</p>
         </div>
+      </li>
+    </ul>
+
+    <div class="demo-workspace">
+      <SimpleMenuExample v-if="usingVue" />
+      <ReactMount v-else :component="SimpleMenuDemo" :key="current" />
+    </div>
+
+    <div class="demo-code">
+      <div class="demo-code-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'vue'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'vue' }"
+          @click="activeTab = 'vue'"
+        >
+          Vue
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'react'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'react' }"
+          @click="activeTab = 'react'"
+        >
+          React
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'css'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'css' }"
+          @click="activeTab = 'css'"
+        >
+          CSS
+        </button>
       </div>
-    </template>
-    <ReactMount v-else :component="SimpleMenuDemo" :key="current" />
-  </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'vue'">
+        <div v-html="highlightedVue" />
+      </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'css'">
+        <div v-html="highlightedCss" />
+      </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'react'">
+        <div v-html="highlightedReact" />
+      </div>
+    </div>
+
+    <div class="menu-demo-links">
+      <a
+        class="menu-demo-link"
+        href="https://github.com/affinio/affinio/tree/main/packages/menu-vue"
+        target="_blank"
+        rel="noreferrer"
+      >
+        View @affino/menu-vue on GitHub
+      </a>
+    </div>
+  </section>
 </template>

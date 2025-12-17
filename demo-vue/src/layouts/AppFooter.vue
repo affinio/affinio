@@ -4,7 +4,7 @@
   <footer class="app-footer">
     <div class="app-footer__content">
       <p class="app-footer__copy">
-        © 2025 Affino. Built with ❤️ using Vue 3, React 18, and TypeScript.
+        © 2025 Affino. Built as headless primitives in TypeScript.
       </p>
     </div>
   </footer>

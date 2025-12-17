@@ -23,12 +23,10 @@ export default function SimpleMenuDemo() {
   const [lastAction, setLastAction] = useState("None yet")
 
   return (
-    <div className="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
+    <div className="menu-demo-inline">
       <UiMenu>
         <UiMenuTrigger asChild>
-          <button className="menu-demo-button">
-            <span>Menu</span>
-          </button>
+          <button className="menu-demo-trigger">Open React menu</button>
         </UiMenuTrigger>
         <UiMenuContent className="menu-playground-panel">
           <UiMenuLabel>Project</UiMenuLabel>
@@ -54,10 +52,10 @@ export default function SimpleMenuDemo() {
           ))}
         </UiMenuContent>
       </UiMenu>
-      <div className="demo-last-action">
-        <span className="demo-last-action__label">Last action</span>
-        <span className="demo-last-action__value">{lastAction}</span>
-      </div>
+      <dl className="demo-last-action">
+        <dt className="demo-last-action__label">Last action</dt>
+        <dd className="demo-last-action__value">{lastAction}</dd>
+      </dl>
     </div>
   )
 }

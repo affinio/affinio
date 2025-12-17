@@ -1,34 +1,84 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { RouterLink } from "vue-router"
+import { RouterLink, useRoute } from "vue-router"
 import { storeToRefs } from "pinia"
+
 import ThemeToggle from "@/components/ThemeToggle.vue"
 import FrameworkToggle from "@/components/FrameworkToggle.vue"
 import { useFrameworkStore } from "@/stores/framework"
 
 const frameworkStore = useFrameworkStore()
 const { current } = storeToRefs(frameworkStore)
-const activeLabel = computed(() => (current.value === "vue" ? "@affino/menu-vue" : "@affino/menu-react"))
+
+const frameworkLabel = computed(() =>
+  current.value === "vue" ? "Vue examples" : "React examples"
+)
+
+const route = useRoute()
+
+const activeCore = computed(() => {
+  if (route.path.startsWith("/menu")) return "Menu"
+  if (route.path.startsWith("/selection")) return "Selection"
+  if (route.path.startsWith("/virtualization")) return "Virtualization"
+  return "Overview"
+})
+
+// Какие cores реально имеют адаптеры
+const coreCapabilities: Record<string, { adapters: boolean }> = {
+  menu: { adapters: true },
+  selection: { adapters: false },
+  virtualization: { adapters: false },
+}
+
+const subtitle = computed(() => {
+  const key = activeCore.value.toLowerCase()
+  const hasAdapters = coreCapabilities[key]?.adapters
+
+  if (!hasAdapters) return "Core concepts · Vue reference examples"
+  return frameworkLabel.value
+})
 </script>
 
 <template>
   <header class="sticky top-4 z-40 px-4 lg:px-8 mb-10">
     <div
-      class="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-4 text-(--text-primary) sm:flex-row sm:items-center sm:justify-between"
+      class="mx-auto flex w-full max-w-6xl flex-col gap-4 rounded-2xl px-6 py-4
+             text-(--text-primary) backdrop-blur-xl
+             border border-(--glass-border)
+             bg-(--glass-bg)
+             sm:flex-row sm:items-center sm:justify-between"
     >
-      <div class="space-y-1">
+      <!-- Left: Brand -->
+      <div class="flex flex-col gap-1">
         <RouterLink to="/" class="hover:opacity-90">
-          <div class="flex flex-wrap items-center gap-3">
-            <h1 class="text-2xl font-semibold">{{ activeLabel }}</h1>
-            <span class="header-pill">Alpha build</span>
+          <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-semibold tracking-tight">
+              Affino
+            </h1>
+            <span class="header-pill">alpha</span>
           </div>
         </RouterLink>
+
+        <div class="text-xs text-(--text-soft)">
+          {{ activeCore }} · {{ subtitle }}
+        </div>
       </div>
-      <div class="flex gap-3 items-center">
-        <FrameworkToggle />
-        <ThemeToggle variant="compact" />
-        <RouterLink to="/menu/simple" class="header-cta">Demos</RouterLink>
+
+      
+      <!-- Center: Controls -->
+      <div class="flex items-center gap-3">
+        <!-- Framework toggle is meaningful only where adapters exist -->
+        <FrameworkToggle v-if="activeCore === 'Menu'" />
       </div>
+
+      <!-- Right: Core navigation -->
+      <nav class="hidden md:flex items-center gap-5 text-sm font-medium">
+        <RouterLink to="/menu" class="nav-link">Menu</RouterLink>
+        <RouterLink to="/selection" class="nav-link">Selection</RouterLink>
+        <RouterLink to="/virtualization" class="nav-link">Virtualization</RouterLink>
+        <span class="nav-link-disabled">Table</span>
+      </nav>
+      
     </div>
   </header>
 </template>
@@ -62,5 +112,19 @@ const activeLabel = computed(() => (current.value === "vue" ? "@affino/menu-vue"
 .header-cta:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.nav-link {
+  color: var(--text-soft);
+  transition: color 0.15s ease;
+}
+
+.nav-link:hover {
+  color: var(--text-primary);
+}
+
+.nav-link-disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 </style>
