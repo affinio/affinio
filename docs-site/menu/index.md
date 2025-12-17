@@ -26,6 +26,6 @@ You probably don’t need it if you only require a single static dropdown, alrea
 
 ## Learn more
 
-- [Interactive demos](https://ui.unitlab.io) – Try the live menus.
+- [Interactive demos](https://affino.dev) – Try the live menus.
 - [Full documentation on GitHub](https://github.com/affinio/affinio/tree/main/docs) – Architecture, controller API, internals.
 - [React adapter details](/menu/react) – Installation steps and FAQ for the new React package.

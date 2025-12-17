@@ -14,7 +14,7 @@ export default defineConfig({
     }
   },
   sitemap: {
-    hostname: 'https://ui.unitlab.io'
+    hostname: 'https://affino.dev'
   },
   themeConfig: {
     siteTitle: 'Affino Menu',
@@ -25,7 +25,7 @@ export default defineConfig({
       { text: 'Styling', link: '/menu/styling-and-animation' },
       { text: 'React Adapter', link: '/menu/react' },
       { text: 'Advanced', link: '/menu/advanced' },
-      { text: 'Playground', link: 'https://ui.unitlab.io' }
+      { text: 'Playground', link: 'https://affino.dev' }
     ],
     sidebar: {
       '/menu/': [
