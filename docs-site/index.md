@@ -1,15 +1,59 @@
 ---
 title: Affino UI Lab
-description: Experiments around intent-aware menus and UI infrastructure.
+description: Framework-agnostic UI cores with Vue & React adapters for advanced interfaces.
 ---
 
-# Welcome to Affino UI Lab
+# Welcome to Affino
 
-This is the public workspace for Affino’s headless UI experiments. The current focus is **@affino/menu-vue** — an intent-aware menu system for Vue 3 that mirrors native desktop behavior while staying fully headless.
+Affino provides framework-agnostic UI cores paired with lightweight adapters for Vue 3 and React 18. Build intent-aware menus, high-performance virtualization, and spreadsheet-grade selection without compromising on accessibility or control.
 
 - **Live demos:** <https://affino.dev>
-- **Docs landing:** [/menu/](/menu/)
 - **GitHub:** <https://github.com/affinio/affinio>
+
+## Architecture
+
+Every Affino primitive follows a **core + adapter** pattern:
+
+- **Core packages** — Pure TypeScript logic, zero framework deps, full test coverage
+- **Framework adapters** — Thin reactive wrappers for Vue and React
+
+This keeps the state machines portable while letting you stay in your framework's idioms.
+
+## Packages
+
+### Menu System
+
+| Package | Description | Version |
+| --- | --- | --- |
+| **@affino/menu-core** | Headless menu engine with diagonal pointer prediction, keyboard nav, nested submenus | ![npm](https://img.shields.io/npm/v/@affino/menu-core) |
+| **@affino/menu-vue** | Vue 3 adapter with renderless components and controller hooks | ![npm](https://img.shields.io/npm/v/@affino/menu-vue) |
+| **@affino/menu-react** | React 18 adapter mirroring the Vue API surface | ![npm](https://img.shields.io/npm/v/@affino/menu-react) |
+
+[→ Menu documentation](/menu/)
+
+### Virtualization (Coming Soon)
+
+| Package | Description |
+| --- | --- |
+| **@affino/virtualization-core** | High-performance virtual scrolling engine |
+
+### Selection (Coming Soon)
+
+| Package | Description |
+| --- | --- |
+| **@affino/selection-core** | Spreadsheet-grade cell selection with keyboard/mouse navigation |
+
+## Getting Started
+
+```bash
+# Menu (Vue)
+npm install @affino/menu-vue
+
+# Menu (React)
+npm install @affino/menu-react
+```
+
+See [Menu Getting Started](/menu/getting-started) for full setup.
 
 ## Snapshot preview
 

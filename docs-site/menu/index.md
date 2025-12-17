@@ -1,11 +1,64 @@
 ---
 title: Menu Overview
-description: Headless Vue & React menu primitives with diagonal pointer intent.
+description: Headless Vue & React menu primitives powered by framework-agnostic core.
 ---
 
 # Menu Overview
 
-Affino ships headless menu adapters for both Vue 3 (`@affino/menu-vue`) and React 18 (`@affino/menu-react`). Bring your own markup and design system—Affino handles accessibility, pointer heuristics, and submenu geometry while keeping the controller API identical across frameworks.
+Affino's menu system is built on **@affino/menu-core**, a framework-agnostic engine handling state machines, pointer prediction, keyboard navigation, and positioning. Framework adapters (`@affino/menu-vue` and `@affino/menu-react`) wrap the core with reactive primitives while keeping the API surface identical.
+
+## Architecture
+
+```
+┌─────────────────────────────────────┐
+│      @affino/menu-core              │
+│  ────────────────────────────────   │
+│  • State machines                   │
+│  • Diagonal pointer prediction      │
+│  • Keyboard navigation              │
+│  • Positioning & collision          │
+│  • Focus management                 │
+│  • Zero framework dependencies      │
+└─────────────────────────────────────┘
+           ▲              ▲
+           │              │
+    ┌──────┴──────┐ ┌────┴──────┐
+    │ menu-vue    │ │ menu-react│
+    │ Renderless  │ │ Hooks +   │
+    │ components  │ │ compounds │
+    └─────────────┘ └───────────┘
+```
+
+## Packages
+
+### @affino/menu-core
+
+The framework-agnostic engine. Use it directly for custom integrations or if you need menu logic outside Vue/React.
+
+**Key exports:**
+- `MenuController` — Imperative API for open/close/highlight
+- `createMenuStore` — State subscription primitive
+- `predictMouseIntent` — Diagonal pointer heuristics
+- `computeMenuPosition` — Collision-safe positioning
+
+### @affino/menu-vue
+
+Vue 3 adapter with renderless components and composition API hooks.
+
+**Key components:**
+- `UiMenu`, `UiMenuTrigger`, `UiMenuContent`
+- `UiMenuItem`, `UiMenuLabel`, `UiMenuSeparator`
+- `UiSubMenu`, `UiSubMenuTrigger`, `UiSubMenuContent`
+
+**Hooks:**
+- `useMenuController()` — Access imperative controller
+- `useMenuState()` — Subscribe to menu state
+
+### @affino/menu-react
+
+React 18 adapter mirroring the Vue API. Same components, same controller hooks, identical behavior.
+
+Bring your own markup and design system—Affino handles accessibility, pointer heuristics, and submenu geometry while keeping the controller API identical across frameworks.
 
 ## Why it matters
 

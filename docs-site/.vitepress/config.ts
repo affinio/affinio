@@ -17,17 +17,52 @@ export default defineConfig({
     hostname: 'https://affino.dev'
   },
   themeConfig: {
-    siteTitle: 'Affino Menu',
+    siteTitle: 'Affino',
     nav: [
-      { text: 'Overview', link: '/menu/' },
-      { text: 'Getting Started', link: '/menu/getting-started' },
-      { text: 'Examples', link: '/menu/examples' },
-      { text: 'Styling', link: '/menu/styling-and-animation' },
-      { text: 'React Adapter', link: '/menu/react' },
-      { text: 'Advanced', link: '/menu/advanced' },
+      { text: 'Home', link: '/' },
+      { 
+        text: 'Menu',
+        items: [
+          { text: 'Overview', link: '/menu/' },
+          { text: 'Getting Started', link: '/menu/getting-started' },
+          { text: 'Examples', link: '/menu/examples' },
+          { text: 'Styling', link: '/menu/styling-and-animation' },
+          { text: 'React Adapter', link: '/menu/react' },
+          { text: 'Advanced', link: '/menu/advanced' }
+        ]
+      },
       { text: 'Playground', link: 'https://affino.dev' }
     ],
     sidebar: {
+      '/': [
+        {
+          text: 'Getting Started',
+          items: [
+            { text: 'Overview', link: '/' }
+          ]
+        },
+        {
+          text: 'Core Packages',
+          collapsed: false,
+          items: [
+            { text: 'menu-core', link: '/core/menu-core' },
+            { text: 'virtualization-core', link: '/core/virtualization-core' },
+            { text: 'selection-core', link: '/core/selection-core' }
+          ]
+        },
+        {
+          text: 'Menu System',
+          collapsed: false,
+          items: [
+            { text: 'Overview', link: '/menu/' },
+            { text: 'Getting Started', link: '/menu/getting-started' },
+            { text: 'Examples', link: '/menu/examples' },
+            { text: 'Styling & Animation', link: '/menu/styling-and-animation' },
+            { text: 'React Adapter', link: '/menu/react' },
+            { text: 'Advanced', link: '/menu/advanced' }
+          ]
+        }
+      ],
       '/menu/': [
         { text: 'Overview', link: '/menu/' },
         { text: 'Getting Started', link: '/menu/getting-started' },
