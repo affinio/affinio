@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import {
   createAxisVirtualizer,
   type AxisVirtualizerState,
@@ -137,6 +137,21 @@ const scrollOffsetX = ref(0)
 const scrollDirectionY = ref(0)
 const scrollDirectionX = ref(0)
 const viewportRef = ref<HTMLDivElement | null>(null)
+const domNodeCount = ref(0)
+
+let domMeasureFrame: number | null = null
+
+function scheduleDomNodeCountUpdate() {
+  if (typeof window === "undefined") return
+  if (domMeasureFrame !== null) return
+  domMeasureFrame = window.requestAnimationFrame(async () => {
+    domMeasureFrame = null
+    await nextTick()
+    const viewport = viewportRef.value
+    if (!viewport) return
+    domNodeCount.value = viewport.querySelectorAll("*").length
+  })
+}
 
 function syncVertical() {
   const snapshot = verticalVirtualizer.update({
@@ -150,6 +165,7 @@ function syncVertical() {
     meta: { scrollDirection: scrollDirectionY.value },
   })
   verticalState.value = cloneState(snapshot)
+  scheduleDomNodeCountUpdate()
 }
 
 function syncHorizontal() {
@@ -164,6 +180,7 @@ function syncHorizontal() {
     meta: { scrollDirection: scrollDirectionX.value },
   })
   horizontalState.value = cloneState(snapshot)
+  scheduleDomNodeCountUpdate()
 }
 
 watch(
@@ -217,6 +234,7 @@ onMounted(() => {
   })
   resizeObserver.observe(viewport)
   viewport.addEventListener("scroll", handleScroll, { passive: true })
+  scheduleDomNodeCountUpdate()
 })
 
 onBeforeUnmount(() => {
@@ -224,6 +242,10 @@ onBeforeUnmount(() => {
   const viewport = viewportRef.value
   if (viewport) {
     viewport.removeEventListener("scroll", handleScroll)
+  }
+  if (domMeasureFrame !== null && typeof window !== "undefined") {
+    window.cancelAnimationFrame(domMeasureFrame)
+    domMeasureFrame = null
   }
 })
 
@@ -260,6 +282,8 @@ const columnMetrics = computed(() => [
 const virtualizationStatus = computed(() =>
   virtualizationEnabled.value ? "Virtualization enabled" : "Virtualization disabled",
 )
+
+const liveDomNodeCount = computed(() => numberFormatter.format(domNodeCount.value))
 
 function getMetricValue(row: RevenueRow, column: GridColumn): string {
   if (column.index === 0) {
@@ -314,6 +338,21 @@ function getMetricTrend(row: RevenueRow, column: GridColumn): string {
             </span>
             <span class="toggle-caption">{{ virtualizationEnabled ? "On" : "Off" }}</span>
           </label>
+          <div class="toggle-alert" :class="{ 'is-critical': !virtualizationEnabled }" role="alert">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-copy">
+              <p class="alert-title">
+                {{ virtualizationEnabled ? "Keep virtualization on" : "Virtualization is off" }}
+              </p>
+              <p class="alert-text">
+                Disabling virtualization renders 5,000 × 200 cells in one pass and will likely freeze the tab for several seconds.
+              </p>
+            </div>
+          </div>
+          <div class="dom-count">
+            <p class="dom-label">Live DOM nodes</p>
+            <p class="dom-value">{{ liveDomNodeCount }}</p>
+          </div>
         </div>
         <div class="control-card">
           <div class="control-header">
@@ -552,6 +591,74 @@ function getMetricTrend(row: RevenueRow, column: GridColumn): string {
 
 .toggle-caption {
   font-size: 0.85rem;
+}
+
+.toggle-alert {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 80%, transparent);
+  background: color-mix(in srgb, var(--panel, #0b0d16) 86%, transparent);
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.toggle-alert.is-critical {
+  border-color: rgba(248, 113, 113, 0.8);
+  box-shadow: 0 10px 30px rgba(248, 113, 113, 0.15);
+}
+
+.alert-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.alert-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.alert-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.alert-text {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.toggle-alert.is-critical .alert-title {
+  color: #fecdd3;
+}
+
+.dom-count {
+  margin-top: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, var(--glass-border) 35%, transparent);
+  padding-top: 0.75rem;
+}
+
+.dom-label {
+  margin: 0;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.dom-value {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1rem;
 }
 
 .range {

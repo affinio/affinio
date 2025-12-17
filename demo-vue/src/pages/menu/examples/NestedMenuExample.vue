@@ -41,7 +41,7 @@ function handleSelect(label: string) {
 </script>
 
 <template>
-  <div class="menu-demo-surface flex flex-col gap-6 text-left">
+  <div class="menu-demo-inline">
     <UiMenu :options="{ openDelay: 60, closeDelay: 140 }">
       <UiMenuTrigger as-child>
         <button class="menu-demo-trigger">Browse stacks</button>

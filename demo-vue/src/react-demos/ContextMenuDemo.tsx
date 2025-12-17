@@ -30,7 +30,7 @@ export default function ContextMenuDemo() {
   }
 
   return (
-    <div className="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
+    <div className="menu-demo-inline">
       <UiMenu>
         <UiMenuTrigger trigger="contextmenu" asChild>
           <button className="menu-demo-button">

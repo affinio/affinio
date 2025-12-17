@@ -1,157 +1,119 @@
 <script setup lang="ts">
-import { computed, reactive, ref, defineComponent, h } from "vue"
+import { computed, onMounted, ref } from "vue"
 import { storeToRefs } from "pinia"
-import {
-  UiMenu,
-  UiMenuTrigger,
-  UiMenuContent,
-  UiMenuItem,
-  UiMenuSeparator,
-  UiMenuLabel,
-  UiSubMenu,
-  UiSubMenuTrigger,
-  UiSubMenuContent,
-} from "@affino/menu-vue"
 import ReactMount from "@/components/ReactMount.vue"
 import { useFrameworkStore } from "@/stores/framework"
 import StressTestMenuDemo from "@/react-demos/StressTestMenuDemo"
+import StressTestMenuReactSource from "@/react-demos/StressTestMenuDemo.tsx?raw"
+import StressTestMenuExample from "./examples/StressTestMenuExample.vue"
+import StressTestMenuExampleSource from "./examples/StressTestMenuExample.vue?raw"
+import { createHighlighter } from "shiki"
 
-const itemCounts = [50, 200, 500, 1000]
-const selectedCount = ref<number>(200)
-const dynamicItems = reactive(
-  Array.from({ length: 20 }, (_, index) => ({ id: index + 1, label: `Dynamic ${index + 1}` }))
-)
+const stylesSource = `.dataset-select {
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text-primary);
+  border-radius: 1.5rem;
+  padding: 0.65rem 1rem;
+}
 
-const enableScrollableContainer = ref(false)
-const enableTransform = ref(false)
-const enableRTL = ref(false)
-const enableNested = ref(true)
-const nestedDepthOptions = [3, 5, 10] as const
-const nestedDepth = ref<(typeof nestedDepthOptions)[number]>(3)
-const widthOptions = [280, 340, 420, 520] as const
-const menuMaxWidth = ref<(typeof widthOptions)[number]>(340)
+.dataset-button {
+  border: 1px solid var(--glass-border);
+  background: var(--surface-button);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
 
-const lastEvent = ref("Awaiting selection")
+.dataset-button:hover {
+  border-color: var(--glass-highlight);
+  transform: translateY(-1px);
+}
 
-const panelStyle = computed(() => ({
-  height: enableScrollableContainer.value ? "320px" : "auto",
-  overflow: enableScrollableContainer.value ? "auto" : "visible",
-  transform: enableTransform.value ? "scale(0.94)" : "none",
-  "--ui-menu-max-width": `${menuMaxWidth.value}px`,
-}))
+.stress-toggle {
+  border-radius: 1.5rem;
+  border: 1px solid var(--glass-border);
+  background: var(--surface-card);
+  padding: 1rem 1.25rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
 
-const dirAttr = computed(() => (enableRTL.value ? "rtl" : "ltr"))
+.stress-toggle[aria-pressed='true'] {
+  border-color: var(--glass-highlight);
+  background: var(--surface-card-strong);
+}
 
-const stressStats = computed(() => [
-  { label: "Root items", value: selectedCount.value.toString() },
-  { label: "Dynamic set", value: dynamicItems.length.toString() },
-  { label: "Submenus", value: enableNested.value ? "Enabled" : "Disabled" },
-])
+.toggle-indicator {
+  width: 2.1rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  padding: 0 0.2rem;
+  display: inline-flex;
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-alt) 76%, transparent);
+}
 
-const toggles = [
-  {
-    key: "scroll",
-    label: "Scroll container",
-    description: "Wrap in a 320px viewport to test parent scrolling.",
-    ref: enableScrollableContainer,
-  },
-  {
-    key: "transform",
-    label: "Parent transform",
-    description: "Scale the parent to surface GPU edge cases.",
-    ref: enableTransform,
-  },
-  {
-    key: "rtl",
-    label: "RTL",
-    description: "Flip layout direction and pointer heuristics.",
-    ref: enableRTL,
-  },
-  {
-    key: "nested",
-    label: "Nested levels",
-    description: "Toggle the submenu chain on/off.",
-    ref: enableNested,
-  },
-] as const
+.toggle-indicator::after {
+  content: "";
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: var(--text-primary);
+  transition: transform 0.2s ease;
+}
 
-const NestedChain = defineComponent({
-  name: "NestedChain",
-  props: {
-    level: { type: Number, required: true },
-    maxLevel: { type: Number, required: true },
-  },
-  setup(props) {
-    return () => {
-      const children = [
-        h(UiMenuLabel, null, () => `Level ${props.level}`),
-        h(UiMenuSeparator),
-        h(
-          UiMenuItem,
-          { onSelect: () => onSelect(`L${props.level}-A`) },
-          { default: () => `Level ${props.level} - A` },
-        ),
-        h(
-          UiMenuItem,
-          { onSelect: () => onSelect(`L${props.level}-B`) },
-          { default: () => `Level ${props.level} - B` },
-        ),
-      ] as Array<ReturnType<typeof h>>
+.toggle-indicator.is-on {
+  background: linear-gradient(120deg, var(--accent, #8b5cf6), var(--accent-strong, #38bdf8));
+  border-color: transparent;
+}
 
-      if (props.level < props.maxLevel) {
-        children.push(
-          h(NestedChain, {
-            level: props.level + 1,
-            maxLevel: props.maxLevel,
-          }),
-        )
-      } else {
-        children.push(h(UiMenuSeparator))
-        children.push(
-          h(
-            UiMenuItem,
-            { danger: true, onSelect: onDanger },
-            { default: () => "Dangerous leaf" },
-          ),
-        )
-      }
+.toggle-indicator.is-on::after {
+  transform: translateX(0.85rem);
+}
 
-      return h(
-        UiSubMenu,
-        null,
-        {
-          default: () => [
-            h(UiSubMenuTrigger, null, () => `Nested level ${props.level}`),
-            h(
-              UiSubMenuContent,
-              { class: "menu-playground-panel", style: { "--ui-menu-max-width": `${menuMaxWidth.value}px` } },
-              { default: () => children },
-            ),
-          ],
-        },
-      )
-    }
-  },
+.stress-target {
+  border-radius: 2rem;
+  border: 1px dashed var(--glass-border);
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+`
+
+const highlightedVue = ref("")
+const highlightedReact = ref("")
+const highlightedCss = ref("")
+const activeTab = ref<"vue" | "react" | "css">("vue")
+
+const keyPoints = [
+  { title: "1K item runs", icon: "compass" },
+  { title: "Transform + scroll", icon: "cursor" },
+  { title: "RTL ready", icon: "keyboard" },
+]
+
+onMounted(async () => {
+  const highlighter = await createHighlighter({
+    themes: ["github-dark"],
+    langs: ["vue", "tsx", "css"],
+  })
+
+  highlightedVue.value = highlighter.codeToHtml(StressTestMenuExampleSource, {
+    lang: "vue",
+    theme: "github-dark",
+  })
+
+  highlightedReact.value = highlighter.codeToHtml(StressTestMenuReactSource, {
+    lang: "tsx",
+    theme: "github-dark",
+  })
+
+  highlightedCss.value = highlighter.codeToHtml(stylesSource, {
+    lang: "css",
+    theme: "github-dark",
+  })
 })
-
-function onSelect(label: string | number) {
-  const payload = typeof label === "number" ? `Item ${label}` : label
-  lastEvent.value = payload
-}
-
-function onDanger() {
-  lastEvent.value = "Danger invoked"
-}
-
-function addDynamic() {
-  const nextId = dynamicItems.length + 1
-  dynamicItems.push({ id: nextId, label: `Dynamic ${nextId}` })
-}
-
-function removeDynamic() {
-  if (dynamicItems.length === 0) return
-  dynamicItems.pop()
-}
 
 const frameworkStore = useFrameworkStore()
 const { current } = storeToRefs(frameworkStore)
@@ -159,162 +121,97 @@ const usingVue = computed(() => current.value === "vue")
 </script>
 
 <template>
-  <template v-if="usingVue">
-    <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-      <div :class="['space-y-6', enableRTL ? 'order-2 lg:order-2' : 'order-1 lg:order-1']">
-        <div class="space-y-4">
-          <p class="text-sm uppercase tracking-[0.4em] text-(--text-muted)">Performance lab</p>
-          <h3 class="text-2xl font-semibold">Stress menus with 1K items, transforms, and RTL in one place.</h3>
-          <p class="text-sm text-(--text-muted)">
-            Use this playground to reproduce the gnarly cases product engineers send us. Crank the item count, wrap the
-            menu in scrollable parents, flip direction, or disable nested chains — the controller keeps intent and focus
-            logic in sync.
-          </p>
-          <ul class="space-y-2 text-sm text-(--text-muted)">
-            <li>Diagonal prediction and viewport collision continue to run at 60fps.</li>
-            <li>State machine stays deterministic even with hundreds of items in the tree.</li>
-            <li>Great for QA teams validating transform + scroll containers.</li>
-          </ul>
-          <div class="grid grid-cols-3 gap-3 text-sm">
-            <div
-              v-for="stat in stressStats"
-              :key="stat.label"
-              class="rounded-2xl border border-(--glass-border) px-4 py-3"
-            >
-              <p class="text-xs uppercase tracking-[0.3em] text-(--text-muted)">{{ stat.label }}</p>
-              <p class="text-lg font-semibold text-(--text-primary)">{{ stat.value }}</p>
-            </div>
-          </div>
-        </div>
+  <section class="menu-demo-block">
+    <div class="menu-demo-description">
+      <p class="menu-demo-eyebrow">Performance lab</p>
+      <h3 class="menu-demo-title">Stress menus with transforms, scroll parents, and RTL in one sandbox.</h3>
+      <p class="menu-demo-text">
+        Crank the dataset, wrap menus in transformed containers, toggle RTL, or disable nested stacks entirely. The
+        controller keeps prediction, focus, and intent stable even with thousands of items.
+      </p>
+    </div>
 
-        <div class="rounded-2xl border border-(--glass-border) p-5 text-sm text-(--text-muted)">
-          <p class="text-xs uppercase tracking-[0.3em] text-(--text-soft)">Dataset controls</p>
-          <div class="mt-4 grid gap-4 md:grid-cols-2">
-            <label class="flex flex-col text-left">
-              Items count
-              <select
-                v-model.number="selectedCount"
-                class="dataset-select mt-2 rounded-2xl px-4 py-2 text-base font-semibold"
-              >
-                <option v-for="count in itemCounts" :key="count" :value="count">{{ count }}</option>
-              </select>
-            </label>
-            <label class="flex flex-col text-left">
-              Nested depth
-              <select
-                v-model.number="nestedDepth"
-                class="dataset-select mt-2 rounded-2xl px-4 py-2 text-base font-semibold"
-              >
-                <option v-for="depth in nestedDepthOptions" :key="depth" :value="depth">{{ depth }} levels</option>
-              </select>
-            </label>
-            <label class="flex flex-col text-left">
-              Menu max width
-              <select
-                v-model.number="menuMaxWidth"
-                class="dataset-select mt-2 rounded-2xl px-4 py-2 text-base font-semibold"
-              >
-                <option v-for="width in widthOptions" :key="width" :value="width">{{ width }} px</option>
-              </select>
-            </label>
-            <div class="flex gap-2">
-              <button
-                type="button"
-                class="dataset-button rounded-full px-4 py-2 text-sm font-semibold"
-                @click="addDynamic"
-              >
-                Add dynamic
-              </button>
-              <button
-                type="button"
-                class="dataset-button rounded-full px-4 py-2 text-sm font-semibold"
-                @click="removeDynamic"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
+    <ul class="menu-key-points">
+      <li v-for="point in keyPoints" :key="point.title" class="menu-key-point">
+        <span class="menu-key-icon">
+          <svg v-if="point.icon === 'keyboard'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+            <path d="M7 10h0.01M11 10h0.01M15 10h0.01M7 14h10" />
+          </svg>
+          <svg v-else-if="point.icon === 'compass'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="12" cy="12" r="10" />
+            <polygon points="10 14 13 13 14 10 11 11" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M3 3l7.5 18 2-7 7 2L3 3z" />
+          </svg>
+        </span>
+        <div>
+          <p class="menu-key-title">{{ point.title }}</p>
         </div>
+      </li>
+    </ul>
 
-        <div class="rounded-2xl border border-(--glass-border) p-5">
-          <p class="text-xs uppercase tracking-[0.3em] text-(--text-soft)">Edge-case toggles</p>
-          <div class="mt-4 grid gap-3 md:grid-cols-2">
-            <button
-              v-for="toggle in toggles"
-              :key="toggle.key"
-              type="button"
-              class="stress-toggle"
-              :aria-pressed="toggle.ref.value"
-              @click="toggle.ref.value = !toggle.ref.value"
-            >
-              <div class="flex items-center justify-between">
-                <span class="text-sm font-semibold">{{ toggle.label }}</span>
-                <span class="toggle-indicator" :class="toggle.ref.value ? 'is-on' : 'is-off'"></span>
-              </div>
-              <p class="text-xs text-(--text-muted)">{{ toggle.description }}</p>
-            </button>
-          </div>
-        </div>
+    <div class="demo-workspace">
+      <StressTestMenuExample v-if="usingVue" />
+      <ReactMount v-else :component="StressTestMenuDemo" :key="current" />
+    </div>
+
+    <div class="demo-code">
+      <div class="demo-code-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'vue'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'vue' }"
+          @click="activeTab = 'vue'"
+        >
+          Vue
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'react'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'react' }"
+          @click="activeTab = 'react'"
+        >
+          React
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'css'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'css' }"
+          @click="activeTab = 'css'"
+        >
+          CSS
+        </button>
       </div>
-
-      <div
-        :class="[
-          'menu-demo-surface flex flex-col items-center justify-center gap-6 text-center',
-          enableRTL ? 'order-1 lg:order-1' : 'order-2 lg:order-2',
-        ]"
-        :dir="dirAttr"
-      >
-        <div class="stress-target flex w-full flex-col items-center gap-6" :style="panelStyle">
-          <p class="text-sm text-(--text-soft)">
-            {{ enableScrollableContainer ? "Scroll parent" : "Free layout" }} ·
-            {{ enableTransform ? "Transformed" : "Normal" }} container
-          </p>
-          <div
-            v-if="enableScrollableContainer"
-            class="w-full space-y-3 text-left text-sm leading-relaxed text-(--text-muted)"
-          >
-            <p>
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum gravida velit non orci bibendum, in
-              vulputate odio aliquet. Integer cursus nibh ac tellus consequat, id tempor risus fermentum.
-            </p>
-            <p>
-              Vivamus non arcu sit amet magna pellentesque efficitur. Donec pharetra sem vitae arcu suscipit, vel
-              faucibus nibh fermentum. Cras lacinia erat ac dui ornare, in facilisis nulla gravida.
-            </p>
-          </div>
-          <UiMenu>
-            <UiMenuTrigger trigger="both" as-child>
-              <button class="menu-demo-button">
-                <span>Open stress-test menu</span>
-                <span>{{ enableRTL ? "RTL layout" : "LTR layout" }}</span>
-              </button>
-            </UiMenuTrigger>
-            <UiMenuContent class="menu-playground-panel" :style="{ '--ui-menu-max-width': `${menuMaxWidth}px` }">
-              <UiMenuLabel>Root items ({{ selectedCount }})</UiMenuLabel>
-              <UiMenuSeparator />
-              <UiMenuItem v-for="n in selectedCount" :key="`root-${n}`" @select="() => onSelect(n)">
-                Item {{ n }}
-              </UiMenuItem>
-              <UiMenuSeparator />
-              <UiMenuLabel>Dynamic items ({{ dynamicItems.length }})</UiMenuLabel>
-              <UiMenuItem v-for="item in dynamicItems" :key="item.id" @select="() => onSelect(item.label)">
-                {{ item.label }}
-              </UiMenuItem>
-              <UiMenuSeparator />
-              <component v-if="enableNested" :is="NestedChain" :level="1" :max-level="nestedDepth" />
-              <UiMenuSeparator />
-              <UiMenuItem danger @select="onDanger">Delete something</UiMenuItem>
-            </UiMenuContent>
-          </UiMenu>
-        </div>
-        <div class="demo-last-action">
-          <span class="demo-last-action__label">Last action</span>
-          <span class="demo-last-action__value">{{ lastEvent }}</span>
-        </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'vue'">
+        <div v-html="highlightedVue" />
+      </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'react'">
+        <div v-html="highlightedReact" />
+      </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'css'">
+        <div v-html="highlightedCss" />
       </div>
     </div>
-  </template>
-  <ReactMount v-else :component="StressTestMenuDemo" :key="current" />
+
+    <div class="menu-demo-links">
+      <a
+        class="menu-demo-link"
+        href="https://github.com/affinio/affinio/tree/main/packages/menu-vue"
+        target="_blank"
+        rel="noreferrer"
+      >
+        View @affino/menu-vue on GitHub
+      </a>
+    </div>
+  </section>
 </template>
 
 <style scoped>
@@ -408,5 +305,4 @@ const usingVue = computed(() => current.value === "vue")
   background: color-mix(in srgb, var(--surface) 82%, transparent);
   transition: transform 0.2s ease;
 }
-
 </style>

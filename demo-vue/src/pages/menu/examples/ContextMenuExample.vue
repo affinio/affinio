@@ -31,7 +31,7 @@ const lastLog = computed(() => logs.value[0] ?? "Awaiting your gesture")
 </script>
 
 <template>
-  <div class="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
+  <div class="menu-demo-inline">
     <UiMenu>
       <UiMenuTrigger as-child trigger="contextmenu">
         <button class="menu-demo-trigger">Context Menu (Right-click)</button>

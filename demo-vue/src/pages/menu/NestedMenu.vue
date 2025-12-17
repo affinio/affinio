@@ -1,102 +1,111 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue"
 import { storeToRefs } from "pinia"
-import {
-  UiMenu,
-  UiMenuTrigger,
-  UiMenuContent,
-  UiMenuItem,
-  UiMenuLabel,
-  UiMenuSeparator,
-  UiSubMenu,
-  UiSubMenuTrigger,
-  UiSubMenuContent,
-} from "@affino/menu-vue"
 import ReactMount from "@/components/ReactMount.vue"
 import { useFrameworkStore } from "@/stores/framework"
 import NestedMenuDemo from "@/react-demos/NestedMenuDemo"
+import NestedMenuReactSource from "@/react-demos/NestedMenuDemo.tsx?raw"
+import NestedMenuExample from "./examples/NestedMenuExample.vue"
+import NestedMenuExampleSource from "./examples/NestedMenuExample.vue?raw"
 import { createHighlighter } from "shiki"
 
-const stacks = [
-  {
-    label: "Analytics",
-    code: "AN",
-    note: "Funnels, retention, pulse",
-    items: ["Sessions", "Funnel analysis", "Cohort compare", "Pulse alerts"],
-  },
-  {
-    label: "Automation",
-    code: "AU",
-    note: "Playbooks and jobs",
-    items: ["Create schedule", "Sync segments", "Trigger webhooks"],
-  },
-  {
-    label: "Access",
-    code: "AC",
-    note: "Teams, roles, audit",
-    items: ["Invite teammate", "Promote to admin", "Transfer ownership"],
-  },
-]
-
-const lastSelection = ref("Waiting for highlight")
-
-function handleSelect(label: string) {
-  lastSelection.value = label
+const stylesSource = `:root {
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --surface-solid: #0e121d;
+  --surface-button-hover: rgba(255, 255, 255, 0.12);
+  --text-primary: #edf2ff;
+  --text-muted: rgba(237, 242, 255, 0.7);
+  --text-soft: rgba(237, 242, 255, 0.55);
+  --accent: #8b5cf6;
+  --accent-strong: #38bdf8;
 }
 
-const frameworkStore = useFrameworkStore()
-const { current } = storeToRefs(frameworkStore)
-const usingVue = computed(() => current.value === "vue")
+.menu-demo-surface {
+  width: 100%;
+  border-radius: 32px;
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--surface-solid) 82%, transparent);
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
 
-const highlighted = ref("")
+.menu-playground-panel {
+  width: var(--ui-menu-max-width, 340px);
+  border-radius: 1.25rem;
+  background: var(--surface-solid);
+  border: 1px solid var(--glass-border);
+  padding: 0.55rem 0;
+  color: var(--text-primary);
+}
 
-const source = `import {
-  UiMenu,
-  UiMenuTrigger,
-  UiMenuContent,
-  UiMenuItem,
-  UiSubMenu,
-  UiSubMenuTrigger,
-  UiSubMenuContent,
-} from "@affino/menu-vue"
+.stack-code-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--surface-solid) 65%, transparent);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
 
-const stacks = [
-  { label: "Analytics", items: ["Sessions", "Funnels"] },
-  { label: "Automation", items: ["Sync segments"] },
-]
+.menu-demo-trigger {
+  padding: 0.7rem 1.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+  color: #05060a;
+  background: linear-gradient(120deg, var(--accent), var(--accent-strong));
+}
 
-<UiMenu :options="{ openDelay: 80, closeDelay: 150 }">
-  <UiMenuTrigger as-child>
-    <button class="menu-demo-trigger">Open stacks</button>
-  </UiMenuTrigger>
-  <UiMenuContent>
-    <UiSubMenu v-for="stack in stacks" :key="stack.label">
-      <UiSubMenuTrigger>{{ stack.label }}</UiSubMenuTrigger>
-      <UiSubMenuContent>
-        <UiMenuItem
-          v-for="item in stack.items"
-          :key="item"
-          @select="() => console.log(item)"
-        >
-          {{ item }}
-        </UiMenuItem>
-      </UiSubMenuContent>
-    </UiSubMenu>
-  </UiMenuContent>
-</UiMenu>
+.demo-last-action {
+  width: 100%;
+  display: flex;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
 `
+
+const highlightedVue = ref("")
+const highlightedReact = ref("")
+const highlightedCss = ref("")
+const activeTab = ref<"vue" | "react" | "css">("vue")
+
+const keyPoints = [
+  { title: "Diagonal prediction", icon: "compass" },
+  { title: "Shared tree state", icon: "keyboard" },
+  { title: "Adjustable delays", icon: "cursor" },
+]
 
 onMounted(async () => {
   const highlighter = await createHighlighter({
     themes: ["github-dark"],
-    langs: ["vue"],
+    langs: ["vue", "tsx", "css"],
   })
 
-  highlighted.value = highlighter.codeToHtml(source, {
+  highlightedVue.value = highlighter.codeToHtml(NestedMenuExampleSource, {
     lang: "vue",
     theme: "github-dark",
   })
+
+  highlightedReact.value = highlighter.codeToHtml(NestedMenuReactSource, {
+    lang: "tsx",
+    theme: "github-dark",
+  })
+
+  highlightedCss.value = highlighter.codeToHtml(stylesSource, {
+    lang: "css",
+    theme: "github-dark",
+  })
 })
+
+const frameworkStore = useFrameworkStore()
+const { current } = storeToRefs(frameworkStore)
+const usingVue = computed(() => current.value === "vue")
 </script>
 
 <template>
@@ -105,57 +114,90 @@ onMounted(async () => {
       <p class="menu-demo-eyebrow">Nested flow</p>
       <h3 class="menu-demo-title">Diagonal prediction keeps deep submenus responsive.</h3>
       <p class="menu-demo-text">
-        Each <code>UiSubMenu</code> shares the same tree so hover intent and keyboard focus stay coordinated across
-        levels. Slightly longer close delays make automation browsing calmer.
+        Each `UiSubMenu` registers in the same tree so hover intent and keyboard focus stay synchronized across levels.
+        Tune `openDelay` / `closeDelay` for calmer automation browsing.
       </p>
     </div>
 
-    <div class="demo-workspace">
-      <template v-if="usingVue">
-        <div class="menu-demo-surface flex flex-col gap-6 text-left">
-          <UiMenu :options="{ openDelay: 60, closeDelay: 140 }">
-            <UiMenuTrigger as-child>
-              <button class="menu-demo-trigger">Browse stacks</button>
-            </UiMenuTrigger>
-            <UiMenuContent class="menu-playground-panel">
-              <UiMenuLabel>Stacks</UiMenuLabel>
-              <UiMenuSeparator />
-              <UiSubMenu v-for="stack in stacks" :key="stack.label">
-                <UiSubMenuTrigger>
-                  <div class="flex flex-1 items-center gap-3 text-left">
-                    <span class="stack-code-pill">{{ stack.code }}</span>
-                    <div class="flex flex-col">
-                      <span class="text-sm font-semibold">{{ stack.label }}</span>
-                      <span class="text-xs text-(--ui-menu-muted)">{{ stack.note }}</span>
-                    </div>
-                  </div>
-                </UiSubMenuTrigger>
-                <UiSubMenuContent class="menu-playground-panel">
-                  <UiMenuItem
-                    v-for="item in stack.items"
-                    :key="item"
-                    @select="() => handleSelect(item)"
-                  >
-                    <span class="text-sm font-semibold">{{ item }}</span>
-                    <span class="text-xs text-(--ui-menu-muted)">Enter</span>
-                  </UiMenuItem>
-                </UiSubMenuContent>
-              </UiSubMenu>
-            </UiMenuContent>
-          </UiMenu>
+    <ul class="menu-key-points">
+      <li v-for="point in keyPoints" :key="point.title" class="menu-key-point">
+        <span class="menu-key-icon">
+          <svg v-if="point.icon === 'keyboard'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+            <path d="M7 10h0.01M11 10h0.01M15 10h0.01M7 14h10" />
+          </svg>
+          <svg v-else-if="point.icon === 'compass'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="12" cy="12" r="10" />
+            <polygon points="10 14 13 13 14 10 11 11" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M3 3l7.5 18 2-7 7 2L3 3z" />
+          </svg>
+        </span>
+        <div>
+          <p class="menu-key-title">{{ point.title }}</p>
         </div>
-      </template>
+      </li>
+    </ul>
+
+    <div class="demo-workspace">
+      <NestedMenuExample v-if="usingVue" />
       <ReactMount v-else :component="NestedMenuDemo" :key="current" />
-      <div class="demo-last-action">
-        <span class="demo-last-action__label">Last action</span>
-        <span class="demo-last-action__value">{{ lastSelection }}</span>
+    </div>
+
+    <div class="demo-code">
+      <div class="demo-code-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'vue'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'vue' }"
+          @click="activeTab = 'vue'"
+        >
+          Vue
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'react'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'react' }"
+          @click="activeTab = 'react'"
+        >
+          React
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'css'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'css' }"
+          @click="activeTab = 'css'"
+        >
+          CSS
+        </button>
+      </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'vue'">
+        <div v-html="highlightedVue" />
+      </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'react'">
+        <div v-html="highlightedReact" />
+      </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'css'">
+        <div v-html="highlightedCss" />
       </div>
     </div>
 
-    <pre class="demo-code">
-<code>
-  <code v-html="highlighted" />
-</code>
-</pre>
+    <div class="menu-demo-links">
+      <a
+        class="menu-demo-link"
+        href="https://github.com/affinio/affinio/tree/main/packages/menu-vue"
+        target="_blank"
+        rel="noreferrer"
+      >
+        View @affino/menu-vue on GitHub
+      </a>
+    </div>
   </section>
 </template>

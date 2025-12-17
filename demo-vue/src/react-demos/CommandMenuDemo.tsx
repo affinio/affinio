@@ -44,7 +44,7 @@ export default function CommandMenuDemo() {
   }
 
   return (
-    <div className="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
+    <div className="menu-demo-inline">
       <UiMenu options={{ closeOnSelect: false }}>
         <UiMenuTrigger asChild>
           <button className="menu-demo-button">

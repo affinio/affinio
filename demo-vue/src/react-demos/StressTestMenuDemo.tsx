@@ -28,7 +28,12 @@ type NestedChainProps = {
 function NestedChain({ level, maxLevel, menuMaxWidth, onSelect, onDanger }: NestedChainProps) {
   const hasChild = level < maxLevel
   const nextProps = { level: level + 1, maxLevel, menuMaxWidth, onSelect, onDanger }
-  const panelStyle: PanelStyle = { "--ui-menu-max-width": `${menuMaxWidth}px` }
+  const widthValue = `${menuMaxWidth}px`
+  const panelStyle: PanelStyle = {
+    "--ui-menu-max-width": widthValue,
+    width: widthValue,
+    maxWidth: `min(100%, ${widthValue})`,
+  }
 
   return (
     <UiSubMenu>
@@ -73,9 +78,14 @@ export default function StressTestMenuDemo() {
     "--ui-menu-max-width": `${menuMaxWidth}px`,
   }
 
-  const menuContentStyle = useMemo<PanelStyle>(() => ({
-    "--ui-menu-max-width": `${menuMaxWidth}px`,
-  }), [menuMaxWidth])
+  const menuContentStyle = useMemo<PanelStyle>(() => {
+    const widthValue = `${menuMaxWidth}px`
+    return {
+      "--ui-menu-max-width": widthValue,
+      width: widthValue,
+      maxWidth: `min(100%, ${widthValue})`,
+    }
+  }, [menuMaxWidth])
 
   const dirAttr = enableRTL ? "rtl" : "ltr"
 
@@ -243,7 +253,7 @@ export default function StressTestMenuDemo() {
       </div>
 
       <div
-        className={`menu-demo-surface flex flex-col items-center justify-center gap-6 text-center ${
+        className={`menu-demo-inline ${
           enableRTL ? "order-1 lg:order-1" : "order-2 lg:order-2"
         }`}
         dir={dirAttr}

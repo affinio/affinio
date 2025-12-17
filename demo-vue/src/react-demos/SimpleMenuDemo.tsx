@@ -26,7 +26,7 @@ export default function SimpleMenuDemo() {
     <div className="menu-demo-inline">
       <UiMenu>
         <UiMenuTrigger asChild>
-          <button className="menu-demo-trigger">Open React menu</button>
+          <button className="menu-demo-button">Open React menu</button>
         </UiMenuTrigger>
         <UiMenuContent className="menu-playground-panel">
           <UiMenuLabel>Project</UiMenuLabel>

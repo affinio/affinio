@@ -1,116 +1,113 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue"
 import { storeToRefs } from "pinia"
-import {
-  UiMenu,
-  UiMenuTrigger,
-  UiMenuContent,
-  UiMenuItem,
-  UiMenuLabel,
-  UiMenuSeparator,
-} from "@affino/menu-vue"
 import ReactMount from "@/components/ReactMount.vue"
 import { useFrameworkStore } from "@/stores/framework"
 import CommandMenuDemo from "@/react-demos/CommandMenuDemo"
+import CommandMenuReactSource from "@/react-demos/CommandMenuDemo.tsx?raw"
+import CommandMenuExample from "./examples/CommandMenuExample.vue"
+import CommandMenuExampleSource from "./examples/CommandMenuExample.vue?raw"
 import { createHighlighter } from "shiki"
 
-const segments = [
-  { label: "VIP accounts", key: "vip", detail: "MRR > 10K", metric: "+32%" },
-  { label: "Churn risk", key: "risk", detail: "Low usage", metric: "12" },
-  { label: "Beta testers", key: "beta", detail: "Cohort 4", metric: "64" },
-]
-
-const automationActions = [
-  { label: "Dispatch nurture flow", detail: "Send drip to selected segments" },
-  { label: "Export to warehouse", detail: "Sync snapshot to Snowflake" },
-]
-
-const activeKeys = ref(new Set<string>(["vip", "beta"]))
-const lastAction = ref("Awaiting input")
-
-function toggleSegment(key: string) {
-  const next = new Set(activeKeys.value)
-  if (next.has(key)) {
-    next.delete(key)
-  } else {
-    next.add(key)
-  }
-  activeKeys.value = next
-  const segment = segments.find((entry) => entry.key === key)
-  lastAction.value = segment
-    ? `Toggled ${segment.label} (${next.has(key) ? "On" : "Off"})`
-    : "Selection toggled"
+const stylesSource = `:root {
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --surface-solid: #0e121d;
+  --surface-button-hover: rgba(255, 255, 255, 0.12);
+  --text-primary: #edf2ff;
+  --text-muted: rgba(237, 242, 255, 0.7);
+  --text-soft: rgba(237, 242, 255, 0.55);
+  --accent: #8b5cf6;
+  --accent-strong: #38bdf8;
 }
 
-const activeList = computed(() => Array.from(activeKeys.value))
-
-function setAutomation(label: string) {
-  lastAction.value = label
+.menu-demo-surface {
+  width: 100%;
+  border-radius: 32px;
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--surface-solid) 82%, transparent);
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
 }
 
-const frameworkStore = useFrameworkStore()
-const { current } = storeToRefs(frameworkStore)
-const usingVue = computed(() => current.value === "vue")
-
-const highlighted = ref("")
-
-const source = `import { ref } from "vue"
-import {
-  UiMenu,
-  UiMenuTrigger,
-  UiMenuContent,
-  UiMenuItem,
-  UiMenuLabel,
-  UiMenuSeparator,
-} from "@affino/menu-vue"
-
-const segments = [
-  { label: "VIP accounts", key: "vip" },
-  { label: "Churn risk", key: "risk" },
-]
-
-const activeSegments = ref(new Set(["vip"]))
-
-function toggle(key: string) {
-  const next = new Set(activeSegments.value)
-  next.has(key) ? next.delete(key) : next.add(key)
-  activeSegments.value = next
+.menu-demo-trigger {
+  padding: 0.7rem 1.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #05060a;
+  background: linear-gradient(120deg, var(--accent), var(--accent-strong));
 }
 
-<UiMenu :options="{ closeOnSelect: false }">
-  <UiMenuTrigger as-child>
-    <button class="menu-demo-trigger">Segment actions</button>
-  </UiMenuTrigger>
-  <UiMenuContent>
-    <UiMenuLabel>Segments</UiMenuLabel>
-    <UiMenuItem
-      v-for="segment in segments"
-      :key="segment.key"
-      @select="() => toggle(segment.key)"
-    >
-      <span>{{ segment.label }}</span>
-      <span>{{ activeSegments.has(segment.key) ? "On" : "Off" }}</span>
-    </UiMenuItem>
-    <UiMenuSeparator />
-    <UiMenuLabel>Automation</UiMenuLabel>
-    <UiMenuItem @select="() => console.log('Dispatch flow')">
-      Dispatch nurture flow
-    </UiMenuItem>
-  </UiMenuContent>
-</UiMenu>
+.menu-playground-panel {
+  width: var(--ui-menu-max-width, 360px);
+  border-radius: 1.25rem;
+  background: var(--surface-solid);
+  border: 1px solid var(--glass-border);
+  padding: 0.55rem 0;
+  color: var(--text-primary);
+}
+
+.demo-chip {
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  padding: 0.25rem 0.85rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.demo-chip--muted {
+  border-style: dashed;
+  color: var(--text-soft);
+}
+
+.demo-last-action {
+  width: 100%;
+  display: flex;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
 `
+
+const highlightedVue = ref("")
+const highlightedReact = ref("")
+const highlightedCss = ref("")
+const activeTab = ref<"vue" | "react" | "css">("vue")
+
+const keyPoints = [
+  { title: "Stay open on select", icon: "keyboard" },
+  { title: "Live metrics chips", icon: "compass" },
+  { title: "Deterministic focus", icon: "cursor" },
+]
 
 onMounted(async () => {
   const highlighter = await createHighlighter({
     themes: ["github-dark"],
-    langs: ["vue"],
+    langs: ["vue", "tsx", "css"],
   })
 
-  highlighted.value = highlighter.codeToHtml(source, {
+  highlightedVue.value = highlighter.codeToHtml(CommandMenuExampleSource, {
     lang: "vue",
     theme: "github-dark",
   })
+
+  highlightedReact.value = highlighter.codeToHtml(CommandMenuReactSource, {
+    lang: "tsx",
+    theme: "github-dark",
+  })
+
+  highlightedCss.value = highlighter.codeToHtml(stylesSource, {
+    lang: "css",
+    theme: "github-dark",
+  })
 })
+
+const frameworkStore = useFrameworkStore()
+const { current } = storeToRefs(frameworkStore)
+const usingVue = computed(() => current.value === "vue")
 </script>
 
 <template>
@@ -119,76 +116,90 @@ onMounted(async () => {
       <p class="menu-demo-eyebrow">Command center</p>
       <h3 class="menu-demo-title">Keep menus open for rapid multi-select flows.</h3>
       <p class="menu-demo-text">
-        Toggle segments without ever closing the panel. Set <code>closeOnSelect: false</code> so operators can
-        multi-select quickly while streaming updates to the summary chips below.
+        Toggle customer segments without closing the panel. `closeOnSelect: false` keeps velocity high while the
+        summary chips reflect the live selection set instantly.
       </p>
     </div>
 
-    <div class="demo-workspace">
-      <template v-if="usingVue">
-        <div class="menu-demo-surface flex flex-col gap-6 text-left">
-          <UiMenu :options="{ closeOnSelect: false }">
-            <UiMenuTrigger as-child>
-              <button class="menu-demo-trigger">Segment actions</button>
-            </UiMenuTrigger>
-            <UiMenuContent class="menu-playground-panel">
-              <UiMenuLabel>Segments</UiMenuLabel>
-              <UiMenuItem
-                v-for="segment in segments"
-                :key="segment.key"
-                @select="() => toggleSegment(segment.key)"
-              >
-                <div class="flex flex-col text-left">
-                  <span class="text-sm font-semibold">{{ segment.label }}</span>
-                  <span class="text-xs text-(--ui-menu-muted)">{{ segment.detail }}</span>
-                </div>
-                <span
-                  class="text-xs font-semibold"
-                  :class="activeKeys.has(segment.key) ? 'text-emerald-400' : 'text-(--ui-menu-muted)'"
-                >
-                  {{ activeKeys.has(segment.key) ? "On" : "Off" }} · {{ segment.metric }}
-                </span>
-              </UiMenuItem>
-              <UiMenuSeparator />
-              <UiMenuLabel>Automation</UiMenuLabel>
-              <UiMenuItem
-                v-for="action in automationActions"
-                :key="action.label"
-                @select="() => setAutomation(action.label)"
-              >
-                <div class="flex flex-col text-left">
-                  <span class="text-sm font-semibold">{{ action.label }}</span>
-                  <span class="text-xs text-(--ui-menu-muted)">{{ action.detail }}</span>
-                </div>
-              </UiMenuItem>
-            </UiMenuContent>
-          </UiMenu>
-          <div class="w-full space-y-3 text-sm text-(--text-muted)">
-            <div>
-              <p class="text-xs uppercase tracking-[0.3em] text-(--text-soft)">Active segments</p>
-              <div class="mt-2 flex flex-wrap gap-2">
-                <span v-for="segment in activeList" :key="segment" class="demo-chip">
-                  {{ segment }}
-                </span>
-                <span v-if="!activeList.length" class="demo-chip demo-chip--muted">
-                  None selected yet
-                </span>
-              </div>
-            </div>
-          </div>
+    <ul class="menu-key-points">
+      <li v-for="point in keyPoints" :key="point.title" class="menu-key-point">
+        <span class="menu-key-icon">
+          <svg v-if="point.icon === 'keyboard'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+            <path d="M7 10h0.01M11 10h0.01M15 10h0.01M7 14h10" />
+          </svg>
+          <svg v-else-if="point.icon === 'compass'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="12" cy="12" r="10" />
+            <polygon points="10 14 13 13 14 10 11 11" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M3 3l7.5 18 2-7 7 2L3 3z" />
+          </svg>
+        </span>
+        <div>
+          <p class="menu-key-title">{{ point.title }}</p>
         </div>
-      </template>
+      </li>
+    </ul>
+
+    <div class="demo-workspace">
+      <CommandMenuExample v-if="usingVue" />
       <ReactMount v-else :component="CommandMenuDemo" :key="current" />
-      <div class="demo-last-action">
-        <span class="demo-last-action__label">Last action</span>
-        <span class="demo-last-action__value">{{ lastAction }}</span>
+    </div>
+
+    <div class="demo-code">
+      <div class="demo-code-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'vue'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'vue' }"
+          @click="activeTab = 'vue'"
+        >
+          Vue
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'react'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'react' }"
+          @click="activeTab = 'react'"
+        >
+          React
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'css'"
+          class="demo-code-tab"
+          :class="{ 'demo-code-tab--active': activeTab === 'css' }"
+          @click="activeTab = 'css'"
+        >
+          CSS
+        </button>
+      </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'vue'">
+        <div v-html="highlightedVue" />
+      </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'react'">
+        <div v-html="highlightedReact" />
+      </div>
+      <div class="demo-code-panel" role="tabpanel" v-show="activeTab === 'css'">
+        <div v-html="highlightedCss" />
       </div>
     </div>
 
-    <pre class="demo-code">
-<code>
-  <code v-html="highlighted" />
-</code>
-</pre>
+    <div class="menu-demo-links">
+      <a
+        class="menu-demo-link"
+        href="https://github.com/affinio/affinio/tree/main/packages/menu-vue"
+        target="_blank"
+        rel="noreferrer"
+      >
+        View @affino/menu-vue on GitHub
+      </a>
+    </div>
   </section>
 </template>

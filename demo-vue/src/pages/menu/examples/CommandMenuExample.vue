@@ -43,7 +43,7 @@ function setAutomation(label: string) {
 </script>
 
 <template>
-  <div class="menu-demo-surface flex flex-col gap-6 text-left">
+  <div class="menu-demo-inline">
     <UiMenu :options="{ closeOnSelect: false }">
       <UiMenuTrigger as-child>
         <button class="menu-demo-trigger">Segment actions</button>

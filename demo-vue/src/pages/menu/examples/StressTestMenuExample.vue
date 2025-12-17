@@ -151,7 +151,7 @@ function removeDynamic() {
 </script>
 
 <template>
-  <div class="menu-demo-surface flex w-full flex-col gap-6 text-left" :dir="dirAttr">
+  <div class="menu-demo-inline" :dir="dirAttr">
     <div class="grid gap-3 sm:grid-cols-3 text-center text-xs uppercase tracking-[0.25em] text-(--text-soft)">
       <div v-for="stat in stressStats" :key="stat.label" class="rounded-2xl border border-(--glass-border) p-4">
         <span class="block text-(--text-muted)">{{ stat.label }}</span>
@@ -208,7 +208,7 @@ function removeDynamic() {
       </div>
     </div>
 
-    <div class="stress-target flex w-full flex-col items-center gap-6" :style="panelStyle">
+    <div class="flex w-full flex-col items-start gap-6" :style="panelStyle">
       <p class="text-sm text-(--text-soft)">
         {{ enableScrollableContainer ? "Scroll parent" : "Free layout" }} ·
         {{ enableTransform ? "Transformed" : "Normal" }} container

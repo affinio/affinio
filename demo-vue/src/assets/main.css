@@ -339,6 +339,34 @@ a {
 	width: fit-content;
 }
 
+.menu-demo-button {
+	border-radius: 999px;
+	border: 1px solid var(--glass-border);
+	background: linear-gradient(120deg, var(--accent), var(--accent-strong));
+	box-shadow: 0 16px 36px rgba(15, 23, 42, 0.28);
+	color: #05060a;
+	font-weight: 600;
+	font-size: 0.9rem;
+	padding: 0.7rem 1.6rem;
+	display: inline-flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	text-align: center;
+	transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.menu-demo-button:hover {
+	transform: translateY(-1px);
+	opacity: 0.96;
+}
+
+.menu-demo-button:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent),
+		0 18px 40px rgba(15, 23, 42, 0.3);
+}
+
 .menu-stage {
 	border-radius: 26px;
 	border: 1px solid var(--glass-border);
@@ -528,4 +556,67 @@ a {
 
 .react-mount {
 	width: 100%;
+}
+
+.control {
+	display: inline-flex;
+	align-items: center;
+	justify-content: space-between;
+
+	min-height: 38px;
+	padding: 0.5rem 0.85rem;
+
+	border-radius: 12px;
+	border: 1px solid var(--glass-border);
+
+	background: color-mix(in srgb, var(--surface) 92%, transparent);
+	color: var(--text-primary);
+
+	font-family: inherit;
+	font-size: 0.85rem;
+	font-weight: 600;
+
+	transition:
+		background 0.15s ease,
+		border-color 0.15s ease,
+		box-shadow 0.15s ease;
+}
+
+.control:hover {
+	border-color: var(--glass-highlight);
+	background: color-mix(in srgb, var(--surface) 96%, transparent);
+}
+
+.control:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+
+.stress-toggle {
+	text-align: left;
+	border-radius: 16px;
+	border: 1px solid var(--glass-border);
+	padding: 0.85rem 1rem;
+	background: color-mix(in srgb, var(--surface) 90%, transparent);
+	transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.stress-toggle:hover {
+	border-color: var(--glass-highlight);
+}
+
+select.control {
+	appearance: none;
+	padding-right: 2rem;
+
+	background-image:
+		linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+		linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+	background-position:
+		calc(100% - 16px) 55%,
+		calc(100% - 10px) 55%;
+	background-size: 6px 6px;
+	background-repeat: no-repeat;
 }

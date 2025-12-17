@@ -18,7 +18,7 @@ const cores = [
     title: "Virtualization Core",
     description:
       "High-performance row/column virtualization for massive datasets with zero layout thrashing.",
-    to: "/one-grid",
+    to: "/virtualization",
   },
 ]
 </script>

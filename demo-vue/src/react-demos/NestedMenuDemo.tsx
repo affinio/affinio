@@ -36,7 +36,7 @@ export default function NestedMenuDemo() {
   const [lastSelection, setLastSelection] = useState("Waiting for highlight")
 
   return (
-    <div className="menu-demo-surface flex flex-col items-center justify-center gap-6 text-center">
+    <div className="menu-demo-inline">
       <UiMenu options={{ openDelay: 60, closeDelay: 140 }}>
         <UiMenuTrigger asChild>
           <button className="menu-demo-button">
