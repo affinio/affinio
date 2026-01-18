@@ -9,6 +9,12 @@ const cores = [
     to: "/menu/simple",
   },
   {
+    title: "Tooltip Core",
+    description:
+      "SurfaceCore-powered hover and focus tooltips with shared timers and Vue adapters.",
+    to: "/tooltips",
+  },
+  {
     title: "Selection Core",
     description:
       "Spreadsheet-grade selection logic for grids, trees, and canvases. Keyboard, range, and multi-anchor aware.",

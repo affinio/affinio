@@ -1,0 +1,67 @@
+<script setup lang="ts">
+import { computed, ref, watch } from "vue"
+import { useTooltipController } from "@affino/tooltip-vue"
+
+const controller = useTooltipController({ id: "tooltip-manual-demo", openDelay: 240, closeDelay: 220 })
+const state = controller.state
+const triggerProps = computed(() => controller.getTriggerProps())
+const tooltipProps = computed(() => controller.getTooltipProps())
+const pinned = ref(false)
+
+watch(pinned, (next) => {
+  if (next) {
+    controller.open("programmatic")
+  } else {
+    controller.close("programmatic")
+  }
+})
+
+const openNow = () => {
+  pinned.value = false
+  controller.open("programmatic")
+}
+
+const closeNow = () => {
+  pinned.value = false
+  controller.close("programmatic")
+}
+</script>
+
+<template>
+  <article class="tooltip-card">
+    <p class="tooltip-card__eyebrow">Mode 03</p>
+    <h3 class="tooltip-card__title">Programmatic control</h3>
+    <p class="tooltip-card__text">
+      Imperative handles unlock advanced flows such as pinned surfaces, chained tours, or analytics-driven nudges.
+      This card exposes open/close actions plus a manual pin toggle.
+    </p>
+
+    <div class="tooltip-stage tooltip-stage--manual">
+      <span class="tooltip-pill" v-bind="triggerProps">Latency SLA</span>
+
+      <transition name="tooltip-fade">
+        <div v-if="state.open" class="tooltip-bubble" v-bind="tooltipProps">
+          <p class="tooltip-bubble__title">Pinned tooltips</p>
+          <p class="tooltip-bubble__body">
+            Call <code>controller.open('programmatic')</code> to override timers and keep the surface alive as long as
+            you need.
+          </p>
+        </div>
+      </transition>
+    </div>
+
+    <div class="tooltip-manual-controls">
+      <button type="button" class="tooltip-control" @click="openNow">Open now</button>
+      <button type="button" class="tooltip-control" @click="closeNow">Close</button>
+      <label class="tooltip-toggle">
+        <input type="checkbox" v-model="pinned" />
+        Keep open
+      </label>
+    </div>
+
+    <p class="tooltip-state-chip">
+      State ·
+      <span :class="{ 'tooltip-state-chip__value': state.open }">{{ state.open ? "open" : "closed" }}</span>
+    </p>
+  </article>
+</template>

@@ -19,6 +19,7 @@
     "@affino/menu-core": "workspace:*",
     "@affino/menu-react": "workspace:*",
     "@affino/menu-vue": "workspace:*",
+    "@affino/tooltip-vue": "workspace:*",
     "@affino/selection-core": "workspace:*",
     "@affino/virtualization-core": "workspace:*",
     "@tailwindcss/vite": "^4.1.18",

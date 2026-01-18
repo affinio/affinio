@@ -1,0 +1,66 @@
+<script setup lang="ts">
+import { computed, ref } from "vue"
+import { useTooltipController } from "@affino/tooltip-vue"
+
+const email = ref("ops@affino.dev")
+const controller = useTooltipController({ id: "tooltip-field-demo", openDelay: 0, closeDelay: 160 })
+const state = controller.state
+const triggerProps = computed(() => controller.getTriggerProps())
+const tooltipProps = computed(() => controller.getTooltipProps())
+
+const handleFocus = () => controller.open("keyboard")
+const handleBlur = () => controller.close("keyboard")
+const handleInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  email.value = target.value
+}
+</script>
+
+<template>
+  <article class="tooltip-card">
+    <p class="tooltip-card__eyebrow">Mode 02</p>
+    <h3 class="tooltip-card__title">Form guardrails</h3>
+    <p class="tooltip-card__text">
+      Tooltips can sit inside dense forms, opening on field focus or on-demand help icons. Close timers are a bit
+      longer here so copy stays readable when tabbing quickly.
+    </p>
+
+    <div class="tooltip-field">
+      <label class="tooltip-field__label" for="tooltip-email">
+        Work email
+        <span class="tooltip-inline-anchor">
+          <button type="button" class="tooltip-icon-button" aria-label="Field requirements" v-bind="triggerProps">
+            i
+          </button>
+
+          <transition name="tooltip-fade">
+            <div
+              v-if="state.open"
+              class="tooltip-bubble tooltip-bubble--inline"
+              v-bind="tooltipProps"
+            >
+              <p class="tooltip-bubble__title">Verified domains</p>
+              <p class="tooltip-bubble__body">
+                Use your company email so access can be provisioned across every workspace instantly.
+              </p>
+            </div>
+          </transition>
+        </span>
+      </label>
+
+      <input
+        id="tooltip-email"
+        class="tooltip-input"
+        type="email"
+        :value="email"
+        autocomplete="email"
+        placeholder="you@company.com"
+        @focus="handleFocus"
+        @blur="handleBlur"
+        @input="handleInput"
+      />
+    </div>
+
+    <p class="tooltip-state-chip">State · {{ state.open ? "open" : "closed" }}</p>
+  </article>
+</template>

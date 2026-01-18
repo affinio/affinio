@@ -18,6 +18,7 @@ const activeCore = computed(() => {
   if (route.path.startsWith('/menu')) return 'Menu'
   if (route.path.startsWith('/selection')) return 'Selection'
   if (route.path.startsWith('/virtualization')) return 'Virtualization'
+  if (route.path.startsWith('/tooltips')) return 'Tooltips'
   return 'Overview'
 })
 
@@ -26,6 +27,7 @@ const coreCapabilities: Record<string, { adapters: boolean }> = {
   menu: { adapters: true },
   selection: { adapters: false },
   virtualization: { adapters: false },
+  tooltips: { adapters: false },
 }
 
 const subtitle = computed(() => {
@@ -89,6 +91,16 @@ const subtitle = computed(() => {
             :class="{ 'nav-link--active': route.path.startsWith('/virtualization') }"
           >
             Virtualization
+          </a>
+        </RouterLink>
+
+        <RouterLink to="/tooltips" v-slot="{ href }">
+          <a
+            :href="href"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.path.startsWith('/tooltips') }"
+          >
+            Tooltips
           </a>
         </RouterLink>
 

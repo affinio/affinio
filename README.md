@@ -57,7 +57,9 @@ We build **headless UI primitives** that keep accessibility, performance, and be
 
 | Package | Purpose |
 |------|------|
+| `@affino/surface-core` | Shared lifecycle + positioning primitives for floating surfaces |
 | `@affino/menu-core` | Framework-agnostic menu engine (state, intent, positioning) |
+| `@affino/tooltip-core` | Deterministic tooltip controller built on the shared surface core |
 | `@affino/selection-core` | Grid and range selection primitives |
 | `@affino/virtualization-core` | High-performance virtualization building blocks |
 
@@ -73,6 +75,12 @@ We build **headless UI primitives** that keep accessibility, performance, and be
 You can switch between Vue and React demos instantly using the framework toggle on the site.
 
 👉 **Try it live:** https://affino.dev
+
+## Tooltip Adapters
+
+| Package | Framework | Status | Notes |
+|------|------|------|------|
+| `@affino/tooltip-vue` | Vue 3.4+ | Alpha | `useTooltipController` hook that wires `TooltipCore` into Vue templates while the React adapter is in progress |
 
 ---
 
