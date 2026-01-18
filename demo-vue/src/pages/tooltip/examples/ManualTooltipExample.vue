@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
-import { useTooltipController } from "@affino/tooltip-vue"
+import { useTooltipController, useFloatingTooltip } from "@affino/tooltip-vue"
 
 const controller = useTooltipController({ id: "tooltip-manual-demo", openDelay: 240, closeDelay: 220 })
 const state = controller.state
 const triggerProps = computed(() => controller.getTriggerProps())
 const tooltipProps = computed(() => controller.getTooltipProps())
 const pinned = ref(false)
+const { triggerRef, tooltipRef, tooltipStyle } = useFloatingTooltip(controller, {
+  placement: "top",
+  align: "center",
+  gutter: 14,
+})
 
 watch(pinned, (next) => {
   if (next) {
@@ -37,10 +42,16 @@ const closeNow = () => {
     </p>
 
     <div class="tooltip-stage tooltip-stage--manual">
-      <span class="tooltip-pill" v-bind="triggerProps">Latency SLA</span>
+      <span ref="triggerRef" class="tooltip-pill" v-bind="triggerProps">Latency SLA</span>
 
       <transition name="tooltip-fade">
-        <div v-if="state.open" class="tooltip-bubble" v-bind="tooltipProps">
+        <div
+          v-if="state.open"
+          ref="tooltipRef"
+          class="tooltip-bubble"
+          v-bind="tooltipProps"
+          :style="tooltipStyle"
+        >
           <p class="tooltip-bubble__title">Pinned tooltips</p>
           <p class="tooltip-bubble__body">
             Call <code>controller.open('programmatic')</code> to override timers and keep the surface alive as long as

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { useTooltipController } from "@affino/tooltip-vue"
+import { useTooltipController, useFloatingTooltip } from "@affino/tooltip-vue"
 
 const controller = useTooltipController(
   {
@@ -13,6 +13,11 @@ const controller = useTooltipController(
 const state = controller.state
 const triggerProps = computed(() => controller.getTriggerProps())
 const tooltipProps = computed(() => controller.getTooltipProps())
+const { triggerRef, tooltipRef, tooltipStyle } = useFloatingTooltip(controller, {
+  placement: "top",
+  align: "center",
+  gutter: 12,
+})
 </script>
 
 <template>
@@ -25,12 +30,18 @@ const tooltipProps = computed(() => controller.getTooltipProps())
     </p>
 
     <div class="tooltip-stage">
-      <button type="button" class="tooltip-trigger" v-bind="triggerProps">
+      <button ref="triggerRef" type="button" class="tooltip-trigger" v-bind="triggerProps">
         Inspect SLA
       </button>
 
       <transition name="tooltip-fade">
-        <div v-if="state.open" class="tooltip-bubble" v-bind="tooltipProps">
+        <div
+          v-if="state.open"
+          ref="tooltipRef"
+          class="tooltip-bubble"
+          v-bind="tooltipProps"
+          :style="tooltipStyle"
+        >
           <p class="tooltip-bubble__title">Always-on</p>
           <p class="tooltip-bubble__body">
             Incident response under 4 minutes with on-call coverage across 11 regions.

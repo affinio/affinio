@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
-import { useTooltipController } from "@affino/tooltip-vue"
+import { useTooltipController, useFloatingTooltip } from "@affino/tooltip-vue"
 
 const email = ref("ops@affino.dev")
 const controller = useTooltipController({ id: "tooltip-field-demo", openDelay: 0, closeDelay: 160 })
 const state = controller.state
 const triggerProps = computed(() => controller.getTriggerProps())
 const tooltipProps = computed(() => controller.getTooltipProps())
+const { triggerRef, tooltipRef, tooltipStyle } = useFloatingTooltip(controller, {
+  placement: "top",
+  align: "end",
+  gutter: 10,
+})
 
 const handleFocus = () => controller.open("keyboard")
 const handleBlur = () => controller.close("keyboard")
@@ -29,15 +34,23 @@ const handleInput = (event: Event) => {
       <label class="tooltip-field__label" for="tooltip-email">
         Work email
         <span class="tooltip-inline-anchor">
-          <button type="button" class="tooltip-icon-button" aria-label="Field requirements" v-bind="triggerProps">
+          <button
+            ref="triggerRef"
+            type="button"
+            class="tooltip-icon-button"
+            aria-label="Field requirements"
+            v-bind="triggerProps"
+          >
             i
           </button>
 
           <transition name="tooltip-fade">
             <div
               v-if="state.open"
-              class="tooltip-bubble tooltip-bubble--inline"
+              ref="tooltipRef"
+              class="tooltip-bubble"
               v-bind="tooltipProps"
+              :style="tooltipStyle"
             >
               <p class="tooltip-bubble__title">Verified domains</p>
               <p class="tooltip-bubble__body">

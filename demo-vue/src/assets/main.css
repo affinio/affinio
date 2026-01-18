@@ -749,10 +749,7 @@ select.control {
 }
 
 .tooltip-bubble {
-	position: absolute;
-	top: calc(100% + 0.75rem);
-	left: 50%;
-	transform: translateX(-50%);
+	position: fixed;
 	min-width: 220px;
 	max-width: 260px;
 	padding: 0.85rem 1rem;
@@ -761,12 +758,8 @@ select.control {
 	background: rgb(9 11 18 / 0.92);
 	box-shadow: 0 20px 40px rgba(6, 8, 16, 0.45);
 	text-align: left;
-}
-
-.tooltip-bubble--inline {
-	left: auto;
-	right: 0;
-	transform: translateY(calc(-100% - 0.5rem));
+	z-index: 40;
+	pointer-events: auto;
 }
 
 .tooltip-bubble__title {
