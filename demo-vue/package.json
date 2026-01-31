@@ -19,6 +19,7 @@
     "@affino/dialog-vue": "workspace:*",
     "@affino/aria-utils": "workspace:*",
     "@affino/focus-utils": "workspace:*",
+    "@affino/grid-selection-vue": "workspace:*",
     "@affino/menu-core": "workspace:*",
     "@affino/menu-react": "workspace:*",
     "@affino/menu-vue": "workspace:*",

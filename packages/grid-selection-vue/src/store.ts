@@ -1,17 +1,17 @@
-import { emptySelectionState, type HeadlessSelectionState } from "@affino/selection-core"
+import { emptySelectionState, type HeadlessSelectionState } from "@affino/grid-selection-core"
 
-export type SelectionStoreListener<RowKey> = (state: HeadlessSelectionState<RowKey>) => void
+export type GridSelectionStoreListener<RowKey> = (state: HeadlessSelectionState<RowKey>) => void
 
-export interface SelectionStoreOptions<RowKey> {
+export interface GridSelectionStoreOptions<RowKey> {
   initialState?: HeadlessSelectionState<RowKey>
 }
 
-export interface SelectionStore<RowKey> {
+export interface GridSelectionStore<RowKey> {
   getState(): HeadlessSelectionState<RowKey>
   peekState(): HeadlessSelectionState<RowKey>
   setState(state: HeadlessSelectionState<RowKey>): void
   applyResult(state: HeadlessSelectionState<RowKey>): void
-  subscribe(listener: SelectionStoreListener<RowKey>): () => void
+  subscribe(listener: GridSelectionStoreListener<RowKey>): () => void
   dispose(): void
 }
 
@@ -86,14 +86,16 @@ function statesEqual<RowKey>(a: HeadlessSelectionState<RowKey>, b: HeadlessSelec
   return true
 }
 
-export function createSelectionStore<RowKey>(options: SelectionStoreOptions<RowKey> = {}): SelectionStore<RowKey> {
+export function createGridSelectionStore<RowKey>(
+  options: GridSelectionStoreOptions<RowKey> = {},
+): GridSelectionStore<RowKey> {
   let current = options.initialState ? cloneState(options.initialState) : emptySelectionState<RowKey>()
-  const listeners = new Set<SelectionStoreListener<RowKey>>()
+  const listeners = new Set<GridSelectionStoreListener<RowKey>>()
   let disposed = false
 
   function ensureActive() {
     if (disposed) {
-      throw new Error("SelectionStore has been disposed")
+      throw new Error("GridSelectionStore has been disposed")
     }
   }
 

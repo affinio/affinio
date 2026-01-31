@@ -8,7 +8,7 @@ import {
   toggleCellSelection,
   type GridSelectionContext,
 } from '@affino/selection-core'
-import { createSelectionStore } from '@/stores/selectionStore'
+import { createGridSelectionStore, useGridSelectionStore } from '@affino/grid-selection-vue'
 
 interface GridRow {
   id: string
@@ -30,13 +30,10 @@ const context: GridSelectionContext<string> = {
   getRowIdByIndex: (rowIndex: number) => rows[rowIndex]?.id ?? null,
 }
 
-const store = createSelectionStore<string>()
-
-type SelectionSnapshot = ReturnType<typeof store.getState>
-const selection = ref(store.getState())
+const store = createGridSelectionStore<string>()
+const { state: selection } = useGridSelectionStore(store)
 const dragging = ref(false)
 const gridShell = ref<HTMLDivElement | null>(null)
-let unsubscribe: (() => void) | null = null
 
 const stopDragging = () => {
   dragging.value = false
@@ -47,16 +44,12 @@ const focusGridShell = () => {
 }
 
 onMounted(() => {
-  unsubscribe = store.subscribe((state: SelectionSnapshot) => {
-    selection.value = state
-  })
   store.applyResult(selectSingleCell({ point: { rowIndex: 0, colIndex: 0 }, context }))
   focusGridShell()
   window.addEventListener('pointerup', stopDragging)
 })
 
 onBeforeUnmount(() => {
-  unsubscribe?.()
   window.removeEventListener('pointerup', stopDragging)
 })
 
