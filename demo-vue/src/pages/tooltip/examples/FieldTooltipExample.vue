@@ -7,7 +7,7 @@ const controller = useTooltipController({ id: "tooltip-field-demo", openDelay: 0
 const state = controller.state
 const triggerProps = computed(() => controller.getTriggerProps())
 const tooltipProps = computed(() => controller.getTooltipProps())
-const { triggerRef, tooltipRef, tooltipStyle } = useFloatingTooltip(controller, {
+const { triggerRef, tooltipRef, tooltipStyle, teleportTarget } = useFloatingTooltip(controller, {
   placement: "top",
   align: "end",
   gutter: 10,
@@ -44,20 +44,22 @@ const handleInput = (event: Event) => {
             i
           </button>
 
-          <transition name="tooltip-fade">
-            <div
-              v-if="state.open"
-              ref="tooltipRef"
-              class="tooltip-bubble"
-              v-bind="tooltipProps"
-              :style="tooltipStyle"
-            >
-              <p class="tooltip-bubble__title">Verified domains</p>
-              <p class="tooltip-bubble__body">
-                Use your company email so access can be provisioned across every workspace instantly.
-              </p>
-            </div>
-          </transition>
+          <Teleport :to="teleportTarget">
+            <transition name="tooltip-fade">
+              <div
+                v-if="state.open"
+                ref="tooltipRef"
+                class="tooltip-bubble"
+                v-bind="tooltipProps"
+                :style="tooltipStyle"
+              >
+                <p class="tooltip-bubble__title">Verified domains</p>
+                <p class="tooltip-bubble__body">
+                  Use your company email so access can be provisioned across every workspace instantly.
+                </p>
+              </div>
+            </transition>
+          </Teleport>
         </span>
       </label>
 

@@ -62,7 +62,7 @@ const tooltipController = useTooltipController({
 const tooltipState = tooltipController.state
 const tooltipTriggerProps = computed(() => tooltipController.getTriggerProps())
 const tooltipProps = computed(() => tooltipController.getTooltipProps())
-const { triggerRef: tooltipTriggerRef, tooltipRef, tooltipStyle } = useFloatingTooltip(tooltipController, {
+const { triggerRef: tooltipTriggerRef, tooltipRef, tooltipStyle, teleportTarget: tooltipTeleportTarget } = useFloatingTooltip(tooltipController, {
   placement: "top",
   align: "center",
   gutter: 12,
@@ -622,20 +622,22 @@ function closeSurfaceForSwipe(target: SurfaceKey) {
               >
                 SLA policy
               </button>
-              <transition name="tooltip-fade">
-                <div
-                  v-if="tooltipState.open"
-                  ref="tooltipRef"
-                  class="surface-tooltip__bubble"
-                  v-bind="tooltipProps"
-                  :style="tooltipStyle"
-                >
-                  <p class="surface-tooltip__title">Always-on coverage</p>
-                  <p>
-                    Emergencies receive a response in under 4 minutes. Hover or focus keeps this tooltip confined inside the dialog.
-                  </p>
-                </div>
-              </transition>
+              <Teleport :to="tooltipTeleportTarget">
+                <transition name="tooltip-fade">
+                  <div
+                    v-if="tooltipState.open"
+                    ref="tooltipRef"
+                    class="surface-tooltip__bubble"
+                    v-bind="tooltipProps"
+                    :style="tooltipStyle"
+                  >
+                    <p class="surface-tooltip__title">Always-on coverage</p>
+                    <p>
+                      Emergencies receive a response in under 4 minutes. Hover or focus keeps this tooltip confined inside the dialog.
+                    </p>
+                  </div>
+                </transition>
+              </Teleport>
             </div>
           </div>
           <div class="stack-panel">

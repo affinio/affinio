@@ -7,7 +7,7 @@ const state = controller.state
 const triggerProps = computed(() => controller.getTriggerProps())
 const tooltipProps = computed(() => controller.getTooltipProps())
 const pinned = ref(false)
-const { triggerRef, tooltipRef, tooltipStyle } = useFloatingTooltip(controller, {
+const { triggerRef, tooltipRef, tooltipStyle, teleportTarget } = useFloatingTooltip(controller, {
   placement: "top",
   align: "center",
   gutter: 14,
@@ -44,21 +44,23 @@ const closeNow = () => {
     <div class="tooltip-stage tooltip-stage--manual">
       <span ref="triggerRef" class="tooltip-pill" v-bind="triggerProps">Latency SLA</span>
 
-      <transition name="tooltip-fade">
-        <div
-          v-if="state.open"
-          ref="tooltipRef"
-          class="tooltip-bubble"
-          v-bind="tooltipProps"
-          :style="tooltipStyle"
-        >
-          <p class="tooltip-bubble__title">Pinned tooltips</p>
-          <p class="tooltip-bubble__body">
-            Call <code>controller.open('programmatic')</code> to override timers and keep the surface alive as long as
-            you need.
-          </p>
-        </div>
-      </transition>
+      <Teleport :to="teleportTarget">
+        <transition name="tooltip-fade">
+          <div
+            v-if="state.open"
+            ref="tooltipRef"
+            class="tooltip-bubble"
+            v-bind="tooltipProps"
+            :style="tooltipStyle"
+          >
+            <p class="tooltip-bubble__title">Pinned tooltips</p>
+            <p class="tooltip-bubble__body">
+              Call <code>controller.open('programmatic')</code> to override timers and keep the surface alive as long as
+              you need.
+            </p>
+          </div>
+        </transition>
+      </Teleport>
     </div>
 
     <div class="tooltip-manual-controls">

@@ -13,7 +13,7 @@ const controller = useTooltipController(
 const state = controller.state
 const triggerProps = computed(() => controller.getTriggerProps())
 const tooltipProps = computed(() => controller.getTooltipProps())
-const { triggerRef, tooltipRef, tooltipStyle } = useFloatingTooltip(controller, {
+const { triggerRef, tooltipRef, tooltipStyle, teleportTarget } = useFloatingTooltip(controller, {
   placement: "top",
   align: "center",
   gutter: 12,
@@ -34,20 +34,22 @@ const { triggerRef, tooltipRef, tooltipStyle } = useFloatingTooltip(controller, 
         Inspect SLA
       </button>
 
-      <transition name="tooltip-fade">
-        <div
-          v-if="state.open"
-          ref="tooltipRef"
-          class="tooltip-bubble"
-          v-bind="tooltipProps"
-          :style="tooltipStyle"
-        >
-          <p class="tooltip-bubble__title">Always-on</p>
-          <p class="tooltip-bubble__body">
-            Incident response under 4 minutes with on-call coverage across 11 regions.
-          </p>
-        </div>
-      </transition>
+      <Teleport :to="teleportTarget">
+        <transition name="tooltip-fade">
+          <div
+            v-if="state.open"
+            ref="tooltipRef"
+            class="tooltip-bubble"
+            v-bind="tooltipProps"
+            :style="tooltipStyle"
+          >
+            <p class="tooltip-bubble__title">Always-on</p>
+            <p class="tooltip-bubble__body">
+              Incident response under 4 minutes with on-call coverage across 11 regions.
+            </p>
+          </div>
+        </transition>
+      </Teleport>
     </div>
 
     <p class="tooltip-state-chip">State · {{ state.open ? "open" : "closed" }}</p>

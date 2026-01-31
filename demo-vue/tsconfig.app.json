@@ -14,7 +14,9 @@
       "@affino/dialog-core": ["../packages/dialog-core/src/index.ts"],
       "@affino/overlay-host": ["../packages/overlay-host/src/index.ts"],
       "@affino/focus-utils": ["../packages/focus-utils/src/index.ts"],
-      "@affino/aria-utils": ["../packages/aria-utils/src/index.ts"]
+      "@affino/aria-utils": ["../packages/aria-utils/src/index.ts"],
+      "@affino/menu-vue": ["../packages/menu-vue/src/index.ts"],
+      "@affino/tooltip-vue": ["../packages/tooltip-vue/src/index.ts"]
     }
   }
 }

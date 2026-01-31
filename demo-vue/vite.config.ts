@@ -57,6 +57,8 @@ export default defineConfig({
       '@affino/overlay-host': fileURLToPath(new URL('../packages/overlay-host/src/index.ts', import.meta.url)),
       '@affino/focus-utils': fileURLToPath(new URL('../packages/focus-utils/src/index.ts', import.meta.url)),
       '@affino/aria-utils': fileURLToPath(new URL('../packages/aria-utils/src/index.ts', import.meta.url)),
+      '@affino/menu-vue': fileURLToPath(new URL('../packages/menu-vue/src/index.ts', import.meta.url)),
+      '@affino/tooltip-vue': fileURLToPath(new URL('../packages/tooltip-vue/src/index.ts', import.meta.url)),
     },
   },
   esbuild: {
