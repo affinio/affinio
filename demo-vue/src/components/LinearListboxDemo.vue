@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { createListboxStore, useListboxStore } from '@affino/selection-vue'
+import type { LinearSelectionState } from '@affino/selection-core'
 
 interface ListboxOption {
   id: string
@@ -34,14 +35,16 @@ const { state: listbox } = useListboxStore(store)
 const listRef = ref<HTMLDivElement | null>(null)
 const optionRefs = new Map<number, HTMLDivElement>()
 
+type SelectionRange = LinearSelectionState['ranges'][number]
+
 const selectedCount = computed(() =>
-  listbox.value.selection.ranges.reduce((total, range) => total + (range.end - range.start + 1), 0),
+  listbox.value.selection.ranges.reduce((total: number, range: SelectionRange) => total + (range.end - range.start + 1), 0),
 )
 
 const selectionSummary = computed(() => {
   if (!listbox.value.selection.ranges.length) return 'Nothing selected'
   return listbox.value.selection.ranges
-    .map((range) => {
+    .map((range: SelectionRange) => {
       if (range.start === range.end) {
         return options[range.start]?.label ?? `Row ${range.start + 1}`
       }
@@ -110,7 +113,7 @@ function handleItemPointerDown(index: number, event: PointerEvent) {
 }
 
 function isIndexSelected(index: number): boolean {
-  return listbox.value.selection.ranges.some((range) => index >= range.start && index <= range.end)
+  return listbox.value.selection.ranges.some((range: SelectionRange) => index >= range.start && index <= range.end)
 }
 
 function handleClear() {
