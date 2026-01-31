@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue"
+import type { Ref } from "vue"
 import {
   useDialogController,
   createDialogFocusOrchestrator,
@@ -28,10 +29,32 @@ type TimelineEntry = {
   time: string
 }
 
+type DialogBinding = ReturnType<typeof useDialogController>
+type SurfaceKey = "base" | "guard" | number
+const DIALOG_HOST_ID = "affino-dialog-host"
+const isDev = import.meta.env.DEV
+
+type ScrollLockSnapshot = {
+  scrollY: number
+  rootTouchAction: string
+  bodyPosition: string
+  bodyTop: string
+  bodyWidth: string
+}
+
 const basicTriggerRef = ref<HTMLElement | null>(null)
 const basicDialogRef = ref<HTMLDivElement | null>(null)
 const guardTriggerRef = ref<HTMLElement | null>(null)
 const guardDialogRef = ref<HTMLDivElement | null>(null)
+let dialogHostElement: HTMLElement | null = null
+const swipeState = ref<{ startY: number; currentY: number; key: SurfaceKey | null }>({ startY: 0, currentY: 0, key: null })
+let scrollLockSnapshot: ScrollLockSnapshot | null = null
+let descriptionIdCounter = 0
+let keydownListenerAttached = false
+
+if (typeof window !== "undefined") {
+  ensureDialogHost()
+}
 
 const tooltipController = useTooltipController({
   id: "dialog-sla-tooltip",
@@ -53,6 +76,18 @@ const timeline = ref<TimelineEntry[]>([])
 const MAX_PENDING_ATTEMPTS = 3
 const guardAlert = ref<string | null>(null)
 const hasDraft = ref(true)
+interface StackDialogEntry {
+  id: number
+  binding: DialogBinding
+  surfaceRef: Ref<HTMLDivElement | null>
+  title: string
+  subtitle: string
+  removeListener: () => void
+}
+
+const stackedDialogs = shallowRef<StackDialogEntry[]>([])
+const stackDepth = computed(() => stackedDialogs.value.length)
+let stackedDialogId = 0
 
 const basicBinding = useDialogController({
   focusOrchestrator: createDialogFocusOrchestrator({
@@ -71,11 +106,18 @@ const basicOverlayVisible = computed(
   () => basicSnapshot.value.isOpen || basicSnapshot.value.phase === "opening" || basicSnapshot.value.optimisticCloseInFlight
 )
 
+watch(basicOverlayVisible, (isOpen) => {
+  if (isOpen) {
+    ensureAriaAttributes({ surface: basicDialogRef.value, labelId: "basic-dialog-title", fallbackLabel: "Productivity palette" })
+  }
+})
+
 watch(
   () => basicSnapshot.value.isOpen,
   (isOpen) => {
     if (!isOpen) {
       tooltipController.close()
+      clearStackDialogs()
     }
   }
 )
@@ -104,6 +146,19 @@ const guardOverlayVisible = computed(
     guardSnapshot.value.phase === "closing" ||
     guardSnapshot.value.optimisticCloseInFlight
 )
+
+watch(guardOverlayVisible, (isOpen) => {
+  if (isOpen) {
+    ensureAriaAttributes({ surface: guardDialogRef.value, labelId: "guarded-dialog-title", fallbackLabel: "Guard dialog" })
+  }
+})
+
+const overlaysActive = computed(() => basicOverlayVisible.value || guardOverlayVisible.value || stackDepth.value > 0)
+
+watch(overlaysActive, (active) => {
+  toggleScrollLock(Boolean(active))
+  syncGlobalKeydown(Boolean(active))
+})
 
 const guardStatus = computed(() =>
   guardSnapshot.value.guardMessage ?? guardSnapshot.value.pendingNavigationMessage ?? "Ready to close"
@@ -148,9 +203,107 @@ function closeGuarded(reason: Parameters<typeof guardBinding.close>[0]) {
   guardBinding.close(reason)
 }
 
+function openStackDialog() {
+  const id = ++stackedDialogId
+  const surfaceRef = ref<HTMLDivElement | null>(null)
+  const binding: DialogBinding = useDialogController({
+    focusOrchestrator: createDialogFocusOrchestrator({
+      dialog: () => surfaceRef.value,
+      initialFocus: () => getInitialFocusTarget(surfaceRef.value),
+      returnFocus: () => getStackReturnTarget(id),
+    }),
+  })
+
+  const entry: StackDialogEntry = {
+    id,
+    binding,
+    surfaceRef,
+    title: `Nested dialog #${stackDepth.value + 1}`,
+    subtitle:
+      stackDepth.value === 0
+        ? "This layer returns focus back to the main dialog when it closes."
+        : "Closing cascades focus to the previous dialog in the stack.",
+    removeListener: binding.controller.on("close", () => removeStackEntry(id)),
+  }
+
+  stackedDialogs.value = [...stackedDialogs.value, entry]
+  binding.open("programmatic")
+}
+
+function closeStackDialog(id: number, reason: Parameters<typeof guardBinding.close>[0] = "programmatic") {
+  const entry = stackedDialogs.value.find((dialog) => dialog.id === id)
+  entry?.binding.close(reason)
+}
+
+function removeStackEntry(id: number) {
+  const index = stackedDialogs.value.findIndex((dialog) => dialog.id === id)
+  if (index === -1) return
+  const [entry] = stackedDialogs.value.splice(index, 1)
+  stackedDialogs.value = [...stackedDialogs.value]
+  if (!entry) {
+    return
+  }
+  entry.removeListener()
+  entry.binding.dispose()
+}
+
+function clearStackDialogs() {
+  stackedDialogs.value.forEach((entry) => {
+    entry.removeListener()
+    entry.binding.dispose()
+  })
+  stackedDialogs.value = []
+}
+
+function ensureAriaAttributes({ surface, labelId, fallbackLabel }: { surface: HTMLElement | null; labelId?: string; fallbackLabel: string }) {
+  if (!surface) {
+    return
+  }
+  if (!surface.hasAttribute("role")) {
+    surface.setAttribute("role", "dialog")
+  }
+  if (!surface.hasAttribute("aria-modal")) {
+    surface.setAttribute("aria-modal", "true")
+  }
+  if (labelId && !surface.getAttribute("aria-labelledby")) {
+    surface.setAttribute("aria-labelledby", labelId)
+  }
+  if (!surface.getAttribute("aria-labelledby") && !surface.getAttribute("aria-label")) {
+    surface.setAttribute("aria-label", fallbackLabel)
+  }
+  if (!surface.getAttribute("aria-describedby")) {
+    const description = getDescriptionElement(surface)
+    if (description) {
+      if (!description.id) {
+        description.id = `dialog-description-${++descriptionIdCounter}`
+      }
+      surface.setAttribute("aria-describedby", description.id)
+    } else if (isDev) {
+      console.warn(
+        "[dialog-demo] Consider adding data-dialog-description or aria-describedby so assistive tech announces the dialog body.",
+        surface
+      )
+    }
+  }
+}
+
+function getDescriptionElement(surface: HTMLElement): HTMLElement | null {
+  return (
+    surface.querySelector<HTMLElement>("[data-dialog-description]") ??
+    surface.querySelector<HTMLElement>(".dialog-description") ??
+    null
+  )
+}
+
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === "Escape") {
     if (isMenuEscape(event)) {
+      return
+    }
+    const topStack = getTopStackEntry()
+    if (topStack) {
+      event.preventDefault()
+      topStack.binding.close("escape-key")
       return
     }
     if (guardOverlayVisible.value) {
@@ -170,11 +323,18 @@ function handleKeydown(event: KeyboardEvent) {
     if (!surface) {
       return
     }
+    if (surfaceHasSentinels(surface)) {
+      return
+    }
     trapFocus(event, surface)
   }
 }
 
 function getActiveSurface(): HTMLElement | null {
+  const topStack = getTopStackEntry()
+  if (topStack) {
+    return topStack.surfaceRef.value
+  }
   if (guardOverlayVisible.value) {
     return guardDialogRef.value
   }
@@ -185,11 +345,13 @@ function getActiveSurface(): HTMLElement | null {
 }
 
 onMounted(() => {
-  window.addEventListener("keydown", handleKeydown)
+  ensureDialogHost()
+  syncGlobalKeydown(overlaysActive.value)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener("keydown", handleKeydown)
+  syncGlobalKeydown(false)
+  toggleScrollLock(false)
 })
 
 const FOCUSABLE_SELECTOR =
@@ -219,12 +381,18 @@ function trapFocus(event: KeyboardEvent, surface: HTMLElement | null) {
   focusables[index]?.focus()
 }
 
+function surfaceHasSentinels(surface: HTMLElement): boolean {
+  return Boolean(surface.querySelector(".focus-sentinel"))
+}
+
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   if (!isBrowserEnvironment()) {
     return []
   }
   const elements = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-  return elements.filter((element) => isElementVisible(element) && element.tabIndex !== -1)
+  return elements.filter(
+    (element) => isElementVisible(element) && element.tabIndex !== -1 && !element.classList.contains("focus-sentinel")
+  )
 }
 
 function isElementVisible(element: HTMLElement): boolean {
@@ -257,6 +425,194 @@ function isMenuEscape(event: KeyboardEvent): boolean {
     return false
   }
   return Boolean(target.closest('[data-ui-menu-panel="true"]'))
+}
+
+function getStackReturnTarget(entryId: number): HTMLElement | null {
+  const index = stackedDialogs.value.findIndex((dialog) => dialog.id === entryId)
+  if (index <= 0) {
+    return basicDialogRef.value
+  }
+  const previous = stackedDialogs.value[index - 1]
+  return previous?.surfaceRef.value ?? basicDialogRef.value
+}
+
+function getTopStackEntry(): StackDialogEntry | null {
+  for (let i = stackedDialogs.value.length - 1; i >= 0; i -= 1) {
+    const candidate = stackedDialogs.value[i]
+    if (!candidate) {
+      continue
+    }
+    const snapshot = candidate.binding.snapshot.value
+    if (snapshot.isOpen || snapshot.phase === "opening" || snapshot.optimisticCloseInFlight) {
+      return candidate
+    }
+  }
+  return null
+}
+
+function setStackSurfaceRef(id: number, el: HTMLDivElement | null) {
+  const entry = stackedDialogs.value.find((dialog) => dialog.id === id)
+  if (!entry) {
+    return
+  }
+  entry.surfaceRef.value = el
+  if (el) {
+    ensureAriaAttributes({ surface: el, labelId: `stacked-dialog-title-${id}`, fallbackLabel: entry.title })
+  }
+}
+
+function isTopStackEntry(id: number): boolean {
+  const top = getTopStackEntry()
+  return top?.id === id
+}
+
+function ensureDialogHost() {
+  if (!isBrowserEnvironment()) {
+    return
+  }
+  dialogHostElement = document.getElementById(DIALOG_HOST_ID)
+  if (!dialogHostElement) {
+    dialogHostElement = document.createElement("div")
+    dialogHostElement.id = DIALOG_HOST_ID
+    dialogHostElement.setAttribute("data-affino-dialog-host", "true")
+    document.body.appendChild(dialogHostElement)
+  }
+}
+
+function toggleScrollLock(shouldLock: boolean) {
+  if (!isBrowserEnvironment()) {
+    return
+  }
+  const root = document.documentElement
+  const body = document.body
+  if (!body) {
+    return
+  }
+
+  if (shouldLock) {
+    if (scrollLockSnapshot) {
+      return
+    }
+    const scrollY = window.scrollY ?? window.pageYOffset ?? root.scrollTop ?? 0
+    scrollLockSnapshot = {
+      scrollY,
+      rootTouchAction: root.style.touchAction || "",
+      bodyPosition: body.style.position || "",
+      bodyTop: body.style.top || "",
+      bodyWidth: body.style.width || "",
+    }
+    root.style.touchAction = "none"
+    body.dataset.affinoScrollLock = "true"
+    body.style.position = "fixed"
+    body.style.top = `-${scrollY}px`
+    body.style.width = "100%"
+  } else if (scrollLockSnapshot) {
+    root.style.touchAction = scrollLockSnapshot.rootTouchAction
+    body.style.position = scrollLockSnapshot.bodyPosition
+    body.style.top = scrollLockSnapshot.bodyTop
+    body.style.width = scrollLockSnapshot.bodyWidth
+    if (body.dataset.affinoScrollLock) {
+      delete body.dataset.affinoScrollLock
+    }
+    window.scrollTo(0, scrollLockSnapshot.scrollY)
+    scrollLockSnapshot = null
+  }
+}
+
+function syncGlobalKeydown(active: boolean) {
+  if (!isBrowserEnvironment()) {
+    return
+  }
+  if (active && !keydownListenerAttached) {
+    window.addEventListener("keydown", handleKeydown)
+    keydownListenerAttached = true
+  } else if (!active && keydownListenerAttached) {
+    window.removeEventListener("keydown", handleKeydown)
+    keydownListenerAttached = false
+  }
+}
+
+function redirectFocusFromSentinel(target: SurfaceKey, edge: "start" | "end") {
+  const surface = resolveSurfaceElement(target)
+  if (!surface) {
+    return
+  }
+  const focusables = getFocusableElements(surface)
+  if (!focusables.length) {
+    surface.focus()
+    return
+  }
+  const next = edge === "start" ? focusables[0] : focusables[focusables.length - 1]
+  next?.focus()
+}
+
+function resolveSurfaceElement(target: SurfaceKey): HTMLElement | null {
+  if (target === "base") {
+    return basicDialogRef.value
+  }
+  if (target === "guard") {
+    return guardDialogRef.value
+  }
+  const entry = stackedDialogs.value.find((dialog) => dialog.id === target)
+  return entry?.surfaceRef.value ?? null
+}
+
+const SWIPE_CLOSE_THRESHOLD = 90
+
+function handleTouchStart(event: TouchEvent, target: SurfaceKey) {
+  if (event.touches.length !== 1) {
+    return
+  }
+  if (typeof target === "number" && !isTopStackEntry(target)) {
+    return
+  }
+  const touch = event.touches.item(0)
+  if (!touch) {
+    return
+  }
+  swipeState.value = {
+    startY: touch.clientY,
+    currentY: touch.clientY,
+    key: target,
+  }
+}
+
+function handleTouchMove(event: TouchEvent) {
+  if (!swipeState.value.key) {
+    return
+  }
+  if (event.touches.length !== 1) {
+    return
+  }
+  const touch = event.touches.item(0)
+  if (!touch) {
+    return
+  }
+  swipeState.value.currentY = touch.clientY
+}
+
+function handleTouchEnd() {
+  const { key, startY, currentY } = swipeState.value
+  if (!key) {
+    return
+  }
+  const delta = currentY - startY
+  swipeState.value = { key: null, startY: 0, currentY: 0 }
+  if (delta > SWIPE_CLOSE_THRESHOLD) {
+    closeSurfaceForSwipe(key)
+  }
+}
+
+function closeSurfaceForSwipe(target: SurfaceKey) {
+  if (target === "base") {
+    basicBinding.close("programmatic")
+    return
+  }
+  if (target === "guard") {
+    closeGuarded("programmatic")
+    return
+  }
+  closeStackDialog(target, "programmatic")
 }
 </script>
 
@@ -362,7 +718,7 @@ function isMenuEscape(event: KeyboardEvent): boolean {
     </section>
   </section>
 
-  <Teleport to="body">
+  <Teleport :to="`#${DIALOG_HOST_ID}`">
     <transition name="dialog-layer">
       <div v-if="basicOverlayVisible" class="overlay" @click.self="basicBinding.close('backdrop')">
         <div
@@ -372,9 +728,18 @@ function isMenuEscape(event: KeyboardEvent): boolean {
           aria-modal="true"
           aria-labelledby="basic-dialog-title"
           tabindex="-1"
+          @touchstart.passive="handleTouchStart($event, 'base')"
+          @touchmove.passive="handleTouchMove"
+          @touchend.passive="handleTouchEnd"
+          @touchcancel.passive="handleTouchEnd"
         >
+          <span
+            class="focus-sentinel"
+            tabindex="0"
+            @focus="redirectFocusFromSentinel('base', 'end')"
+          />
           <h3 id="basic-dialog-title">Productivity palette</h3>
-          <p>
+          <p data-dialog-description>
             This overlay focuses itself on open, traps pointer interactions, and hands focus back to the trigger once closed.
             It is powered entirely by <strong>@affino/dialog-vue</strong>.
           </p>
@@ -420,6 +785,22 @@ function isMenuEscape(event: KeyboardEvent): boolean {
               </transition>
             </div>
           </div>
+          <div class="stack-panel">
+            <div>
+              <p class="stack-panel__eyebrow">Nested dialogs</p>
+              <p class="stack-panel__title">
+                {{ stackDepth ? `Depth ${stackDepth}` : "No nested dialogs" }}
+              </p>
+            </div>
+            <button
+              type="button"
+              class="ghost"
+              :disabled="stackDepth >= 4"
+              @click="openStackDialog"
+            >
+              {{ stackDepth ? "Add another layer" : "Open nested dialog" }}
+            </button>
+          </div>
           <div class="surface__actions">
             <button type="button" class="cta" @click="basicBinding.close('programmatic')">Continue</button>
             <button
@@ -431,9 +812,70 @@ function isMenuEscape(event: KeyboardEvent): boolean {
               Cancel
             </button>
           </div>
+          <span
+            class="focus-sentinel"
+            tabindex="0"
+            @focus="redirectFocusFromSentinel('base', 'start')"
+          />
         </div>
       </div>
     </transition>
+
+    <transition-group name="dialog-layer" tag="template">
+      <div
+        v-for="(entry, index) in stackedDialogs"
+        :key="entry.id"
+        class="overlay overlay--stack"
+        @click.self="closeStackDialog(entry.id, 'backdrop')"
+      >
+        <div
+          class="surface surface--stacked"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="`stacked-dialog-title-${entry.id}`"
+          tabindex="-1"
+          :style="{ transform: `translateY(${index * 8}px)` }"
+          :ref="(el) => setStackSurfaceRef(entry.id, el as HTMLDivElement | null)"
+          @touchstart.passive="handleTouchStart($event, entry.id)"
+          @touchmove.passive="handleTouchMove"
+          @touchend.passive="handleTouchEnd"
+          @touchcancel.passive="handleTouchEnd"
+        >
+          <span
+            class="focus-sentinel"
+            tabindex="0"
+            @focus="redirectFocusFromSentinel(entry.id, 'end')"
+          />
+          <h3 :id="`stacked-dialog-title-${entry.id}`">{{ entry.title }}</h3>
+          <p data-dialog-description>{{ entry.subtitle }}</p>
+          <p class="stacked-meta">Stack depth {{ index + 1 }}</p>
+          <div class="surface__actions">
+            <button
+              type="button"
+              class="cta"
+              data-dialog-initial
+              @click="closeStackDialog(entry.id, 'programmatic')"
+            >
+              Close this layer
+            </button>
+            <button
+              v-if="isTopStackEntry(entry.id)"
+              type="button"
+              class="ghost"
+              :disabled="stackDepth >= 4"
+              @click="openStackDialog"
+            >
+              Open another
+            </button>
+          </div>
+          <span
+            class="focus-sentinel"
+            tabindex="0"
+            @focus="redirectFocusFromSentinel(entry.id, 'start')"
+          />
+        </div>
+      </div>
+    </transition-group>
 
     <transition name="dialog-layer">
       <div v-if="guardOverlayVisible" class="overlay overlay--warm" @click.self="closeGuarded('backdrop')">
@@ -444,9 +886,18 @@ function isMenuEscape(event: KeyboardEvent): boolean {
           aria-modal="true"
           aria-labelledby="guarded-dialog-title"
           tabindex="-1"
+          @touchstart.passive="handleTouchStart($event, 'guard')"
+          @touchmove.passive="handleTouchMove"
+          @touchend.passive="handleTouchEnd"
+          @touchcancel.passive="handleTouchEnd"
         >
+          <span
+            class="focus-sentinel"
+            tabindex="0"
+            @focus="redirectFocusFromSentinel('guard', 'end')"
+          />
           <h3 id="guarded-dialog-title">Unsaved draft</h3>
-          <p>
+          <p data-dialog-description>
             This demo waits for an async guard before closing. Toggle the draft state or choose to discard your work to let the
             controller resolve the optimistic close.
           </p>
@@ -465,6 +916,11 @@ function isMenuEscape(event: KeyboardEvent): boolean {
               {{ hasDraft ? 'Keep editing' : 'Re-dirty draft' }}
             </button>
           </div>
+          <span
+            class="focus-sentinel"
+            tabindex="0"
+            @focus="redirectFocusFromSentinel('guard', 'start')"
+          />
         </div>
       </div>
     </transition>
@@ -662,6 +1118,11 @@ function isMenuEscape(event: KeyboardEvent): boolean {
   cursor: pointer;
 }
 
+.ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .text {
   border: none;
   background: none;
@@ -679,6 +1140,11 @@ function isMenuEscape(event: KeyboardEvent): boolean {
   justify-content: center;
   padding: 2rem;
   z-index: 60;
+}
+
+.overlay--stack {
+  z-index: 70;
+  background: rgba(3, 4, 9, 0.82);
 }
 
 .overlay--warm {
@@ -700,6 +1166,12 @@ function isMenuEscape(event: KeyboardEvent): boolean {
   background: linear-gradient(135deg, rgba(29, 11, 6, 0.95), rgba(12, 3, 1, 0.92));
 }
 
+.surface--stacked {
+  max-width: 420px;
+  background: linear-gradient(135deg, rgba(9, 12, 18, 0.97), rgba(5, 6, 12, 0.94));
+  border-color: color-mix(in srgb, var(--glass-border), transparent 20%);
+}
+
 .surface h3 {
   font-size: 1.25rem;
   margin-bottom: 0.75rem;
@@ -715,6 +1187,31 @@ function isMenuEscape(event: KeyboardEvent): boolean {
   flex-wrap: wrap;
   gap: 0.85rem;
   align-items: flex-start;
+}
+
+.stack-panel {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 18px;
+  border: 1px solid var(--glass-highlight);
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.stack-panel__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.stack-panel__title {
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .surface-chip {
@@ -790,6 +1287,24 @@ function isMenuEscape(event: KeyboardEvent): boolean {
   gap: 0.75rem;
 }
 
+.stacked-meta {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.focus-sentinel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .dialog-layer-enter-active,
 .dialog-layer-leave-active {
   transition: opacity 0.2s ease;
@@ -804,6 +1319,20 @@ function isMenuEscape(event: KeyboardEvent): boolean {
   .panel,
   .hero {
     padding: 1.75rem;
+  }
+}
+
+:global(body[data-affino-scroll-lock="true"]) {
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog-layer-enter-active,
+  .dialog-layer-leave-active,
+  .tooltip-fade-enter-active,
+  .tooltip-fade-leave-active {
+    transition-duration: 0s;
   }
 }
 </style>
