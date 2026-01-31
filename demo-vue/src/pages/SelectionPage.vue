@@ -9,6 +9,7 @@ import {
   type GridSelectionContext,
 } from '@affino/selection-core'
 import { createGridSelectionStore, useGridSelectionStore } from '@affino/grid-selection-vue'
+import LinearListboxDemo from '@/components/LinearListboxDemo.vue'
 
 interface GridRow {
   id: string
@@ -303,6 +304,25 @@ function handleReset() {
         </p>
       </div>
     </div>
+
+    <section class="linear-section">
+      <div class="linear-copy">
+        <p class="selection-eyebrow">Listbox adapter</p>
+        <h3 class="linear-title">Featherweight multi-select for lists.</h3>
+        <p class="selection-body">
+          <strong>@affino/selection-vue</strong> wraps the linear engine from <strong>@affino/selection-core</strong> so select and
+          listbox components can reuse the same store primitives. The demo on the right uses the exact same state machine
+          as our CLI listbox and upcoming dropdown adapters.
+        </p>
+        <ul class="linear-pointers">
+          <li>Shift + Arrow to extend ranges</li>
+          <li>Cmd / Ctrl + Click toggles individual rows</li>
+          <li>Cmd / Ctrl + A selects the entire collection</li>
+        </ul>
+      </div>
+
+      <LinearListboxDemo />
+    </section>
   </section>
 </template>
 
@@ -397,6 +417,45 @@ function handleReset() {
 
 @media (max-width: 960px) {
   .selection-stage {
+    grid-template-columns: 1fr;
+  }
+}
+
+.linear-section {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: stretch;
+}
+
+.linear-copy {
+  border: 1px solid var(--glass-border);
+  border-radius: 28px;
+  padding: 2rem;
+  background: var(--surface-alt);
+  box-shadow: var(--shadow-soft);
+}
+
+.linear-title {
+  font-size: clamp(1.6rem, 3vw, 2.3rem);
+  margin: 0 0 1rem;
+}
+
+.linear-pointers {
+  margin: 1.5rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.linear-pointers li {
+  line-height: 1.4;
+}
+
+@media (max-width: 1200px) {
+  .linear-section {
     grid-template-columns: 1fr;
   }
 }

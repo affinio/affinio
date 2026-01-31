@@ -23,6 +23,8 @@
       "@affino/menu-react": ["../packages/menu-react/src/index.ts"],
       "@affino/menu-react/*": ["../packages/menu-react/src/*"],
       "@affino/menu-vue": ["../packages/menu-vue/src/index.ts"],
+      "@affino/selection-vue": ["../packages/selection-vue/src/index.ts"],
+      "@affino/selection-vue/*": ["../packages/selection-vue/src/*"],
       "@affino/tooltip-vue": ["../packages/tooltip-vue/src/index.ts"],
       "shiki/langs/*": ["./node_modules/shiki/dist/langs/*"],
       "shiki/themes/*": ["./node_modules/shiki/dist/themes/*"],
