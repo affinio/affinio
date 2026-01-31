@@ -5,12 +5,15 @@ import { useTooltipController, useFloatingTooltip } from "@affino/tooltip-vue"
 const email = ref("ops@affino.dev")
 const controller = useTooltipController({ id: "tooltip-field-demo", openDelay: 0, closeDelay: 160 })
 const state = controller.state
-const triggerProps = computed(() => controller.getTriggerProps())
+const descriptionId = "tooltip-field-live"
+const triggerProps = computed(() => controller.getTriggerProps({ describedBy: descriptionId }))
+const descriptionProps = computed(() => controller.getDescriptionProps({ id: descriptionId, politeness: "assertive" }))
 const tooltipProps = computed(() => controller.getTooltipProps())
-const { triggerRef, tooltipRef, tooltipStyle, teleportTarget } = useFloatingTooltip(controller, {
+const { triggerRef, tooltipRef, tooltipStyle, teleportTarget, arrowProps } = useFloatingTooltip(controller, {
   placement: "top",
   align: "end",
   gutter: 10,
+  arrow: { size: 10, inset: 8 },
 })
 
 const handleFocus = () => controller.open("keyboard")
@@ -43,6 +46,9 @@ const handleInput = (event: Event) => {
           >
             i
           </button>
+          <span class="sr-only" v-bind="descriptionProps">
+            Use your company email so access can be provisioned across every workspace instantly.
+          </span>
 
           <Teleport :to="teleportTarget">
             <transition name="tooltip-fade">
@@ -53,6 +59,7 @@ const handleInput = (event: Event) => {
                 v-bind="tooltipProps"
                 :style="tooltipStyle"
               >
+                <span v-if="arrowProps" class="tooltip-arrow" v-bind="arrowProps" :style="arrowProps.style"></span>
                 <p class="tooltip-bubble__title">Verified domains</p>
                 <p class="tooltip-bubble__body">
                   Use your company email so access can be provisioned across every workspace instantly.

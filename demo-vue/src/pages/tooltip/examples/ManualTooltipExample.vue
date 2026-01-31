@@ -7,10 +7,11 @@ const state = controller.state
 const triggerProps = computed(() => controller.getTriggerProps())
 const tooltipProps = computed(() => controller.getTooltipProps())
 const pinned = ref(false)
-const { triggerRef, tooltipRef, tooltipStyle, teleportTarget } = useFloatingTooltip(controller, {
+const { triggerRef, tooltipRef, tooltipStyle, teleportTarget, arrowProps } = useFloatingTooltip(controller, {
   placement: "top",
   align: "center",
   gutter: 14,
+  arrow: { size: 12, inset: 10 },
 })
 
 watch(pinned, (next) => {
@@ -53,6 +54,7 @@ const closeNow = () => {
             v-bind="tooltipProps"
             :style="tooltipStyle"
           >
+            <span v-if="arrowProps" class="tooltip-arrow" v-bind="arrowProps" :style="arrowProps.style"></span>
             <p class="tooltip-bubble__title">Pinned tooltips</p>
             <p class="tooltip-bubble__body">
               Call <code>controller.open('programmatic')</code> to override timers and keep the surface alive as long as

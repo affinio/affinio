@@ -13,10 +13,11 @@ const controller = useTooltipController(
 const state = controller.state
 const triggerProps = computed(() => controller.getTriggerProps())
 const tooltipProps = computed(() => controller.getTooltipProps())
-const { triggerRef, tooltipRef, tooltipStyle, teleportTarget } = useFloatingTooltip(controller, {
+const { triggerRef, tooltipRef, tooltipStyle, teleportTarget, arrowProps } = useFloatingTooltip(controller, {
   placement: "top",
   align: "center",
   gutter: 12,
+  arrow: { size: 12, inset: 10 },
 })
 </script>
 
@@ -43,6 +44,7 @@ const { triggerRef, tooltipRef, tooltipStyle, teleportTarget } = useFloatingTool
             v-bind="tooltipProps"
             :style="tooltipStyle"
           >
+            <span v-if="arrowProps" class="tooltip-arrow" v-bind="arrowProps" :style="arrowProps.style"></span>
             <p class="tooltip-bubble__title">Always-on</p>
             <p class="tooltip-bubble__body">
               Incident response under 4 minutes with on-call coverage across 11 regions.

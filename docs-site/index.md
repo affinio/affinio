@@ -31,6 +31,15 @@ This keeps the state machines portable while letting you stay in your framework'
 
 [→ Menu documentation](/menu/)
 
+### Tooltip System
+
+| Package | Description | Version |
+| --- | --- | --- |
+| **@affino/tooltip-core** | Deterministic tooltip controller with arrow + live-region helpers | ![npm](https://img.shields.io/npm/v/@affino/tooltip-core) |
+| **@affino/tooltip-vue** | Vue 3 adapter with controller + floating hooks | ![npm](https://img.shields.io/npm/v/@affino/tooltip-vue) |
+
+[→ Tooltip documentation](/tooltip/)
+
 ### Virtualization (Coming Soon)
 
 | Package | Description |

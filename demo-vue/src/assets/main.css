@@ -760,6 +760,20 @@ select.control {
 	text-align: left;
 	z-index: 40;
 	pointer-events: auto;
+	position: fixed;
+	overflow: visible;
+}
+
+.tooltip-arrow {
+	position: absolute;
+	width: var(--tooltip-arrow-size, 10px);
+	height: var(--tooltip-arrow-size, 10px);
+	background: inherit;
+	border-left: 1px solid var(--glass-border);
+	border-top: 1px solid var(--glass-border);
+	transform: rotate(45deg);
+	box-shadow: inherit;
+	pointer-events: none;
 }
 
 .tooltip-bubble__title {
@@ -855,8 +869,19 @@ select.control {
 .tooltip-fade-leave-active {
 	transition: opacity 0.12s ease;
 }
-
 .tooltip-fade-enter-from,
 .tooltip-fade-leave-to {
 	opacity: 0;
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }
