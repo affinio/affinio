@@ -1,5 +1,3 @@
-import { fileURLToPath, URL } from 'node:url'
-
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
@@ -7,6 +5,7 @@ import react from '@vitejs/plugin-react'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 import { transform } from 'esbuild'
+import { createWorkspaceAliases } from '../config/workspace-aliases'
 
 const reactDemoPattern = /src\/react-demos\//
 
@@ -49,17 +48,7 @@ export default defineConfig({
     strictPort: true
   },
   resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@affino/selection-core': fileURLToPath(new URL('../packages/selection-core/src/index.ts', import.meta.url)),
-      '@affino/dialog-vue': fileURLToPath(new URL('../packages/dialog-vue/src/index.ts', import.meta.url)),
-      '@affino/dialog-core': fileURLToPath(new URL('../packages/dialog-core/src/index.ts', import.meta.url)),
-      '@affino/overlay-host': fileURLToPath(new URL('../packages/overlay-host/src/index.ts', import.meta.url)),
-      '@affino/focus-utils': fileURLToPath(new URL('../packages/focus-utils/src/index.ts', import.meta.url)),
-      '@affino/aria-utils': fileURLToPath(new URL('../packages/aria-utils/src/index.ts', import.meta.url)),
-      '@affino/menu-vue': fileURLToPath(new URL('../packages/menu-vue/src/index.ts', import.meta.url)),
-      '@affino/tooltip-vue': fileURLToPath(new URL('../packages/tooltip-vue/src/index.ts', import.meta.url)),
-    },
+    alias: createWorkspaceAliases(import.meta.url),
   },
   esbuild: {
     jsx: 'automatic',
