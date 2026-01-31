@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import {
-  clearLinearSelection,
-  extendLinearSelectionToIndex,
-  selectLinearIndex,
-  toggleLinearIndex,
-} from '@affino/selection-core'
-import { createLinearSelectionStore, useLinearSelectionStore } from '@affino/selection-vue'
+import { createListboxStore, useListboxStore } from '@affino/selection-vue'
 
 interface ListboxOption {
   id: string
@@ -30,18 +24,23 @@ const options: ListboxOption[] = [
   { id: 'labs', label: 'Labs', detail: 'Experimental', badge: 'Beta' },
 ]
 
-const store = createLinearSelectionStore()
-const { state: selection } = useLinearSelectionStore(store)
+const store = createListboxStore({
+  context: {
+    optionCount: options.length,
+  },
+})
+
+const { state: listbox } = useListboxStore(store)
 const listRef = ref<HTMLDivElement | null>(null)
 const optionRefs = new Map<number, HTMLDivElement>()
 
 const selectedCount = computed(() =>
-  selection.value.ranges.reduce((total, range) => total + (range.end - range.start + 1), 0),
+  listbox.value.selection.ranges.reduce((total, range) => total + (range.end - range.start + 1), 0),
 )
 
 const selectionSummary = computed(() => {
-  if (!selection.value.ranges.length) return 'Nothing selected'
-  return selection.value.ranges
+  if (!listbox.value.selection.ranges.length) return 'Nothing selected'
+  return listbox.value.selection.ranges
     .map((range) => {
       if (range.start === range.end) {
         return options[range.start]?.label ?? `Row ${range.start + 1}`
@@ -65,50 +64,34 @@ function setOptionRef(index: number, el: HTMLDivElement | null) {
   }
 }
 
-function clampIndex(index: number): number {
-  if (!options.length) return 0
-  return Math.min(Math.max(index, 0), options.length - 1)
-}
-
-function moveBy(delta: number, extend: boolean) {
-  if (!options.length) return
-  const currentFocus = selection.value.focus ?? selection.value.anchor ?? 0
-  const nextIndex = clampIndex(currentFocus + delta)
-  if (extend && selection.value.ranges.length) {
-    const snapshot = store.peekState()
-    store.applyResult(extendLinearSelectionToIndex({ state: snapshot, index: nextIndex }))
-  } else {
-    store.applyResult(selectLinearIndex({ index: nextIndex }))
-  }
-  focusList()
-}
-
 function handleKeydown(event: KeyboardEvent) {
   switch (event.key) {
     case 'ArrowUp':
       event.preventDefault()
-      moveBy(-1, event.shiftKey)
+      store.move(-1, { extend: event.shiftKey })
+      focusList()
       return
     case 'ArrowDown':
       event.preventDefault()
-      moveBy(1, event.shiftKey)
+      store.move(1, { extend: event.shiftKey })
+      focusList()
       return
     case 'Home':
       event.preventDefault()
-      moveBy(-Infinity, event.shiftKey)
+      store.move(-Infinity, { extend: event.shiftKey })
+      focusList()
       return
     case 'End':
       event.preventDefault()
-      moveBy(Infinity, event.shiftKey)
+      store.move(Infinity, { extend: event.shiftKey })
+      focusList()
       return
     case 'a':
     case 'A':
       if (event.metaKey || event.ctrlKey) {
         event.preventDefault()
         if (!options.length) return
-        store.applyResult(selectLinearIndex({ index: 0 }))
-        const snapshot = store.peekState()
-        store.applyResult(extendLinearSelectionToIndex({ state: snapshot, index: options.length - 1 }))
+        store.selectAll()
       }
       return
     default:
@@ -120,30 +103,25 @@ function handleItemPointerDown(index: number, event: PointerEvent) {
   if (event.button !== 0) return
   event.preventDefault()
   focusList()
-  const state = store.peekState()
-
-  if (event.shiftKey && state.ranges.length) {
-    store.applyResult(extendLinearSelectionToIndex({ state, index }))
-  } else if (event.metaKey || event.ctrlKey) {
-    store.applyResult(toggleLinearIndex({ state, index }))
-  } else {
-    store.applyResult(selectLinearIndex({ index }))
-  }
+  store.activate(index, {
+    extend: event.shiftKey,
+    toggle: event.metaKey || event.ctrlKey,
+  })
 }
 
 function isIndexSelected(index: number): boolean {
-  return selection.value.ranges.some((range) => index >= range.start && index <= range.end)
+  return listbox.value.selection.ranges.some((range) => index >= range.start && index <= range.end)
 }
 
 function handleClear() {
-  store.applyResult(clearLinearSelection())
+  store.clearSelection({ preserveActiveIndex: true })
   focusList()
 }
 
 watch(
-  () => selection.value.focus,
+  () => listbox.value.activeIndex,
   (nextIndex) => {
-    if (nextIndex == null) return
+    if (nextIndex == null || nextIndex < 0) return
     nextTick(() => {
       optionRefs.get(nextIndex)?.scrollIntoView({ block: 'nearest' })
     })
@@ -179,7 +157,7 @@ watch(
         class="listbox-item"
         :class="{
           'listbox-item--selected': isIndexSelected(index),
-          'listbox-item--cursor': selection.focus === index,
+          'listbox-item--cursor': listbox.activeIndex === index,
         }"
         role="option"
         :aria-selected="isIndexSelected(index)"

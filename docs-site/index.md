@@ -46,11 +46,13 @@ This keeps the state machines portable while letting you stay in your framework'
 | --- | --- |
 | **@affino/virtualization-core** | High-performance virtual scrolling engine |
 
-### Selection (Coming Soon)
+### Selection
 
 | Package | Description |
 | --- | --- |
 | **@affino/selection-core** | Spreadsheet-grade cell selection with keyboard/mouse navigation |
+| **@affino/listbox-core** | Headless listbox controller that layers focus + toggle/range intents on top of the linear engine |
+| **@affino/selection-vue** | Vue 3 bindings exposing linear + listbox stores with drop-in composables |
 
 ## Getting Started
 

@@ -310,9 +310,9 @@ function handleReset() {
         <p class="selection-eyebrow">Listbox adapter</p>
         <h3 class="linear-title">Featherweight multi-select for lists.</h3>
         <p class="selection-body">
-          <strong>@affino/selection-vue</strong> wraps the linear engine from <strong>@affino/selection-core</strong> so select and
-          listbox components can reuse the same store primitives. The demo on the right uses the exact same state machine
-          as our CLI listbox and upcoming dropdown adapters.
+          <strong>@affino/listbox-core</strong> keeps the active option and ranges in sync while
+          <strong>@affino/selection-vue</strong> streams those snapshots into Vue with a one-line composable. The demo on the right
+          is the same headless state machine we use for the CLI and dropdown adapters.
         </p>
         <ul class="linear-pointers">
           <li>Shift + Arrow to extend ranges</li>
