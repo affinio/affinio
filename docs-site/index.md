@@ -54,6 +54,15 @@ This keeps the state machines portable while letting you stay in your framework'
 | **@affino/listbox-core** | Headless listbox controller that layers focus + toggle/range intents on top of the linear engine |
 | **@affino/selection-vue** | Vue 3 bindings exposing linear + listbox stores with drop-in composables |
 
+### Popover
+
+| Package | Description |
+| --- | --- |
+| **@affino/popover-core** | Headless popover controller with trigger/content helpers, arrow positioning, and outside intent orchestration |
+| **@affino/popover-vue** | Vue 3 composables that teleport panels, close on outside interactions, and optionally lock scroll |
+
+[→ Popover documentation](/popover/)
+
 ## Getting Started
 
 ```bash

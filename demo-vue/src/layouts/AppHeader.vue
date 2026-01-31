@@ -20,6 +20,7 @@ const activeCore = computed(() => {
   if (route.path.startsWith('/virtualization')) return 'Virtualization'
   if (route.path.startsWith('/tooltips')) return 'Tooltips'
   if (route.path.startsWith('/dialogs')) return 'Dialog'
+  if (route.path.startsWith('/popovers')) return 'Popover'
   return 'Overview'
 })
 
@@ -30,6 +31,7 @@ const coreCapabilities: Record<string, { adapters: boolean }> = {
   selection: { adapters: false },
   virtualization: { adapters: false },
   tooltips: { adapters: false },
+  popover: { adapters: true },
 }
 
 const subtitle = computed(() => {
@@ -103,6 +105,16 @@ const subtitle = computed(() => {
             :class="{ 'nav-link--active': route.path.startsWith('/virtualization') }"
           >
             Virtualization
+          </a>
+        </RouterLink>
+
+        <RouterLink to="/popovers" v-slot="{ href }">
+          <a
+            :href="href"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.path.startsWith('/popovers') }"
+          >
+            Popovers
           </a>
         </RouterLink>
 

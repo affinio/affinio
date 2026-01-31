@@ -29,6 +29,11 @@ const router = createRouter({
       name: "tooltip-demo",
       component: () => import("@/pages/tooltip/TooltipPage.vue"),
     },
+    {
+      path: "/popovers",
+      name: "popover-demo",
+      component: () => import("@/pages/popover/PopoverPage.vue"),
+    },
     ...menuRoutes,
   ],
 })

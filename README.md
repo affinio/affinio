@@ -60,6 +60,7 @@ We build **headless UI primitives** that keep accessibility, performance, and be
 | `@affino/surface-core` | Shared lifecycle + positioning primitives for floating surfaces |
 | `@affino/menu-core` | Framework-agnostic menu engine (state, intent, positioning) |
 | `@affino/tooltip-core` | Deterministic tooltip controller built on the shared surface core |
+| `@affino/popover-core` | Toggleable popover controller with trigger/content helpers and arrow positioning |
 | `@affino/selection-core` | Grid and range selection primitives |
 | `@affino/virtualization-core` | High-performance virtualization building blocks |
 
@@ -81,6 +82,12 @@ You can switch between Vue and React demos instantly using the framework toggle 
 | Package | Framework | Status | Notes |
 |------|------|------|------|
 | `@affino/tooltip-vue` | Vue 3.4+ | Alpha | `useTooltipController` + `useFloatingTooltip` with overlay hosts, Teleport overrides, and `z-index` controls for modals |
+
+## Popover Adapters
+
+| Package | Framework | Status | Notes |
+|------|------|------|------|
+| `@affino/popover-vue` | Vue 3.4+ | Alpha | `usePopoverController` + `useFloatingPopover` with outside-click guards, arrow helpers, and optional scroll locking |
 
 ---
 
