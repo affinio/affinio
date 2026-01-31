@@ -5,7 +5,7 @@ import { createElement } from "react"
 import { createRoot, type Root } from "react-dom/client"
 
 interface ReactMountProps {
-  component: ComponentType<any>
+  component: ComponentType<Record<string, unknown>>
   props?: Record<string, unknown>
 }
 

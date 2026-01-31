@@ -20,7 +20,7 @@ function applyTheme(mode: ThemeMode) {
   }
   try {
     localStorage.setItem("affino-theme", mode)
-  } catch (_) {
+  } catch {
     // ignore storage errors in restricted environments
   }
 }
@@ -37,7 +37,7 @@ onMounted(() => {
     if (value === "light" || value === "dark") {
       stored = value
     }
-  } catch (_) {
+  } catch {
     stored = null
   }
   const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? false

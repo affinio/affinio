@@ -14,7 +14,7 @@ function readStoredFramework(): Framework {
     if (stored === "vue" || stored === "react") {
       return stored
     }
-  } catch (_) {
+  } catch {
     // ignore storage errors in locked-down environments
   }
   return "vue"
@@ -28,7 +28,7 @@ export const useFrameworkStore = defineStore("framework", () => {
     if (typeof window === "undefined") return
     try {
       window.localStorage.setItem(STORAGE_KEY, next)
-    } catch (_) {
+    } catch {
       // ignore persistence failures when storage is unavailable
     }
   }

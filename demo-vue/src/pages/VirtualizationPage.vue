@@ -293,15 +293,6 @@ function getMetricValue(row: RevenueRow, column: GridColumn): string {
   const metric = row.mrr + delta * 24
   return currencyFormatter.format(metric)
 }
-
-function getMetricTrend(row: RevenueRow, column: GridColumn): string {
-  if (column.index === 0) {
-    return `${row.region} · ${row.tier}`
-  }
-  const change = ((row.rowIndex + column.index) % 11) - 5
-  const prefix = change === 0 ? "±" : change > 0 ? "+" : ""
-  return `${prefix}${change}% QoQ`
-}
 </script>
 
 <template>

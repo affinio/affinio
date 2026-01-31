@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 
-import ThemeToggle from '@/components/ThemeToggle.vue'
 import FrameworkToggle from '@/components/FrameworkToggle.vue'
 import { useFrameworkStore } from '@/stores/framework'
 
