@@ -54,6 +54,9 @@ export default defineConfig({
       '@affino/selection-core': fileURLToPath(new URL('../packages/selection-core/src/index.ts', import.meta.url)),
       '@affino/dialog-vue': fileURLToPath(new URL('../packages/dialog-vue/src/index.ts', import.meta.url)),
       '@affino/dialog-core': fileURLToPath(new URL('../packages/dialog-core/src/index.ts', import.meta.url)),
+      '@affino/overlay-host': fileURLToPath(new URL('../packages/overlay-host/src/index.ts', import.meta.url)),
+      '@affino/focus-utils': fileURLToPath(new URL('../packages/focus-utils/src/index.ts', import.meta.url)),
+      '@affino/aria-utils': fileURLToPath(new URL('../packages/aria-utils/src/index.ts', import.meta.url)),
     },
   },
   esbuild: {

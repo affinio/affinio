@@ -6,6 +6,13 @@ import {
   createDialogFocusOrchestrator,
 } from "@affino/dialog-vue"
 import {
+  ensureOverlayHost,
+  createGlobalKeydownManager,
+  createScrollLockController,
+} from "@affino/overlay-host"
+import { focusEdge, hasFocusSentinels, trapFocus } from "@affino/focus-utils"
+import { ensureDialogAria } from "@affino/aria-utils"
+import {
   UiMenu,
   UiMenuTrigger,
   UiMenuContent,
@@ -34,27 +41,18 @@ type SurfaceKey = "base" | "guard" | number
 const DIALOG_HOST_ID = "affino-dialog-host"
 const isDev = import.meta.env.DEV
 
-type ScrollLockSnapshot = {
-  scrollY: number
-  rootTouchAction: string
-  bodyPosition: string
-  bodyTop: string
-  bodyWidth: string
-}
-
 const basicTriggerRef = ref<HTMLElement | null>(null)
 const basicDialogRef = ref<HTMLDivElement | null>(null)
 const guardTriggerRef = ref<HTMLElement | null>(null)
 const guardDialogRef = ref<HTMLDivElement | null>(null)
-let dialogHostElement: HTMLElement | null = null
 const swipeState = ref<{ startY: number; currentY: number; key: SurfaceKey | null }>({ startY: 0, currentY: 0, key: null })
-let scrollLockSnapshot: ScrollLockSnapshot | null = null
-let descriptionIdCounter = 0
-let keydownListenerAttached = false
 
 if (typeof window !== "undefined") {
-  ensureDialogHost()
+  ensureOverlayHost({ id: DIALOG_HOST_ID, attribute: "data-affino-dialog-host" })
 }
+
+const scrollLocker = createScrollLockController()
+const keydownManager = createGlobalKeydownManager(handleKeydown)
 
 const tooltipController = useTooltipController({
   id: "dialog-sla-tooltip",
@@ -108,7 +106,12 @@ const basicOverlayVisible = computed(
 
 watch(basicOverlayVisible, (isOpen) => {
   if (isOpen) {
-    ensureAriaAttributes({ surface: basicDialogRef.value, labelId: "basic-dialog-title", fallbackLabel: "Productivity palette" })
+    ensureDialogAria({
+      surface: basicDialogRef.value,
+      labelId: "basic-dialog-title",
+      fallbackLabel: "Productivity palette",
+      warn: isDev,
+    })
   }
 })
 
@@ -149,15 +152,25 @@ const guardOverlayVisible = computed(
 
 watch(guardOverlayVisible, (isOpen) => {
   if (isOpen) {
-    ensureAriaAttributes({ surface: guardDialogRef.value, labelId: "guarded-dialog-title", fallbackLabel: "Guard dialog" })
+    ensureDialogAria({
+      surface: guardDialogRef.value,
+      labelId: "guarded-dialog-title",
+      fallbackLabel: "Guard dialog",
+      warn: isDev,
+    })
   }
 })
 
 const overlaysActive = computed(() => basicOverlayVisible.value || guardOverlayVisible.value || stackDepth.value > 0)
 
 watch(overlaysActive, (active) => {
-  toggleScrollLock(Boolean(active))
-  syncGlobalKeydown(Boolean(active))
+  if (active) {
+    scrollLocker.lock()
+    keydownManager.activate()
+  } else {
+    keydownManager.deactivate()
+    scrollLocker.unlock()
+  }
 })
 
 const guardStatus = computed(() =>
@@ -255,46 +268,6 @@ function clearStackDialogs() {
   stackedDialogs.value = []
 }
 
-function ensureAriaAttributes({ surface, labelId, fallbackLabel }: { surface: HTMLElement | null; labelId?: string; fallbackLabel: string }) {
-  if (!surface) {
-    return
-  }
-  if (!surface.hasAttribute("role")) {
-    surface.setAttribute("role", "dialog")
-  }
-  if (!surface.hasAttribute("aria-modal")) {
-    surface.setAttribute("aria-modal", "true")
-  }
-  if (labelId && !surface.getAttribute("aria-labelledby")) {
-    surface.setAttribute("aria-labelledby", labelId)
-  }
-  if (!surface.getAttribute("aria-labelledby") && !surface.getAttribute("aria-label")) {
-    surface.setAttribute("aria-label", fallbackLabel)
-  }
-  if (!surface.getAttribute("aria-describedby")) {
-    const description = getDescriptionElement(surface)
-    if (description) {
-      if (!description.id) {
-        description.id = `dialog-description-${++descriptionIdCounter}`
-      }
-      surface.setAttribute("aria-describedby", description.id)
-    } else if (isDev) {
-      console.warn(
-        "[dialog-demo] Consider adding data-dialog-description or aria-describedby so assistive tech announces the dialog body.",
-        surface
-      )
-    }
-  }
-}
-
-function getDescriptionElement(surface: HTMLElement): HTMLElement | null {
-  return (
-    surface.querySelector<HTMLElement>("[data-dialog-description]") ??
-    surface.querySelector<HTMLElement>(".dialog-description") ??
-    null
-  )
-}
-
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === "Escape") {
     if (isMenuEscape(event)) {
@@ -323,7 +296,7 @@ function handleKeydown(event: KeyboardEvent) {
     if (!surface) {
       return
     }
-    if (surfaceHasSentinels(surface)) {
+    if (hasFocusSentinels(surface)) {
       return
     }
     trapFocus(event, surface)
@@ -345,70 +318,17 @@ function getActiveSurface(): HTMLElement | null {
 }
 
 onMounted(() => {
-  ensureDialogHost()
-  syncGlobalKeydown(overlaysActive.value)
+  ensureOverlayHost({ id: DIALOG_HOST_ID, attribute: "data-affino-dialog-host" })
+  if (overlaysActive.value) {
+    scrollLocker.lock()
+    keydownManager.activate()
+  }
 })
 
 onBeforeUnmount(() => {
-  syncGlobalKeydown(false)
-  toggleScrollLock(false)
+  keydownManager.deactivate()
+  scrollLocker.unlock()
 })
-
-const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
-function trapFocus(event: KeyboardEvent, surface: HTMLElement | null) {
-  if (event.key !== "Tab" || !surface || !isBrowserEnvironment()) {
-    return
-  }
-  const focusables = getFocusableElements(surface)
-  if (!focusables.length) {
-    event.preventDefault()
-    surface.focus()
-    return
-  }
-
-  const activeElement = document.activeElement as HTMLElement | null
-  let index = activeElement ? focusables.indexOf(activeElement) : -1
-
-  if (event.shiftKey) {
-    index = index <= 0 ? focusables.length - 1 : index - 1
-  } else {
-    index = index === focusables.length - 1 ? 0 : index + 1
-  }
-
-  event.preventDefault()
-  focusables[index]?.focus()
-}
-
-function surfaceHasSentinels(surface: HTMLElement): boolean {
-  return Boolean(surface.querySelector(".focus-sentinel"))
-}
-
-function getFocusableElements(container: HTMLElement): HTMLElement[] {
-  if (!isBrowserEnvironment()) {
-    return []
-  }
-  const elements = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-  return elements.filter(
-    (element) => isElementVisible(element) && element.tabIndex !== -1 && !element.classList.contains("focus-sentinel")
-  )
-}
-
-function isElementVisible(element: HTMLElement): boolean {
-  if (!isBrowserEnvironment()) {
-    return true
-  }
-  if (element.offsetParent === null && element !== document.activeElement) {
-    return false
-  }
-  const style = window.getComputedStyle(element)
-  return style.visibility !== "hidden" && style.display !== "none"
-}
-
-function isBrowserEnvironment(): boolean {
-  return typeof window !== "undefined" && typeof document !== "undefined"
-}
 
 function formatReason(reason?: string) {
   if (!reason) return "—"
@@ -457,7 +377,12 @@ function setStackSurfaceRef(id: number, el: HTMLDivElement | null) {
   }
   entry.surfaceRef.value = el
   if (el) {
-    ensureAriaAttributes({ surface: el, labelId: `stacked-dialog-title-${id}`, fallbackLabel: entry.title })
+    ensureDialogAria({
+      surface: el,
+      labelId: `stacked-dialog-title-${id}`,
+      fallbackLabel: entry.title,
+      warn: isDev,
+    })
   }
 }
 
@@ -466,84 +391,12 @@ function isTopStackEntry(id: number): boolean {
   return top?.id === id
 }
 
-function ensureDialogHost() {
-  if (!isBrowserEnvironment()) {
-    return
-  }
-  dialogHostElement = document.getElementById(DIALOG_HOST_ID)
-  if (!dialogHostElement) {
-    dialogHostElement = document.createElement("div")
-    dialogHostElement.id = DIALOG_HOST_ID
-    dialogHostElement.setAttribute("data-affino-dialog-host", "true")
-    document.body.appendChild(dialogHostElement)
-  }
-}
-
-function toggleScrollLock(shouldLock: boolean) {
-  if (!isBrowserEnvironment()) {
-    return
-  }
-  const root = document.documentElement
-  const body = document.body
-  if (!body) {
-    return
-  }
-
-  if (shouldLock) {
-    if (scrollLockSnapshot) {
-      return
-    }
-    const scrollY = window.scrollY ?? window.pageYOffset ?? root.scrollTop ?? 0
-    scrollLockSnapshot = {
-      scrollY,
-      rootTouchAction: root.style.touchAction || "",
-      bodyPosition: body.style.position || "",
-      bodyTop: body.style.top || "",
-      bodyWidth: body.style.width || "",
-    }
-    root.style.touchAction = "none"
-    body.dataset.affinoScrollLock = "true"
-    body.style.position = "fixed"
-    body.style.top = `-${scrollY}px`
-    body.style.width = "100%"
-  } else if (scrollLockSnapshot) {
-    root.style.touchAction = scrollLockSnapshot.rootTouchAction
-    body.style.position = scrollLockSnapshot.bodyPosition
-    body.style.top = scrollLockSnapshot.bodyTop
-    body.style.width = scrollLockSnapshot.bodyWidth
-    if (body.dataset.affinoScrollLock) {
-      delete body.dataset.affinoScrollLock
-    }
-    window.scrollTo(0, scrollLockSnapshot.scrollY)
-    scrollLockSnapshot = null
-  }
-}
-
-function syncGlobalKeydown(active: boolean) {
-  if (!isBrowserEnvironment()) {
-    return
-  }
-  if (active && !keydownListenerAttached) {
-    window.addEventListener("keydown", handleKeydown)
-    keydownListenerAttached = true
-  } else if (!active && keydownListenerAttached) {
-    window.removeEventListener("keydown", handleKeydown)
-    keydownListenerAttached = false
-  }
-}
-
 function redirectFocusFromSentinel(target: SurfaceKey, edge: "start" | "end") {
   const surface = resolveSurfaceElement(target)
   if (!surface) {
     return
   }
-  const focusables = getFocusableElements(surface)
-  if (!focusables.length) {
-    surface.focus()
-    return
-  }
-  const next = edge === "start" ? focusables[0] : focusables[focusables.length - 1]
-  next?.focus()
+  focusEdge(surface, edge, { fallbackToContainer: true })
 }
 
 function resolveSurfaceElement(target: SurfaceKey): HTMLElement | null {
