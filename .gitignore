@@ -85,3 +85,5 @@ vite.config.ts.timestamp*
 .vitepress/
 
 test-results/
+packages/visual-workbench/storybook-static/
+.storybook/
