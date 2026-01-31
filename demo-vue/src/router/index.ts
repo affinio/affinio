@@ -20,6 +20,11 @@ const router = createRouter({
       component: () => import("@/pages/VirtualizationPage.vue"),
     },
     {
+      path: "/dialogs",
+      name: "dialog-demo",
+      component: () => import("@/pages/DialogPage.vue"),
+    },
+    {
       path: "/tooltips",
       name: "tooltip-demo",
       component: () => import("@/pages/tooltip/TooltipPage.vue"),

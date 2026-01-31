@@ -51,7 +51,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@affino/selection-core': fileURLToPath(new URL('../packages/selection-core/src/index.ts', import.meta.url))
+      '@affino/selection-core': fileURLToPath(new URL('../packages/selection-core/src/index.ts', import.meta.url)),
+      '@affino/dialog-vue': fileURLToPath(new URL('../packages/dialog-vue/src/index.ts', import.meta.url)),
+      '@affino/dialog-core': fileURLToPath(new URL('../packages/dialog-core/src/index.ts', import.meta.url)),
     },
   },
   esbuild: {

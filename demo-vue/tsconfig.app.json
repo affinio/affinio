@@ -10,6 +10,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@affino/selection-core": ["../packages/selection-core/src/index.ts"],
+      "@affino/dialog-vue": ["../packages/dialog-vue/src/index.ts"],
+      "@affino/dialog-core": ["../packages/dialog-core/src/index.ts"]
     }
   }
 }

@@ -9,6 +9,12 @@ const cores = [
     to: "/menu/simple",
   },
   {
+    title: "Dialog Core",
+    description:
+      "Guard-aware controller for modals and sheets with focus orchestration, stacking policies, and telemetry hooks.",
+    to: "/dialogs",
+  },
+  {
     title: "Tooltip Core",
     description:
       "SurfaceCore-powered hover and focus tooltips with shared timers and Vue adapters.",

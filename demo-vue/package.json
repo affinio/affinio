@@ -16,6 +16,7 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@affino/dialog-vue": "workspace:*",
     "@affino/menu-core": "workspace:*",
     "@affino/menu-react": "workspace:*",
     "@affino/menu-vue": "workspace:*",
