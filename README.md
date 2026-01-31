@@ -80,7 +80,7 @@ You can switch between Vue and React demos instantly using the framework toggle 
 
 | Package | Framework | Status | Notes |
 |------|------|------|------|
-| `@affino/tooltip-vue` | Vue 3.4+ | Alpha | `useTooltipController` hook that wires `TooltipCore` into Vue templates while the React adapter is in progress |
+| `@affino/tooltip-vue` | Vue 3.4+ | Alpha | `useTooltipController` + `useFloatingTooltip` with overlay hosts, Teleport overrides, and `z-index` controls for modals |
 
 ---
 

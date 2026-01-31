@@ -7,7 +7,7 @@ import ContextMenuDemo from "@/react-demos/ContextMenuDemo"
 import ContextMenuReactSource from "@/react-demos/ContextMenuDemo.tsx?raw"
 import ContextMenuExample from "./examples/ContextMenuExample.vue"
 import ContextMenuExampleSource from "./examples/ContextMenuExample.vue?raw"
-import { createHighlighter } from "shiki"
+import { getDemoHighlighter, DEMO_HIGHLIGHTER_THEME } from "@/utils/highlighter"
 
 const stylesSource = `:root {
   --glass-border: rgba(255, 255, 255, 0.08);
@@ -72,24 +72,21 @@ const keyPoints = [
 ]
 
 onMounted(async () => {
-  const highlighter = await createHighlighter({
-    themes: ["github-dark"],
-    langs: ["vue", "tsx", "css"],
-  })
+  const highlighter = await getDemoHighlighter()
 
   highlightedVue.value = highlighter.codeToHtml(ContextMenuExampleSource, {
     lang: "vue",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 
   highlightedReact.value = highlighter.codeToHtml(ContextMenuReactSource, {
     lang: "tsx",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 
   highlightedCss.value = highlighter.codeToHtml(stylesSource, {
     lang: "css",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 })
 

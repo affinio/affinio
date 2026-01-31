@@ -7,7 +7,7 @@ import NestedMenuDemo from "@/react-demos/NestedMenuDemo"
 import NestedMenuReactSource from "@/react-demos/NestedMenuDemo.tsx?raw"
 import NestedMenuExample from "./examples/NestedMenuExample.vue"
 import NestedMenuExampleSource from "./examples/NestedMenuExample.vue?raw"
-import { createHighlighter } from "shiki"
+import { getDemoHighlighter, DEMO_HIGHLIGHTER_THEME } from "@/utils/highlighter"
 
 const stylesSource = `:root {
   --glass-border: rgba(255, 255, 255, 0.08);
@@ -82,24 +82,21 @@ const keyPoints = [
 ]
 
 onMounted(async () => {
-  const highlighter = await createHighlighter({
-    themes: ["github-dark"],
-    langs: ["vue", "tsx", "css"],
-  })
+  const highlighter = await getDemoHighlighter()
 
   highlightedVue.value = highlighter.codeToHtml(NestedMenuExampleSource, {
     lang: "vue",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 
   highlightedReact.value = highlighter.codeToHtml(NestedMenuReactSource, {
     lang: "tsx",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 
   highlightedCss.value = highlighter.codeToHtml(stylesSource, {
     lang: "css",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 })
 

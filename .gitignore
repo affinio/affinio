@@ -83,3 +83,5 @@ vite.config.ts.timestamp*
 # -----------------------
 *.vue.ts   # Volar-generated type declarations
 .vitepress/
+
+test-results/

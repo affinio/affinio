@@ -7,7 +7,7 @@ import SimpleMenuDemo from "@/react-demos/SimpleMenuDemo"
 import SimpleMenuReactSource from "@/react-demos/SimpleMenuDemo.tsx?raw"
 import SimpleMenuExample from "./examples/SimpleMenuExample.vue"
 import SimpleMenuExampleSource from "./examples/SimpleMenuExample.vue?raw"
-import { createHighlighter } from "shiki"
+import { getDemoHighlighter, DEMO_HIGHLIGHTER_THEME } from "@/utils/highlighter"
 
 const stylesSource = `:root {
   --glass-border: rgba(255, 255, 255, 0.08);
@@ -144,24 +144,21 @@ const keyPoints = [
 ]
 
 onMounted(async () => {
-  const highlighter = await createHighlighter({
-    themes: ["github-dark"],
-    langs: ["vue", "tsx", "css"],
-  })
+  const highlighter = await getDemoHighlighter()
 
   highlightedVue.value = highlighter.codeToHtml(SimpleMenuExampleSource, {
     lang: "vue",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 
   highlightedReact.value = highlighter.codeToHtml(SimpleMenuReactSource, {
     lang: "tsx",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 
   highlightedCss.value = highlighter.codeToHtml(stylesSource, {
     lang: "css",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 })
 

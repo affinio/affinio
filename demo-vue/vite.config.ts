@@ -8,13 +8,15 @@ import { transform } from 'esbuild'
 import { createWorkspaceAliases } from '../config/workspace-aliases'
 
 const reactDemoPattern = /src\/react-demos\//
+const reactPackagePattern = /packages\/.*-react\//
 
 function reactDemoTransformer() {
   return {
     name: 'react-demo-transform',
     enforce: 'pre' as const,
     async transform(code: string, id: string) {
-      if (!reactDemoPattern.test(id)) {
+      const matchesReactDir = reactDemoPattern.test(id) || reactPackagePattern.test(id)
+      if (!matchesReactDir || !/\.[jt]sx?$/.test(id)) {
         return null
       }
       const loader = id.endsWith('.tsx') ? 'tsx' : 'ts'
@@ -35,7 +37,7 @@ export default defineConfig({
     reactDemoTransformer(),
     vue(),
     vueJsx({
-      exclude: [reactDemoPattern],
+      exclude: [reactDemoPattern, reactPackagePattern],
     }),
     react(),
     vueDevTools(),

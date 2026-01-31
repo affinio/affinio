@@ -7,7 +7,7 @@ import StressTestMenuDemo from "@/react-demos/StressTestMenuDemo"
 import StressTestMenuReactSource from "@/react-demos/StressTestMenuDemo.tsx?raw"
 import StressTestMenuExample from "./examples/StressTestMenuExample.vue"
 import StressTestMenuExampleSource from "./examples/StressTestMenuExample.vue?raw"
-import { createHighlighter } from "shiki"
+import { getDemoHighlighter, DEMO_HIGHLIGHTER_THEME } from "@/utils/highlighter"
 
 const stylesSource = `.dataset-select {
   border: 1px solid var(--glass-border);
@@ -94,24 +94,21 @@ const keyPoints = [
 ]
 
 onMounted(async () => {
-  const highlighter = await createHighlighter({
-    themes: ["github-dark"],
-    langs: ["vue", "tsx", "css"],
-  })
+  const highlighter = await getDemoHighlighter()
 
   highlightedVue.value = highlighter.codeToHtml(StressTestMenuExampleSource, {
     lang: "vue",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 
   highlightedReact.value = highlighter.codeToHtml(StressTestMenuReactSource, {
     lang: "tsx",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 
   highlightedCss.value = highlighter.codeToHtml(stylesSource, {
     lang: "css",
-    theme: "github-dark",
+    theme: DEMO_HIGHLIGHTER_THEME,
   })
 })
 
