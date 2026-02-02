@@ -4,6 +4,8 @@ import type { Ref } from "vue"
 import {
   useDialogController,
   createDialogFocusOrchestrator,
+  createDialogOverlayRegistrar,
+  provideDialogOverlayRegistrar,
 } from "@affino/dialog-vue"
 import {
   ensureOverlayHost,
@@ -47,6 +49,9 @@ const guardTriggerRef = ref<HTMLElement | null>(null)
 const guardDialogRef = ref<HTMLDivElement | null>(null)
 const swipeState = ref<{ startY: number; currentY: number; key: SurfaceKey | null }>({ startY: 0, currentY: 0, key: null })
 
+const dialogOverlayRegistrar = createDialogOverlayRegistrar()
+provideDialogOverlayRegistrar(dialogOverlayRegistrar)
+
 if (typeof window !== "undefined") {
   ensureOverlayHost({ id: DIALOG_HOST_ID, attribute: "data-affino-dialog-host" })
 }
@@ -88,6 +93,7 @@ const stackDepth = computed(() => stackedDialogs.value.length)
 let stackedDialogId = 0
 
 const basicBinding = useDialogController({
+  overlayRegistrar: dialogOverlayRegistrar,
   focusOrchestrator: createDialogFocusOrchestrator({
     dialog: () => basicDialogRef.value,
     initialFocus: () => getInitialFocusTarget(basicDialogRef.value),
@@ -126,6 +132,7 @@ watch(
 )
 
 const guardBinding = useDialogController({
+  overlayRegistrar: dialogOverlayRegistrar,
   focusOrchestrator: createDialogFocusOrchestrator({
     dialog: () => guardDialogRef.value,
     initialFocus: () => getInitialFocusTarget(guardDialogRef.value),
@@ -220,6 +227,7 @@ function openStackDialog() {
   const id = ++stackedDialogId
   const surfaceRef = ref<HTMLDivElement | null>(null)
   const binding: DialogBinding = useDialogController({
+    overlayRegistrar: dialogOverlayRegistrar,
     focusOrchestrator: createDialogFocusOrchestrator({
       dialog: () => surfaceRef.value,
       initialFocus: () => getInitialFocusTarget(surfaceRef.value),
@@ -246,6 +254,15 @@ function openStackDialog() {
 function closeStackDialog(id: number, reason: Parameters<typeof guardBinding.close>[0] = "programmatic") {
   const entry = stackedDialogs.value.find((dialog) => dialog.id === id)
   entry?.binding.close(reason)
+}
+
+function handleBaseBackdropClick() {
+  const top = getTopStackEntry()
+  if (top) {
+    closeStackDialog(top.id, "backdrop")
+    return
+  }
+  basicBinding.close("backdrop")
 }
 
 function removeStackEntry(id: number) {
@@ -573,7 +590,7 @@ function closeSurfaceForSwipe(target: SurfaceKey) {
 
   <Teleport :to="`#${DIALOG_HOST_ID}`">
     <transition name="dialog-layer">
-      <div v-if="basicOverlayVisible" class="overlay" @click.self="basicBinding.close('backdrop')">
+      <div v-if="basicOverlayVisible" class="overlay" @click.self="handleBaseBackdropClick">
         <div
           ref="basicDialogRef"
           class="surface"

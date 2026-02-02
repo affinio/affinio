@@ -56,6 +56,30 @@ test.describe("dialog overlays", () => {
     await expect(timelineEntries.nth(1)).toHaveText("Opened")
   })
 
+  test("backdrop clicks only close the top-most stack entry", async ({ page }) => {
+    await page.goto(dialogRoute)
+
+    await page.getByRole("button", { name: "Open dialog" }).click()
+
+    const stackToggle = page.locator(".stack-panel .ghost")
+    await stackToggle.click()
+    await stackToggle.click()
+
+    const stackedSurfaces = page.locator(".surface--stacked")
+    await expect(stackedSurfaces).toHaveCount(2)
+
+    // Click near the viewport corner to trigger a backdrop close on the top-most stacked overlay.
+    await page.mouse.move(30, 90)
+    await page.mouse.down()
+    await page.mouse.up()
+    await expect(stackedSurfaces).toHaveCount(1)
+
+    await page.mouse.move(30, 90)
+    await page.mouse.down()
+    await page.mouse.up()
+    await expect(stackedSurfaces).toHaveCount(0)
+  })
+
   test("guarded dialog enforces async close guards and resets when discarded", async ({ page }) => {
     await page.goto(dialogRoute)
 
