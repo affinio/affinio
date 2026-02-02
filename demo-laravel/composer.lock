@@ -4,8 +4,42 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "500fbd108e18ef337e7fa4a9e050e206",
+    "content-hash": "ebc4bd6a7191d9d057dbf8dd37eb7205",
     "packages": [
+        {
+            "name": "affino/tooltip-laravel",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../packages/tooltip-laravel",
+                "reference": "c14c915cd955b3dd135f657f0958e88503e38063"
+            },
+            "require": {
+                "livewire/livewire": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Affino\\Tooltip\\Laravel\\AffinoTooltipServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Affino\\Tooltip\\Laravel\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Headless Laravel tooltip primitives backed by @affino/tooltip-core semantics.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
         {
             "name": "brick/math",
             "version": "0.14.4",
@@ -8459,7 +8493,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "affino/tooltip-laravel": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
