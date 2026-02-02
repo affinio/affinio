@@ -3,27 +3,7 @@
   "changelog": ["@changesets/cli/changelog", null],
   "commit": false,
   "fixed": [
-    [
-      "@affino/surface-core",
-      "@affino/dialog-core",
-      "@affino/dialog-vue",
-      "@affino/menu-core",
-      "@affino/menu-react",
-      "@affino/menu-vue",
-      "@affino/popover-core",
-      "@affino/popover-vue",
-      "@affino/tooltip-core",
-      "@affino/tooltip-vue",
-      "@affino/overlay-host",
-      "@affino/focus-utils"
-    ],
-    [
-      "@affino/grid-selection-core",
-      "@affino/grid-selection-vue",
-      "@affino/selection-core",
-      "@affino/listbox-core",
-      "@affino/selection-vue"
-    ]
+    
   ],
   "linked": [],
   "access": "public",
