@@ -53,6 +53,10 @@ function registerScrollGuards() {
 		ticking = false
 		const openTooltips = document.querySelectorAll("[data-affino-tooltip-state='open']")
 		openTooltips.forEach((root) => {
+			const mode = root.dataset.affinoTooltipTriggerMode
+			if (mode === "manual") {
+				return
+			}
 			const handle = root.affinoTooltip
 			if (handle) {
 				handle.close("programmatic")
