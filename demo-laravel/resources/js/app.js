@@ -1,9 +1,11 @@
 import "./bootstrap"
 import { bootstrapAffinoTooltips } from "@affino/tooltip-laravel"
 import { bootstrapAffinoPopovers } from "@affino/popover-laravel"
+import { bootstrapAffinoListboxes } from "@affino/listbox-laravel"
 
 bootstrapAffinoTooltips()
 bootstrapAffinoPopovers()
+bootstrapAffinoListboxes()
 registerManualControllerBridge({
 	eventName: "affino-tooltip:manual",
 	rootAttribute: "data-affino-tooltip-root",
@@ -15,6 +17,12 @@ registerManualControllerBridge({
 	rootAttribute: "data-affino-popover-root",
 	property: "affinoPopover",
 	rehydrate: bootstrapAffinoPopovers,
+})
+registerListboxManualBridge({
+	eventName: "affino-listbox:manual",
+	rootAttribute: "data-affino-listbox-root",
+	property: "affinoListbox",
+	rehydrate: bootstrapAffinoListboxes,
 })
 registerScrollGuards()
 
@@ -67,6 +75,66 @@ function registerManualControllerBridge({ eventName, rootAttribute, property, re
 		}
 
 		invokeAction(detail)
+	}
+
+	document.addEventListener(eventName, handler)
+}
+
+function registerListboxManualBridge({ eventName, rootAttribute, property, rehydrate }) {
+	const handledFlag = "__affinoManualHandled"
+	const maxRetries = 20
+
+	const findHandle = (id) => {
+		const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(id) : id
+		const selector = `[${rootAttribute}="${escapedId}"]`
+		const root = document.querySelector(selector)
+		return root?.[property]
+	}
+
+	const invoke = (detail, attempt = 0) => {
+		rehydrate?.()
+		const handle = findHandle(detail.id)
+		if (!handle) {
+			if (attempt < maxRetries) {
+				requestAnimationFrame(() => invoke(detail, attempt + 1))
+			}
+			return
+		}
+
+		switch (detail.action) {
+			case "open":
+				handle.open()
+				return
+			case "close":
+				handle.close()
+				return
+			case "toggle":
+				handle.toggle()
+				return
+			case "select":
+				if (typeof detail.index === "number") {
+					handle.selectIndex(detail.index, { toggle: detail.toggle, extend: detail.extend })
+					return
+				}
+				if (typeof detail.value === "string") {
+					handle.selectValue(detail.value)
+				}
+		}
+	}
+
+	const handler = (rawEvent) => {
+		const event = rawEvent
+		if (event[handledFlag]) {
+			return
+		}
+		event[handledFlag] = true
+
+		const detail = /** @type {CustomEvent<{ id?: string; action?: string; index?: number; value?: string; toggle?: boolean; extend?: boolean }> } */ (event).detail
+		if (!detail || !detail.id || !detail.action) {
+			return
+		}
+
+		invoke(detail)
 	}
 
 	document.addEventListener(eventName, handler)

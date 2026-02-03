@@ -4,8 +4,42 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "dd106e6efe6074d272a4839bd50e8f42",
+    "content-hash": "02291ce9633e50d05e5def382d81d776",
     "packages": [
+        {
+            "name": "affino/listbox-laravel",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../packages/listbox-laravel",
+                "reference": "b3a40ba8f2cf43d4c26274876e36a8e8f88828bb"
+            },
+            "require": {
+                "livewire/livewire": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Affino\\Listbox\\Laravel\\AffinoListboxServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Affino\\Listbox\\Laravel\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Headless Laravel listbox primitives backed by @affino/listbox-core.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
         {
             "name": "affino/popover-laravel",
             "version": "dev-main",
@@ -8528,6 +8562,7 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
+        "affino/listbox-laravel": 20,
         "affino/popover-laravel": 20,
         "affino/tooltip-laravel": 20
     },

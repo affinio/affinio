@@ -34,6 +34,18 @@
                 ],
             ],
         ],
+        [
+            'label' => 'Selects',
+            'description' => '@affino/listbox-laravel',
+            'pattern' => 'livewire.selects.*',
+            'links' => [
+                [
+                    'label' => 'Overview',
+                    'href' => route('livewire.selects.overview'),
+                    'pattern' => 'livewire.selects.overview',
+                ],
+            ],
+        ],
     ];
 @endphp
 
