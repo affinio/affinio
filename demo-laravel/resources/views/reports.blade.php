@@ -1,5 +1,5 @@
 @extends('layouts.tooltip')
 
 @section('content')
-    <livewire:tooltip.showcase />
+    <livewire:tooltip.reports />
 @endsection

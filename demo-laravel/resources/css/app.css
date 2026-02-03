@@ -146,10 +146,11 @@
     width: 100%;
 }
 
-.tooltip-stage [data-affino-tooltip-surface] {
+
+[data-affino-tooltip-surface] {
     position: fixed;
     min-width: 220px;
-    max-width: 260px;
+    max-width: 280px;
     padding: 0.95rem 1.1rem;
     border-radius: 1rem;
     border: 1px solid var(--tooltip-border);
@@ -164,7 +165,7 @@
     gap: 0.4rem;
 }
 
-.tooltip-stage [data-affino-tooltip-surface]::after {
+[data-affino-tooltip-surface]::after {
     content: "";
     position: absolute;
     width: 12px;
@@ -175,7 +176,7 @@
     z-index: -1;
 }
 
-.tooltip-stage [data-affino-tooltip-surface][data-placement='top']::after {
+[data-affino-tooltip-surface][data-placement='top']::after {
     left: 50%;
     bottom: -6px;
     translate: -50% 0;

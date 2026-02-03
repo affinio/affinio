@@ -2,6 +2,5 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::view('/', 'welcome')->name('tooltips.overview');
+Route::view('/reports', 'reports')->name('tooltips.reports');
