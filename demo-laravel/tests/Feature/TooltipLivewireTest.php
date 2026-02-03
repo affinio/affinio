@@ -11,7 +11,7 @@ class TooltipLivewireTest extends TestCase
 {
     public function test_overview_page_renders_showcase_component(): void
     {
-        $response = $this->get(route('tooltips.overview'));
+        $response = $this->get(route('livewire.tooltips.overview'));
 
         $response->assertOk();
         $response->assertSee('wire:navigate', false);
@@ -20,7 +20,7 @@ class TooltipLivewireTest extends TestCase
 
     public function test_reports_page_renders_region_tooltips(): void
     {
-        $response = $this->get(route('tooltips.reports'));
+        $response = $this->get(route('livewire.tooltips.reports'));
 
         $response->assertOk();
         $response->assertSee('report-tooltip-fr-edge', false);

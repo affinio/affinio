@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title>Affino Tooltip · Livewire</title>
+        <title>Affino Popover · Livewire</title>
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
@@ -463,6 +463,280 @@
                     gap: 0.9rem;
                 }
 
+                .popover-showcase {
+                    gap: 2rem;
+                }
+
+                .popover-grid {
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                }
+
+                .popover-bubble {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.65rem;
+                }
+
+                .popover-bubble__title {
+                    font-size: 0.95rem;
+                    font-weight: 600;
+                    margin: 0;
+                }
+
+                .popover-bubble__body {
+                    margin: 0;
+                    color: var(--tooltip-text-soft);
+                    font-size: 0.85rem;
+                    line-height: 1.5;
+                }
+
+                .popover-bubble__cta {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.65rem;
+                }
+
+                .popover-bubble__list {
+                    margin: 0;
+                    padding-left: 1.25rem;
+                    color: var(--tooltip-text-soft);
+                    font-size: 0.82rem;
+                    display: grid;
+                    gap: 0.3rem;
+                }
+
+                .popover-bubble__ordered {
+                    list-style: none;
+                    padding: 0;
+                    margin: 0;
+                    display: grid;
+                    gap: 0.45rem;
+                }
+
+                .popover-bubble__ordered li {
+                    display: flex;
+                    gap: 0.75rem;
+                    align-items: flex-start;
+                    color: var(--tooltip-text-soft);
+                }
+
+                .popover-bubble__ordered li span {
+                    width: 1.75rem;
+                    height: 1.75rem;
+                    border-radius: 999px;
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 0.8rem;
+                }
+
+                .popover-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                    margin-bottom: 1rem;
+                }
+
+                .popover-trigger {
+                    width: 100%;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 0.75rem;
+                    border-radius: 1rem;
+                    border: 1px solid var(--tooltip-border);
+                    padding: 0.85rem 1rem;
+                    background: rgba(255, 255, 255, 0.04);
+                    color: var(--tooltip-text);
+                    text-align: left;
+                }
+
+                .popover-trigger small {
+                    display: block;
+                    font-size: 0.75rem;
+                    color: var(--tooltip-text-soft);
+                }
+
+                .popover-trigger__label {
+                    font-weight: 600;
+                    display: block;
+                    margin-bottom: 0.15rem;
+                }
+
+                .popover-pill {
+                    border-radius: 999px;
+                    border: 1px solid rgba(255, 255, 255, 0.25);
+                    padding: 0.25rem 0.85rem;
+                    font-size: 0.75rem;
+                    letter-spacing: 0.05em;
+                    text-transform: uppercase;
+                }
+
+                .popover-row__actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    margin-top: 0.4rem;
+                }
+
+                .popover-tabs {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.5rem;
+                }
+
+                .popover-journey {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                    margin-top: 1rem;
+                }
+
+                .popover-journey h3 {
+                    margin: 0;
+                }
+
+                .popover-journey__eyebrow {
+                    text-transform: uppercase;
+                    letter-spacing: 0.25em;
+                    font-size: 0.7rem;
+                    margin: 0 0 0.35rem;
+                    color: var(--tooltip-text-soft);
+                }
+
+                .popover-modal-actions {
+                    display: flex;
+                    gap: 0.75rem;
+                    flex-wrap: wrap;
+                    margin-bottom: 1rem;
+                }
+
+                .popover-modal {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.9rem;
+                }
+
+                .popover-form {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.7rem;
+                }
+
+                .popover-form label {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.35rem;
+                    font-size: 0.8rem;
+                }
+
+                .popover-form input,
+                .popover-form textarea {
+                    border-radius: 0.85rem;
+                    border: 1px solid rgba(255, 255, 255, 0.25);
+                    background: rgba(5, 6, 12, 0.55);
+                    color: var(--tooltip-text);
+                    padding: 0.6rem 0.8rem;
+                    font-family: inherit;
+                }
+
+                .popover-stack {
+                    list-style: none;
+                    margin: 0 0 1rem;
+                    padding: 0;
+                    display: grid;
+                    gap: 0.75rem;
+                }
+
+                .popover-stack__row {
+                    border-radius: 1rem;
+                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    padding: 0.9rem;
+                    display: grid;
+                    grid-template-columns: 1fr auto auto;
+                    gap: 0.65rem;
+                    align-items: center;
+                    background: rgba(255, 255, 255, 0.03);
+                }
+
+                .popover-stack__meta p {
+                    margin: 0;
+                    font-weight: 600;
+                }
+
+                .popover-stack__meta small {
+                    color: var(--tooltip-text-soft);
+                }
+
+                .popover-runtime {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.2rem;
+                    font-size: 0.8rem;
+                    color: var(--tooltip-text-soft);
+                }
+
+                .popover-matrix {
+                    display: grid;
+                    gap: 1.25rem;
+                }
+
+                .popover-matrix__group ul {
+                    list-style: none;
+                    margin: 0;
+                    padding: 0;
+                    display: grid;
+                    gap: 0.75rem;
+                }
+
+                .popover-matrix__title {
+                    margin: 0 0 0.5rem;
+                    font-size: 0.85rem;
+                    letter-spacing: 0.2em;
+                    text-transform: uppercase;
+                    color: var(--tooltip-text-soft);
+                }
+
+                .popover-matrix__row {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 0.65rem;
+                    align-items: center;
+                }
+
+                [data-affino-popover-content] {
+                    position: fixed;
+                    min-width: 240px;
+                    max-width: 360px;
+                    padding: 1rem 1.15rem;
+                    border-radius: 1.25rem;
+                    border: 1px solid var(--tooltip-border);
+                    background: rgba(5, 6, 12, 0.97);
+                    box-shadow: 0 28px 60px rgba(5, 6, 12, 0.55);
+                    color: var(--tooltip-text);
+                    z-index: 50;
+                }
+
+                [data-affino-popover-content][hidden] {
+                    display: none !important;
+                }
+
+                [data-affino-popover-arrow] {
+                    position: absolute;
+                    width: var(--popover-arrow-size, 16px);
+                    height: var(--popover-arrow-size, 16px);
+                    pointer-events: none;
+                }
+
+                [data-affino-popover-arrow]::before {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    background: rgba(5, 6, 12, 0.97);
+                    border: 1px solid var(--tooltip-border);
+                    transform: rotate(45deg);
+                }
+
                 @media (min-width: 768px) {
                     .tooltip-demo-body {
                         padding: 3.5rem 3rem 4rem;
@@ -475,15 +749,15 @@
         <main class="tooltip-demo-shell">
             <header class="tooltip-hero">
                 <p class="tooltip-hero__eyebrow">Surface Core</p>
-                <h1>Tooltips built for Livewire</h1>
+                <h1>Popovers anchored to Livewire</h1>
                 <p>
-                    The <code>@affino/tooltip-laravel</code> component reuses the shared SurfaceCore timers so hover, focus,
-                    click, and manual semantics survive Livewire morphs. Each section below is rendered as a Livewire
-                    component, then re-hydrated after DOM diffs and wire:navigate transitions.
+                    The <code>@affino/popover-laravel</code> adapter keeps SurfaceCore positioning, focus, and modal guards
+                    intact even as Livewire morphs the DOM. These scenarios render as Livewire components, then re-hydrate
+                    each popover after dataset swaps, pagination, and wire:navigate transitions.
                 </p>
                 <div class="tooltip-hero__cta">
-                    <span class="tooltip-hero__badge">Livewire ready</span>
-                    <span>Tooltips stay in sync through component updates, nested renders, and wire:navigate.</span>
+                    <span class="tooltip-hero__badge">Surface-aware</span>
+                    <span>Popovers stay aligned while scroll locking, pinning, and manual flows remain deterministic.</span>
                 </div>
             </header>
 

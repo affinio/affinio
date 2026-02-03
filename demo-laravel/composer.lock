@@ -4,8 +4,42 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ebc4bd6a7191d9d057dbf8dd37eb7205",
+    "content-hash": "dd106e6efe6074d272a4839bd50e8f42",
     "packages": [
+        {
+            "name": "affino/popover-laravel",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../packages/popover-laravel",
+                "reference": "eb21d4a28706c2a7b098edacdef3139678db3371"
+            },
+            "require": {
+                "livewire/livewire": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Affino\\Popover\\Laravel\\AffinoPopoverServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Affino\\Popover\\Laravel\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Headless Laravel popover primitives backed by @affino/popover-core semantics.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
         {
             "name": "affino/tooltip-laravel",
             "version": "dev-main",
@@ -8494,6 +8528,7 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
+        "affino/popover-laravel": 20,
         "affino/tooltip-laravel": 20
     },
     "prefer-stable": true,

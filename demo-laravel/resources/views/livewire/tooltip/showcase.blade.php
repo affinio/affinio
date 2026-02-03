@@ -199,8 +199,8 @@
                             </button>
                         </div>
 
-                        <label class="tooltip-manual-toggle">
-                            <input type="checkbox" wire:model.live="pinManual">
+                        <label class="tooltip-manual-toggle" for="tooltip-pin-manual">
+                            <input id="tooltip-pin-manual" name="tooltip_pin_manual" type="checkbox" wire:model.live="pinManual">
                             Keep open while checked
                         </label>
                     </div>
@@ -225,7 +225,13 @@
                                 gutter="10"
                             >
                                 <x-slot:trigger>
-                                    <input type="email" wire:model.live="email" placeholder="alex@affino.dev" />
+                                    <input
+                                        id="tooltip-work-email"
+                                        name="work_email"
+                                        type="email"
+                                        wire:model.live="email"
+                                        placeholder="alex@affino.dev"
+                                    />
                                 </x-slot:trigger>
 
                                 <div class="tooltip-bubble" role="tooltip">
