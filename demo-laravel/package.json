@@ -15,6 +15,7 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
+        "@affino/overlay-kernel": "workspace:*",
         "@affino/dialog-laravel": "workspace:*",
         "@affino/combobox-laravel": "workspace:*",
         "@affino/listbox-laravel": "workspace:*",

@@ -469,6 +469,44 @@
                 </div>
             </header>
 
+            <section
+                class="overlay-panel"
+                data-overlay-panel
+                data-overlay-panel-collapsed="false"
+                hidden
+                aria-live="polite"
+            >
+                <div class="overlay-panel__header">
+                    <div>
+                        <p class="overlay-panel__eyebrow">Overlay kernel</p>
+                        <div class="overlay-panel__signal">
+                            <span class="overlay-panel__dot" data-overlay-panel-dot data-active="false" aria-hidden="true"></span>
+                            <div>
+                                <h2 class="overlay-panel__title">
+                                    Stack monitor · <span data-overlay-panel-count>0</span>
+                                </h2>
+                                <p class="overlay-panel__copy">
+                                    Subscribe to the document manager and watch every modal register as Livewire morphs the DOM.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="overlay-panel__toggle"
+                        data-overlay-panel-toggle
+                        aria-controls="overlay-panel-list"
+                        aria-expanded="true"
+                    >
+                        Hide stack
+                    </button>
+                </div>
+
+                <ol id="overlay-panel-list" class="overlay-panel__list" data-overlay-panel-list aria-live="polite">
+                    <li class="overlay-panel__empty">Stack is idle. Open any dialog to populate it.</li>
+                </ol>
+            </section>
+
             @include('layouts.partials.demo-nav')
 
             @yield('content')

@@ -5,6 +5,7 @@ import { bootstrapAffinoPopovers } from "@affino/popover-laravel"
 import { bootstrapAffinoListboxes } from "@affino/listbox-laravel"
 import { bootstrapAffinoComboboxes } from "@affino/combobox-laravel"
 import { bootstrapAffinoMenus } from "@affino/menu-laravel"
+import { getDocumentOverlayManager } from "@affino/overlay-kernel"
 
 bootstrapAffinoDialogs()
 bootstrapAffinoTooltips()
@@ -55,6 +56,7 @@ registerManualDialogFocusRecovery({
 	dialogId: "manual-ops-dialog",
 	focusSelector: "[data-manual-dialog-focus-target]",
 })
+registerOverlayKernelPanel()
 
 function registerLivewireDialogCommands() {
 	if (typeof document === "undefined" || typeof window === "undefined") {
@@ -411,4 +413,93 @@ function closeOpenMenus() {
 			handle.close("programmatic")
 		}
 	})
+}
+
+function registerOverlayKernelPanel() {
+	if (typeof document === "undefined") {
+		return
+	}
+	const panel = document.querySelector("[data-overlay-panel]")
+	if (!panel) {
+		return
+	}
+	const toggle = panel.querySelector("[data-overlay-panel-toggle]")
+	const list = panel.querySelector("[data-overlay-panel-list]")
+	const dot = panel.querySelector("[data-overlay-panel-dot]")
+	const countTarget = panel.querySelector("[data-overlay-panel-count]")
+	if (!toggle || !list || !dot || !countTarget) {
+		return
+	}
+	panel.hidden = false
+	const setCollapseState = (collapsed) => {
+		panel.setAttribute("data-overlay-panel-collapsed", collapsed ? "true" : "false")
+		toggle.setAttribute("aria-expanded", collapsed ? "false" : "true")
+		toggle.textContent = collapsed ? "Show stack" : "Hide stack"
+	}
+	setCollapseState(false)
+	toggle.addEventListener("click", () => {
+		const collapsed = panel.getAttribute("data-overlay-panel-collapsed") === "true"
+		setCollapseState(!collapsed)
+	})
+
+	const manager = getDocumentOverlayManager(document)
+	const renderStack = (stack) => {
+		const entries = [...stack].reverse()
+		countTarget.textContent = String(stack.length)
+		dot.dataset.active = stack.length > 0 ? "true" : "false"
+		list.innerHTML = ""
+		if (!entries.length) {
+			const empty = document.createElement("li")
+			empty.className = "overlay-panel__empty"
+			empty.textContent = "Stack is idle. Open any dialog to populate it."
+			list.appendChild(empty)
+			return
+		}
+		const fragment = document.createDocumentFragment()
+		entries.forEach((entry, index) => {
+			const item = document.createElement("li")
+			item.className = "overlay-panel__item"
+			item.dataset.top = index === 0 ? "true" : "false"
+
+			const left = document.createElement("div")
+			const kind = document.createElement("p")
+			kind.className = "overlay-panel__kind"
+			kind.textContent = formatOverlayKind(entry.kind)
+			left.appendChild(kind)
+
+			const meta = document.createElement("p")
+			meta.className = "overlay-panel__meta"
+			meta.textContent = `State · ${entry.state}`
+			left.appendChild(meta)
+
+			const badge = document.createElement("div")
+			badge.className = "overlay-panel__badge"
+			const priority = document.createElement("span")
+			priority.className = "overlay-panel__badge-rank"
+			priority.textContent = `#${entry.priority}`
+			badge.appendChild(priority)
+			if (index === 0) {
+				const pill = document.createElement("span")
+				pill.className = "overlay-panel__badge-pill"
+				pill.textContent = "Top"
+				badge.appendChild(pill)
+			}
+
+			item.appendChild(left)
+			item.appendChild(badge)
+			fragment.appendChild(item)
+		})
+		list.appendChild(fragment)
+	}
+
+	try {
+		renderStack(manager.getStack())
+		manager.onStackChanged((event) => renderStack(event.stack))
+	} catch {
+		// gracefully ignore if manager cannot be resolved
+	}
+}
+
+function formatOverlayKind(kind) {
+	return kind.replace(/-/g, " ")
 }

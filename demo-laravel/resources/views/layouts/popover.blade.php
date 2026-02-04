@@ -760,6 +760,43 @@
                     <span>Popovers stay aligned while scroll locking, pinning, and manual flows remain deterministic.</span>
                 </div>
             </header>
+            <section
+                class="overlay-panel overlay-panel--popover"
+                data-overlay-panel
+                data-overlay-panel-collapsed="false"
+                hidden
+                aria-live="polite"
+            >
+                <div class="overlay-panel__header">
+                    <div>
+                        <p class="overlay-panel__eyebrow">Overlay kernel</p>
+                        <div class="overlay-panel__signal">
+                            <span class="overlay-panel__dot" data-overlay-panel-dot data-active="false" aria-hidden="true"></span>
+                            <div>
+                                <h2 class="overlay-panel__title">
+                                    Popover stack · <span data-overlay-panel-count>0</span>
+                                </h2>
+                                <p class="overlay-panel__copy">
+                                    Every flyout that mounts through SurfaceCore shows up here, so Livewire morphs never hide what the kernel is tracking.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="overlay-panel__toggle"
+                        data-overlay-panel-toggle
+                        aria-controls="overlay-panel-list"
+                        aria-expanded="true"
+                    >
+                        Hide stack
+                    </button>
+                </div>
+
+                <ol id="overlay-panel-list" class="overlay-panel__list" data-overlay-panel-list aria-live="polite">
+                    <li class="overlay-panel__empty">Stack is idle. Trigger any popover to populate it.</li>
+                </ol>
+            </section>
 
             @include('layouts.partials.demo-nav')
 
