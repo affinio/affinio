@@ -800,6 +800,12 @@ select.control {
 	color: var(--accent-strong);
 }
 
+.tooltip-state-chip__meta {
+	margin-left: 0.65rem;
+	color: var(--text-soft);
+	letter-spacing: 0.18em;
+}
+
 .tooltip-field {
 	display: flex;
 	flex-direction: column;

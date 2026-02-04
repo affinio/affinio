@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppHeader from "@/layouts/AppHeader.vue"
 import AppFooter from "@/layouts/AppFooter.vue"
+import OverlayStackPanel from "@/components/OverlayStackPanel.vue"
 </script>
 
 <template>
@@ -12,6 +13,7 @@ import AppFooter from "@/layouts/AppFooter.vue"
       </div>
     </main>
     <AppFooter class="app-shell__footer" />
+    <OverlayStackPanel />
   </div>
 </template>
 
@@ -39,7 +41,7 @@ import AppFooter from "@/layouts/AppFooter.vue"
   width: 100%;
   max-width: 72rem;
   margin: 0 auto;
-  padding: 1.5rem rem 3rem;
+  padding: 1.5rem 1rem 3rem;
 }
 
 @media (min-width: 1024px) {

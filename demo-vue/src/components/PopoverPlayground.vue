@@ -31,6 +31,8 @@
             Adjust filters
           </button>
         </div>
+
+        <p class="overlay-meta">Kernel · {{ overlaySummary }}</p>
       </div>
     </div>
 
@@ -129,10 +131,20 @@
 import { computed, ref, watch } from "vue"
 import { useFloatingPopover, usePopoverController } from "@affino/popover-vue"
 
+const overlayOwnerId = "insights-overlay-owner"
+const overlayPriority = 45
+
 const controller = usePopoverController({
   id: "insights-filters",
   role: "dialog",
   modal: false,
+  overlayKind: "popover",
+  overlayEntryTraits: {
+    ownerId: overlayOwnerId,
+    priority: overlayPriority,
+    returnFocus: false,
+    data: { surface: "filters" },
+  },
 })
 
 const state = controller.state
@@ -180,6 +192,8 @@ const includeArchived = ref(false)
 const alerts = ref(true)
 
 const weightingLabel = computed(() => weightingPresets.find((preset) => preset.value === weighting.value)?.label ?? "")
+
+const overlaySummary = computed(() => `${overlayOwnerId} · priority ${overlayPriority}`)
 
 const summary = computed(() => {
   const focus = selectedSegments.value.length
@@ -293,6 +307,14 @@ watch(
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+}
+
+.overlay-meta {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.75);
 }
 
 .chip,

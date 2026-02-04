@@ -24,6 +24,8 @@
     "@affino/menu-react": "workspace:*",
     "@affino/menu-vue": "workspace:*",
     "@affino/overlay-host": "workspace:*",
+    "@affino/overlay-kernel": "workspace:*",
+    "@affino/combobox-core": "workspace:*",
     "@affino/selection-vue": "workspace:*",
     "@affino/tooltip-vue": "workspace:*",
     "@affino/selection-core": "workspace:*",

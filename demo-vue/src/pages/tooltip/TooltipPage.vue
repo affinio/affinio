@@ -26,8 +26,8 @@ const highlights = [
       <h1>Tooltips fueled by SurfaceCore</h1>
       <p>
         <code>@affino/tooltip-vue</code> is a thin wrapper around the shared surface kernel, so hover, focus, and
-        timers behave exactly like menus. Try the variations below to see pointer-driven, focus-driven, and manual
-        control flows.
+        timers behave exactly like menus. Declare kernel traits (owner, priority, modality) per tooltip to choreograph
+        stacked nudges, then try the variations below to see pointer-driven, focus-driven, and manual control flows.
       </p>
     </header>
 

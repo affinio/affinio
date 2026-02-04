@@ -73,7 +73,8 @@ const stats = [
         <p>
           `usePopoverController` exposes the exact trigger/content props from core, so you decide how to render. Pair it with
           `useFloatingPopover` when you want automatic positioning, or swap it out for CSS anchored positioning if you
-          already have layout constraints.
+          already have layout constraints. Attach `overlayEntryTraits` for per-surface priority, owner, and modality tweaks so
+          layered flows stay predictable in the shared kernel.
         </p>
       </article>
       <article>
@@ -81,7 +82,7 @@ const stats = [
         <p>
           The floating helper pipes outside pointer + focus events back through the controller, so custom logic such as
           analytics sampling or open guards stay centralized. Hooks also ship `returnFocus` + `lockScroll` toggles to
-          tune modal vs. non-modal behavior per surface.
+          tune modal vs. non-modal behavior per surface, while kernel events keep the overlay stack HUD in sync.
         </p>
       </article>
     </section>

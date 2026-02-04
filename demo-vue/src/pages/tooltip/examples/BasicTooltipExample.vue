@@ -2,11 +2,21 @@
 import { computed } from "vue"
 import { useTooltipController, useFloatingTooltip } from "@affino/tooltip-vue"
 
+const overlayOwnerId = "tooltip-basic-owner"
+const overlayPriority = 15
+
 const controller = useTooltipController(
   {
     id: "tooltip-basic-demo",
     openDelay: 120,
     closeDelay: 120,
+    overlayKind: "tooltip",
+    overlayEntryTraits: {
+      ownerId: overlayOwnerId,
+      priority: overlayPriority,
+      returnFocus: false,
+      data: { demo: "basic" },
+    },
   },
 )
 
@@ -19,6 +29,8 @@ const { triggerRef, tooltipRef, tooltipStyle, teleportTarget, arrowProps } = use
   gutter: 12,
   arrow: { size: 12, inset: 10 },
 })
+
+const overlaySummary = computed(() => `${overlayOwnerId} · priority ${overlayPriority}`)
 </script>
 
 <template>
@@ -54,6 +66,9 @@ const { triggerRef, tooltipRef, tooltipStyle, teleportTarget, arrowProps } = use
       </Teleport>
     </div>
 
-    <p class="tooltip-state-chip">State · {{ state.open ? "open" : "closed" }}</p>
+    <p class="tooltip-state-chip">
+      <span>State · {{ state.open ? "open" : "closed" }}</span>
+      <span class="tooltip-state-chip__meta">Kernel · {{ overlaySummary }}</span>
+    </p>
   </article>
 </template>

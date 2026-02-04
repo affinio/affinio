@@ -16,6 +16,7 @@ const route = useRoute()
 const activeCore = computed(() => {
   if (route.path.startsWith('/menu')) return 'Menu'
   if (route.path.startsWith('/selection')) return 'Selection'
+  if (route.path.startsWith('/combobox')) return 'Combobox'
   if (route.path.startsWith('/virtualization')) return 'Virtualization'
   if (route.path.startsWith('/tooltips')) return 'Tooltips'
   if (route.path.startsWith('/dialogs')) return 'Dialog'
@@ -28,6 +29,7 @@ const coreCapabilities: Record<string, { adapters: boolean }> = {
   menu: { adapters: true },
   dialog: { adapters: false },
   selection: { adapters: false },
+  combobox: { adapters: false },
   virtualization: { adapters: false },
   tooltips: { adapters: false },
   popover: { adapters: true },
@@ -84,6 +86,16 @@ const subtitle = computed(() => {
             :class="{ 'nav-link--active': route.path.startsWith('/selection') }"
           >
             Selection
+          </a>
+        </RouterLink>
+
+        <RouterLink to="/combobox" v-slot="{ href }">
+          <a
+            :href="href"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.path.startsWith('/combobox') }"
+          >
+            Combobox
           </a>
         </RouterLink>
 
