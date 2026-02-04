@@ -56,7 +56,7 @@ registerManualDialogFocusRecovery({
 	dialogId: "manual-ops-dialog",
 	focusSelector: "[data-manual-dialog-focus-target]",
 })
-registerOverlayKernelPanel()
+registerOverlayKernelPanels()
 
 function registerLivewireDialogCommands() {
 	if (typeof document === "undefined" || typeof window === "undefined") {
@@ -415,12 +415,33 @@ function closeOpenMenus() {
 	})
 }
 
-function registerOverlayKernelPanel() {
+function registerOverlayKernelPanels() {
 	if (typeof document === "undefined") {
 		return
 	}
-	const panel = document.querySelector("[data-overlay-panel]")
-	if (!panel) {
+	let manager = null
+	try {
+		manager = getDocumentOverlayManager(document)
+	} catch {
+		return
+	}
+	if (!manager) {
+		return
+	}
+	const hydrate = () => {
+		const panels = document.querySelectorAll("[data-overlay-panel]")
+		panels.forEach((panel) => {
+			if (panel instanceof HTMLElement) {
+				attachOverlayPanel(panel, manager)
+			}
+		})
+	}
+	hydrate()
+	document.addEventListener("livewire:navigated", hydrate)
+}
+
+function attachOverlayPanel(panel, manager) {
+	if (panel.dataset.overlayPanelHydrated === "true") {
 		return
 	}
 	const toggle = panel.querySelector("[data-overlay-panel-toggle]")
@@ -430,19 +451,26 @@ function registerOverlayKernelPanel() {
 	if (!toggle || !list || !dot || !countTarget) {
 		return
 	}
+	panel.dataset.overlayPanelHydrated = "true"
 	panel.hidden = false
+	const showLabel = toggle.getAttribute("data-overlay-panel-toggle-show")?.trim() || "Show stack"
+	const hideLabel = toggle.getAttribute("data-overlay-panel-toggle-hide")?.trim() || toggle.textContent?.trim() || "Hide stack"
+	const emptyState =
+		panel.getAttribute("data-overlay-panel-empty")?.trim() ||
+		list.querySelector(".overlay-panel__empty")?.textContent?.trim() ||
+		"Stack is idle. Open any overlay to populate it."
 	const setCollapseState = (collapsed) => {
 		panel.setAttribute("data-overlay-panel-collapsed", collapsed ? "true" : "false")
 		toggle.setAttribute("aria-expanded", collapsed ? "false" : "true")
-		toggle.textContent = collapsed ? "Show stack" : "Hide stack"
+		toggle.textContent = collapsed ? showLabel : hideLabel
 	}
-	setCollapseState(false)
+	const initialCollapsed = panel.getAttribute("data-overlay-panel-collapsed") === "true"
+	setCollapseState(initialCollapsed)
 	toggle.addEventListener("click", () => {
 		const collapsed = panel.getAttribute("data-overlay-panel-collapsed") === "true"
 		setCollapseState(!collapsed)
 	})
 
-	const manager = getDocumentOverlayManager(document)
 	const renderStack = (stack) => {
 		const entries = [...stack].reverse()
 		countTarget.textContent = String(stack.length)
@@ -451,7 +479,7 @@ function registerOverlayKernelPanel() {
 		if (!entries.length) {
 			const empty = document.createElement("li")
 			empty.className = "overlay-panel__empty"
-			empty.textContent = "Stack is idle. Open any dialog to populate it."
+			empty.textContent = emptyState
 			list.appendChild(empty)
 			return
 		}
@@ -494,9 +522,15 @@ function registerOverlayKernelPanel() {
 
 	try {
 		renderStack(manager.getStack())
-		manager.onStackChanged((event) => renderStack(event.stack))
+		const unsubscribe = manager.onStackChanged((event) => {
+			if (!panel.isConnected) {
+				unsubscribe()
+				return
+			}
+			renderStack(event.stack)
+		})
 	} catch {
-		// gracefully ignore if manager cannot be resolved
+		panel.dataset.overlayPanelHydrated = "false"
 	}
 }
 

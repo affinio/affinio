@@ -13,7 +13,6 @@
             <div class="menu-inline">
                 <div
                     class="menu-inline__surface"
-                    wire:ignore
                     data-affino-menu-root="simple-livewire-menu"
                     data-affino-menu-placement="bottom"
                     data-affino-menu-align="start"
@@ -21,7 +20,6 @@
                     data-affino-menu-open-delay="60"
                     data-affino-menu-close-delay="120"
                     data-affino-menu-portal="inline"
-                    data-affino-menu-pinned="true"
                 >
                     <button type="button" class="menu-inline__trigger" data-affino-menu-trigger>
                         Open Livewire menu
