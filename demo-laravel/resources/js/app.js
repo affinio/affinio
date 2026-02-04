@@ -4,12 +4,14 @@ import { bootstrapAffinoTooltips } from "@affino/tooltip-laravel"
 import { bootstrapAffinoPopovers } from "@affino/popover-laravel"
 import { bootstrapAffinoListboxes } from "@affino/listbox-laravel"
 import { bootstrapAffinoComboboxes } from "@affino/combobox-laravel"
+import { bootstrapAffinoMenus } from "@affino/menu-laravel"
 
 bootstrapAffinoDialogs()
 bootstrapAffinoTooltips()
 bootstrapAffinoPopovers()
 bootstrapAffinoListboxes()
 bootstrapAffinoComboboxes()
+bootstrapAffinoMenus()
 registerManualControllerBridge({
 	eventName: "affino-dialog:manual",
 	rootAttribute: "data-affino-dialog-root",
@@ -40,6 +42,12 @@ registerComboboxManualBridge({
 	rootAttribute: "data-affino-combobox-root",
 	property: "affinoCombobox",
 	rehydrate: bootstrapAffinoComboboxes,
+})
+registerManualControllerBridge({
+	eventName: "affino-menu:manual",
+	rootAttribute: "data-affino-menu-root",
+	property: "affinoMenu",
+	rehydrate: bootstrapAffinoMenus,
 })
 registerScrollGuards()
 registerLivewireDialogCommands()
@@ -338,6 +346,7 @@ function registerScrollGuards() {
 		closeOpenTooltips()
 		closeOpenPopovers()
 		closeOpenComboboxes()
+		closeOpenMenus()
 	}
 
 	window.addEventListener("scroll", () => {
@@ -386,6 +395,20 @@ function closeOpenComboboxes() {
 		const handle = root.affinoCombobox
 		if (handle) {
 			handle.close()
+		}
+	})
+}
+
+function closeOpenMenus() {
+	const openMenus = document.querySelectorAll("[data-affino-menu-state='open']")
+	openMenus.forEach((root) => {
+		const isPinned = root.dataset.affinoMenuPinned === "true"
+		if (isPinned) {
+			return
+		}
+		const handle = root.affinoMenu
+		if (handle) {
+			handle.close("programmatic")
 		}
 	})
 }

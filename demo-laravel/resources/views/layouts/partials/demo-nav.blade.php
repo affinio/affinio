@@ -70,6 +70,18 @@
                 ],
             ],
         ],
+        [
+            'label' => 'Menus',
+            'description' => '@affino/menu-laravel',
+            'pattern' => 'livewire.menus.*',
+            'links' => [
+                [
+                    'label' => 'Overview',
+                    'href' => route('livewire.menus.overview'),
+                    'pattern' => 'livewire.menus.overview',
+                ],
+            ],
+        ],
     ];
 @endphp
 

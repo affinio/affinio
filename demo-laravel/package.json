@@ -18,6 +18,7 @@
         "@affino/dialog-laravel": "workspace:*",
         "@affino/combobox-laravel": "workspace:*",
         "@affino/listbox-laravel": "workspace:*",
+        "@affino/menu-laravel": "workspace:*",
         "@affino/popover-laravel": "workspace:*",
         "@affino/tooltip-laravel": "workspace:*"
     }
