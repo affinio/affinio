@@ -1,56 +1,69 @@
 ---
 title: virtualization-core
-description: High-performance virtual scrolling engine.
+description: Headless virtualization math with overscan and scroll limit helpers.
 ---
 
 # @affino/virtualization-core
 
-::: warning Coming Soon
-This package is under active development and not yet published to npm.
-:::
+Headless virtualization math for scroll-heavy lists and grids. This package is pure math: no DOM measurement, no rendering, and no framework hooks.
 
-Framework-agnostic virtual scrolling engine for rendering large lists and grids with minimal DOM nodes.
+## Installation
 
-## Planned Features
-
-- **Window-based rendering** – Only render visible items
-- **Variable item heights** – Dynamic sizing with estimation
-- **Bi-directional scrolling** – Horizontal and vertical virtualization
-- **Overscan control** – Pre-render buffer zones
-- **Smooth scrolling** – Sub-pixel positioning
-- **Sticky headers** – Fixed section headers
-- **Zero layout shift** – Accurate scroll container sizing
-
-## Architecture
-
-```
-┌────────────────────────────────────┐
-│  @affino/virtualization-core       │
-│  ─────────────────────────────────  │
-│  • Viewport calculations           │
-│  • Item range computation          │
-│  • Scroll synchronization          │
-│  • Size estimation                 │
-│  • Zero framework dependencies     │
-└────────────────────────────────────┘
+```bash
+npm install @affino/virtualization-core
 ```
 
-## Framework Adapters (Planned)
+## Mental model
 
-- **@affino/virtualization-vue** – Vue 3 components
-- **@affino/virtualization-react** – React 18 hooks
+- An axis virtualizer maps scroll offset to a visible index window.
+- Overscan expands the window based on velocity and viewport heuristics.
+- Scroll helpers clamp offsets to browser limits without layout jitter.
 
-## Use Cases
+## Quick start
 
-- Long lists (thousands of items)
-- Data tables with many rows
-- Infinite scroll feeds
-- Timeline views
-- Chat message lists
+```ts
+import { createAxisVirtualizer } from "@affino/virtualization-core"
 
-## Status
+const virtualizer = createAxisVirtualizer("vertical", strategy, null)
 
-Currently in design phase. Follow progress on [GitHub](https://github.com/affinio/affinio).
+const state = virtualizer.update({
+  axis: "vertical",
+  viewportSize: 600,
+  scrollOffset,
+  virtualizationEnabled: true,
+  estimatedItemSize: 32,
+  totalCount: items.length,
+  overscan: 8,
+  meta: { scrollDirection },
+})
+
+const visibleItems = items.slice(state.startIndex, state.endIndex)
+```
+
+## Core API
+
+Axis virtualizer:
+
+- `createAxisVirtualizer(axis, strategy, initialPayload)`
+- `AxisVirtualizerState` exposes `startIndex`, `endIndex`, `overscanLeading`, `overscanTrailing`, and `poolSize`.
+
+Overscan helpers:
+
+- `computeOverscan(velocity, min, max, gamma?)`
+- `splitLeadTrail(overscan, direction)`
+- `createVerticalOverscanController(config)`
+- `createHorizontalOverscanController(config)`
+
+Scroll helpers:
+
+- `computeVerticalScrollLimit(input)`
+- `computeHorizontalScrollLimit(input)`
+- `clampScrollOffset({ offset, limit })`
+
+## Notes
+
+- The virtualizer is axis-agnostic; your adapter provides the strategy.
+- Overscan controllers are optional but make large lists feel smoother under fast scrolling.
 
 ## License
 

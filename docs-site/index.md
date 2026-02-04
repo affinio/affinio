@@ -21,57 +21,46 @@ This keeps the state machines portable while letting you stay in your framework'
 
 ## Packages
 
-### Menu System
+### Floating Surfaces
 
 | Package | Description | Version |
 | --- | --- | --- |
-| **@affino/menu-core** | Headless menu engine with diagonal pointer prediction, keyboard nav, nested submenus | ![npm](https://img.shields.io/npm/v/@affino/menu-core) |
-| **@affino/menu-vue** | Vue 3 adapter with renderless components and controller hooks | ![npm](https://img.shields.io/npm/v/@affino/menu-vue) |
-| **@affino/menu-react** | React 18 adapter mirroring the Vue API surface | ![npm](https://img.shields.io/npm/v/@affino/menu-react) |
-
-[→ Menu documentation](/menu/)
-
-### Tooltip System
-
-| Package | Description | Version |
-| --- | --- | --- |
+| **@affino/surface-core** | Shared surface state machine and positioning helpers | ![npm](https://img.shields.io/npm/v/@affino/surface-core) |
+| **@affino/menu-core** | Headless menu engine with intent-aware pointer prediction | ![npm](https://img.shields.io/npm/v/@affino/menu-core) |
 | **@affino/tooltip-core** | Deterministic tooltip controller with arrow + live-region helpers | ![npm](https://img.shields.io/npm/v/@affino/tooltip-core) |
-| **@affino/tooltip-vue** | Vue 3 adapter with controller + floating hooks | ![npm](https://img.shields.io/npm/v/@affino/tooltip-vue) |
+| **@affino/popover-core** | Headless popover controller with trigger/content helpers | ![npm](https://img.shields.io/npm/v/@affino/popover-core) |
+| **@affino/dialog-core** | Dialog engine with async guards and overlay stacking | ![npm](https://img.shields.io/npm/v/@affino/dialog-core) |
+| **@affino/overlay-kernel** | Global overlay stack manager (dialog, popover, tooltip, etc.) | ![npm](https://img.shields.io/npm/v/@affino/overlay-kernel) |
+| **@affino/overlay-host** | Portal host + scroll lock + global keydown helpers | ![npm](https://img.shields.io/npm/v/@affino/overlay-host) |
 
-[→ Tooltip documentation](/tooltip/)
+[-> Core surface docs](/core/surface-core)
+[-> Menu documentation](/menu/)
+[-> Tooltip documentation](/tooltip/)
+[-> Popover documentation](/popover/)
+[-> Dialog documentation](/dialog/)
 
-### Virtualization (Coming Soon)
+### Selection + Input
 
-| Package | Description |
-| --- | --- |
-| **@affino/virtualization-core** | High-performance virtual scrolling engine |
+| Package | Description | Version |
+| --- | --- | --- |
+| **@affino/selection-core** | Linear (1D) selection ranges with anchor/focus semantics | ![npm](https://img.shields.io/npm/v/@affino/selection-core) |
+| **@affino/listbox-core** | Listbox state machine layered on top of linear selection | ![npm](https://img.shields.io/npm/v/@affino/listbox-core) |
+| **@affino/combobox-core** | Combobox reducer that wraps listbox selection + filtering | ![npm](https://img.shields.io/npm/v/@affino/combobox-core) |
+| **@affino/grid-selection-core** | Spreadsheet-grade grid selection engine | ![npm](https://img.shields.io/npm/v/@affino/grid-selection-core) |
+| **@affino/selection-vue** | Vue 3 bindings for linear + listbox selection | ![npm](https://img.shields.io/npm/v/@affino/selection-vue) |
 
-### Selection
+### Virtualization
 
-| Package | Description |
-| --- | --- |
-| **@affino/selection-core** | Spreadsheet-grade cell selection with keyboard/mouse navigation |
-| **@affino/listbox-core** | Headless listbox controller that layers focus + toggle/range intents on top of the linear engine |
-| **@affino/selection-vue** | Vue 3 bindings exposing linear + listbox stores with drop-in composables |
+| Package | Description | Version |
+| --- | --- | --- |
+| **@affino/virtualization-core** | Headless virtualization math and overscan controllers | ![npm](https://img.shields.io/npm/v/@affino/virtualization-core) |
 
-### Popover
+### Utilities
 
-| Package | Description |
-| --- | --- |
-| **@affino/popover-core** | Headless popover controller with trigger/content helpers, arrow positioning, and outside intent orchestration |
-| **@affino/popover-vue** | Vue 3 composables that teleport panels, close on outside interactions, and optionally lock scroll |
-
-[→ Popover documentation](/popover/)
-
-### Dialog
-
-| Package | Description |
-| --- | --- |
-| **@affino/dialog-core** | Overlay controller with guard-aware close requests, overlay registrars, and scroll/focus orchestration |
-| **@affino/dialog-vue** | Vue 3 bindings that expose `useDialogController`, sheet helpers, and manual stacking controls |
-| **@affino/dialog-laravel** | Blade + Livewire helper that hydrates dialogs after morphs and exposes manual controller bridges |
-
-[→ Dialog documentation](/dialog/)
+| Package | Description | Version |
+| --- | --- | --- |
+| **@affino/aria-utils** | ARIA helpers for dialog surfaces | ![npm](https://img.shields.io/npm/v/@affino/aria-utils) |
+| **@affino/focus-utils** | Focus and tab trap helpers | ![npm](https://img.shields.io/npm/v/@affino/focus-utils) |
 
 ## Getting Started
 

@@ -1,11 +1,11 @@
 ---
 title: menu-core
-description: Framework-agnostic headless menu engine.
+description: Framework-agnostic menu engine with pointer prediction and submenu support.
 ---
 
 # @affino/menu-core
 
-Framework-agnostic headless menu engine with diagonal pointer prediction, keyboard navigation, and nested submenu support.
+Headless menu engine built on `@affino/surface-core`. It gives you a deterministic menu state machine, keyboard navigation, pointer prediction for submenus, and ARIA wiring without dictating markup or styling.
 
 ## Installation
 
@@ -13,116 +13,83 @@ Framework-agnostic headless menu engine with diagonal pointer prediction, keyboa
 npm install @affino/menu-core
 ```
 
-## Core Concepts
+## Quick start
 
-### MenuController
+```ts
+import { MenuCore } from "@affino/menu-core"
 
-The imperative API for controlling menu state:
+const menu = new MenuCore({ closeOnSelect: true })
 
-```typescript
-import { MenuController } from '@affino/menu-core'
+const triggerProps = menu.getTriggerProps()
+const panelProps = menu.getPanelProps()
 
-const controller = new MenuController()
+const unsubscribe = menu.subscribe((state) => {
+  panel.hidden = !state.open
+})
 
-// Open at coordinates
-controller.open({ x: 100, y: 200 })
-
-// Close
-controller.close()
-
-// Highlight item
-controller.highlightItem('item-id')
-
-// Navigate
-controller.moveHighlight('down')
+const unregister = menu.registerItem("export")
+const itemProps = menu.getItemProps("export")
 ```
 
-### State Management
+Wire `triggerProps` to your trigger element, `panelProps` to the menu container, and `itemProps` to each item. The core keeps `aria-*` attributes, `data-state`, timers, and keyboard semantics in sync.
 
-Subscribe to menu state changes:
+## Submenus
 
-```typescript
-import { createMenuStore } from '@affino/menu-core'
+Use `SubmenuCore` for nested menus and pointer prediction:
 
-const store = createMenuStore()
+```ts
+import { SubmenuCore } from "@affino/menu-core"
 
-const unsubscribe = store.subscribe((state) => {
-  console.log('Menu state:', state)
-  // { isOpen, highlightedId, items, ... }
+const submenu = new SubmenuCore({ parent: menu })
+const submenuProps = submenu.getPanelProps()
+```
+
+For complex trees, use `createMenuTree()` to build parent/child branches and share geometry + pointer adapters between them:
+
+```ts
+import { createMenuTree } from "@affino/menu-core"
+
+const tree = createMenuTree({ rootId: "file" })
+const root = tree.getBranch("file")
+```
+
+## Positioning
+
+Menu positioning re-exports the shared helper from `@affino/surface-core`:
+
+```ts
+import { computePosition } from "@affino/menu-core"
+
+const position = computePosition(anchorRect, panelRect, {
+  placement: "bottom",
+  align: "start",
+  gutter: 8,
 })
 ```
 
-### Pointer Prediction
+## Pointer prediction
 
-Diagonal mouse intent detection keeps submenus open during quick pointer moves:
+The pointer predictor keeps submenus open during diagonal moves toward them:
 
-```typescript
-import { predictMouseIntent } from '@affino/menu-core'
+```ts
+import { MousePrediction, predictMouseDirection } from "@affino/menu-core"
 
-const intent = predictMouseIntent({
-  currentPos: { x: 100, y: 100 },
-  previousPos: { x: 95, y: 98 },
-  submenuBounds: { left: 200, top: 80, right: 400, bottom: 200 }
-})
-
-if (intent.shouldKeepSubmenuOpen) {
-  // Delay submenu close
-}
+const prediction = new MousePrediction({ history: 6 })
+const direction = predictMouseDirection(points)
 ```
 
-### Positioning
+## API summary
 
-Collision-safe menu positioning with viewport awareness:
+- `MenuCore` - main controller; provides `open()`, `requestClose()`, `toggle()`, `subscribe()`, `getTriggerProps()`, `getPanelProps()`, `getItemProps()`, `registerItem()`, and `select()`.
+- `SubmenuCore` - menu controller that coordinates with a parent for pointer intent.
+- `createMenuTree()` - build a tree of menu branches with shared pointer + geometry adapters.
+- `computePosition()` - collision-aware positioning helper (re-export).
+- `MousePrediction` / `predictMouseDirection()` - pointer prediction utilities.
 
-```typescript
-import { computeMenuPosition } from '@affino/menu-core'
+## Notes
 
-const position = computeMenuPosition({
-  trigger: triggerElement.getBoundingClientRect(),
-  menu: { width: 320, height: 400 },
-  viewport: { width: window.innerWidth, height: window.innerHeight },
-  placement: 'bottom-start',
-  offset: { main: 8, cross: 0 }
-})
-
-// Returns: { x, y, placement: 'top-start' } (flipped if needed)
-```
-
-## Key Features
-
-- **Zero dependencies** – Pure TypeScript, framework-agnostic
-- **State machines** – Predictable state transitions
-- **Pointer heuristics** – Diagonal intent detection
-- **Keyboard navigation** – Arrow keys, Home/End, Enter/Escape
-- **Focus management** – Roving tabindex, loop control
-- **Nested submenus** – Infinite depth support
-- **Positioning engine** – Collision detection and flipping
-- **Accessibility** – ARIA roles and keyboard semantics
-
-## Framework Adapters
-
-Use framework adapters for reactive integrations:
-
-- **[@affino/menu-vue](/menu/)** – Vue 3 renderless components
-- **[@affino/menu-react](/menu/react)** – React 18 hooks and compounds
-
-## API Reference
-
-See the [Advanced guide](/menu/advanced) for full API documentation.
-
-## TypeScript
-
-Fully typed with comprehensive type definitions:
-
-```typescript
-import type {
-  MenuState,
-  MenuOptions,
-  MenuController,
-  MenuPosition,
-  PointerIntent
-} from '@affino/menu-core'
-```
+- `MenuCore` integrates with `@affino/overlay-kernel` when you pass `overlayManager` or `getOverlayManager` in the options.
+- Use `closeOnSelect` and `loopFocus` options to tune selection and keyboard behavior.
 
 ## License
 

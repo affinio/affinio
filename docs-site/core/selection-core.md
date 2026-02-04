@@ -1,62 +1,80 @@
 ---
 title: selection-core
-description: Spreadsheet-grade cell selection engine.
+description: Linear (1D) selection primitives with anchor/focus semantics.
 ---
 
 # @affino/selection-core
 
-::: warning Coming Soon
-This package is under active development and not yet published to npm.
-:::
+Headless linear selection primitives (1D ranges) that power listboxes, comboboxes, and other selection-driven surfaces. The package also re-exports the 2D grid engine from `@affino/grid-selection-core` for backward compatibility.
 
-Framework-agnostic selection engine for spreadsheet-grade cell selection with keyboard and mouse navigation.
+## Installation
 
-## Planned Features
-
-- **Multi-cell selection** – Drag, shift-click, keyboard ranges
-- **Fill handle** – Excel-style auto-fill drag
-- **Clipboard integration** – Copy/paste with formats
-- **Keyboard navigation** – Arrow keys, Home/End, Ctrl/Cmd modifiers
-- **Selection shapes** – Rectangular, multi-range, non-contiguous
-- **Auto-scroll** – Viewport scrolling during selection
-- **Frozen panes** – Fixed rows/columns
-- **Cell editing** – In-place edit with navigation
-
-## Architecture
-
-```
-┌────────────────────────────────────┐
-│   @affino/selection-core           │
-│  ─────────────────────────────────  │
-│  • Selection state machine         │
-│  • Keyboard navigation             │
-│  • Mouse/touch gestures            │
-│  • Fill handle logic               │
-│  • Clipboard operations            │
-│  • Zero framework dependencies     │
-└────────────────────────────────────┘
+```bash
+npm install @affino/selection-core
 ```
 
-## Framework Adapters (Planned)
+## Mental model
 
-- **@affino/selection-vue** – Vue 3 components
-- **@affino/selection-react** – React 18 hooks
+- A selection is a set of `ranges` plus `anchor` and `focus` indices.
+- Updates are pure functions that return new snapshots.
+- Adapters (Vue/React/DOM) translate user input into these operations.
 
-## Use Cases
+## Quick start
 
-- Spreadsheet applications
-- Data grids
-- Table editors
-- Financial dashboards
-- Analytics interfaces
+```ts
+import {
+  selectLinearIndex,
+  extendLinearSelectionToIndex,
+  toggleLinearRange,
+  resolveLinearSelectionUpdate,
+} from "@affino/selection-core"
 
-## Inspiration
+let state = selectLinearIndex({ index: 3 })
+state = extendLinearSelectionToIndex({ state, index: 7 })
 
-Modeled after Excel and Google Sheets selection behavior with full keyboard support and accessibility compliance.
+const ranges = toggleLinearRange(state.ranges, { start: 10, end: 12 })
+state = resolveLinearSelectionUpdate({
+  ranges,
+  activeRangeIndex: 0,
+  anchor: state.anchor,
+  focus: 12,
+})
+```
 
-## Status
+## Core API
 
-Currently in design phase. Follow progress on [GitHub](https://github.com/affinio/affinio).
+Linear range utilities:
+
+- `normalizeLinearRange(range)`
+- `mergeLinearRanges(ranges)`
+- `addLinearRange(ranges, next)`
+- `removeLinearRange(ranges, target)`
+- `toggleLinearRange(ranges, target)`
+
+State helpers:
+
+- `resolveLinearSelectionUpdate(input)`
+- `emptyLinearSelectionState()`
+- `selectLinearIndex({ index })`
+- `extendLinearSelectionToIndex({ state, index })`
+- `toggleLinearIndex({ state, index })`
+- `clearLinearSelection()`
+
+Types:
+
+- `LinearRange`
+- `LinearSelectionState`
+- `ResolveLinearSelectionInput`
+
+## Grid selection
+
+If you need row/column math (spreadsheets, grids), use `@affino/grid-selection-core`. This package re-exports those APIs so you can migrate gradually.
+
+## Related packages
+
+- `@affino/listbox-core` - listbox state machine built on top of linear selection
+- `@affino/combobox-core` - combobox reducer with filtering + listbox navigation
+- `@affino/selection-vue` - Vue bindings for linear + listbox selection
 
 ## License
 

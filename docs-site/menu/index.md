@@ -36,10 +36,11 @@ Affino's menu system is built on **@affino/menu-core**, a framework-agnostic eng
 The framework-agnostic engine. Use it directly for custom integrations or if you need menu logic outside Vue/React.
 
 **Key exports:**
-- `MenuController` — Imperative API for open/close/highlight
-- `createMenuStore` — State subscription primitive
-- `predictMouseIntent` — Diagonal pointer heuristics
-- `computeMenuPosition` — Collision-safe positioning
+- `MenuCore` - Imperative API for open/close/highlight/select
+- `SubmenuCore` - Submenu controller with pointer prediction
+- `createMenuTree` - Shared pointer + geometry adapters for complex trees
+- `MousePrediction` / `predictMouseDirection` - Diagonal pointer heuristics
+- `computePosition` - Collision-safe positioning
 
 ### @affino/menu-vue
 
