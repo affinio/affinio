@@ -46,6 +46,18 @@
                 ],
             ],
         ],
+        [
+            'label' => 'Comboboxes',
+            'description' => '@affino/combobox-laravel',
+            'pattern' => 'livewire.comboboxes.*',
+            'links' => [
+                [
+                    'label' => 'Overview',
+                    'href' => route('livewire.comboboxes.overview'),
+                    'pattern' => 'livewire.comboboxes.overview',
+                ],
+            ],
+        ],
     ];
 @endphp
 

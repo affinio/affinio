@@ -4,8 +4,42 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "02291ce9633e50d05e5def382d81d776",
+    "content-hash": "96f68769bbd469dd6855f5a4e4023c66",
     "packages": [
+        {
+            "name": "affino/combobox-laravel",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../packages/combobox-laravel",
+                "reference": "780e1e363fb1d7207cad94b3c93804ab3ec0079c"
+            },
+            "require": {
+                "livewire/livewire": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Affino\\Combobox\\Laravel\\AffinoComboboxServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Affino\\Combobox\\Laravel\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Headless Laravel combobox primitives backed by @affino/listbox-core.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
         {
             "name": "affino/listbox-laravel",
             "version": "dev-main",
@@ -8562,6 +8596,7 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
+        "affino/combobox-laravel": 20,
         "affino/listbox-laravel": 20,
         "affino/popover-laravel": 20,
         "affino/tooltip-laravel": 20

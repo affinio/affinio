@@ -15,6 +15,7 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
+        "@affino/combobox-laravel": "workspace:*",
         "@affino/listbox-laravel": "workspace:*",
         "@affino/popover-laravel": "workspace:*",
         "@affino/tooltip-laravel": "workspace:*"

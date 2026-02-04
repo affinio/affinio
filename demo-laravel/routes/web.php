@@ -7,6 +7,7 @@ Route::redirect('/reports', '/livewire/tooltips/reports');
 Route::redirect('/popovers', '/livewire/popovers');
 Route::redirect('/popovers/workbench', '/livewire/popovers/workbench');
 Route::redirect('/selects', '/livewire/selects');
+Route::redirect('/comboboxes', '/livewire/comboboxes');
 
 Route::prefix('livewire')->name('livewire.')->group(function () {
 	Route::prefix('tooltips')->name('tooltips.')->group(function () {
@@ -21,5 +22,9 @@ Route::prefix('livewire')->name('livewire.')->group(function () {
 
 	Route::prefix('selects')->name('selects.')->group(function () {
 		Route::view('/', 'selects.overview')->name('overview');
+	});
+
+	Route::prefix('comboboxes')->name('comboboxes.')->group(function () {
+		Route::view('/', 'comboboxes.overview')->name('overview');
 	});
 });

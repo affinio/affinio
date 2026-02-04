@@ -2,10 +2,12 @@ import "./bootstrap"
 import { bootstrapAffinoTooltips } from "@affino/tooltip-laravel"
 import { bootstrapAffinoPopovers } from "@affino/popover-laravel"
 import { bootstrapAffinoListboxes } from "@affino/listbox-laravel"
+import { bootstrapAffinoComboboxes } from "@affino/combobox-laravel"
 
 bootstrapAffinoTooltips()
 bootstrapAffinoPopovers()
 bootstrapAffinoListboxes()
+bootstrapAffinoComboboxes()
 registerManualControllerBridge({
 	eventName: "affino-tooltip:manual",
 	rootAttribute: "data-affino-tooltip-root",
@@ -23,6 +25,12 @@ registerListboxManualBridge({
 	rootAttribute: "data-affino-listbox-root",
 	property: "affinoListbox",
 	rehydrate: bootstrapAffinoListboxes,
+})
+registerComboboxManualBridge({
+	eventName: "affino-combobox:manual",
+	rootAttribute: "data-affino-combobox-root",
+	property: "affinoCombobox",
+	rehydrate: bootstrapAffinoComboboxes,
 })
 registerScrollGuards()
 
@@ -140,6 +148,70 @@ function registerListboxManualBridge({ eventName, rootAttribute, property, rehyd
 	document.addEventListener(eventName, handler)
 }
 
+function registerComboboxManualBridge({ eventName, rootAttribute, property, rehydrate }) {
+	const handledFlag = "__affinoComboboxManualHandled"
+	const maxRetries = 20
+
+	const findHandle = (id) => {
+		const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(id) : id
+		const selector = `[${rootAttribute}="${escapedId}"]`
+		const root = document.querySelector(selector)
+		return root?.[property]
+	}
+
+	const invoke = (detail, attempt = 0) => {
+		rehydrate?.()
+		const handle = findHandle(detail.id)
+		if (!handle) {
+			if (attempt < maxRetries) {
+				requestAnimationFrame(() => invoke(detail, attempt + 1))
+			}
+			return
+		}
+
+		switch (detail.action) {
+			case "open":
+				handle.open()
+				return
+			case "close":
+				handle.close()
+				return
+			case "toggle":
+				handle.toggle()
+				return
+			case "select":
+				if (typeof detail.index === "number") {
+					handle.selectIndex(detail.index, { toggle: detail.toggle, extend: detail.extend })
+					return
+				}
+				if (typeof detail.value === "string") {
+					handle.selectValue(detail.value)
+				}
+				return
+			case "clear":
+				handle.clear()
+				return
+		}
+	}
+
+	const handler = (rawEvent) => {
+		const event = rawEvent
+		if (event[handledFlag]) {
+			return
+		}
+		event[handledFlag] = true
+
+		const detail = /** @type {CustomEvent<{ id?: string; action?: string; index?: number; value?: string; extend?: boolean; toggle?: boolean }> } */ (event).detail
+		if (!detail || !detail.id || !detail.action) {
+			return
+		}
+
+		invoke(detail)
+	}
+
+	document.addEventListener(eventName, handler)
+}
+
 function registerScrollGuards() {
 	let ticking = false
 
@@ -147,6 +219,7 @@ function registerScrollGuards() {
 		ticking = false
 		closeOpenTooltips()
 		closeOpenPopovers()
+		closeOpenComboboxes()
 	}
 
 	window.addEventListener("scroll", () => {
@@ -181,6 +254,20 @@ function closeOpenPopovers() {
 		const handle = root.affinoPopover
 		if (handle) {
 			handle.close("programmatic")
+		}
+	})
+}
+
+function closeOpenComboboxes() {
+	const openComboboxes = document.querySelectorAll("[data-affino-combobox-state='true']")
+	openComboboxes.forEach((root) => {
+		const isPinned = root.dataset.affinoComboboxPinned === "true"
+		if (isPinned) {
+			return
+		}
+		const handle = root.affinoCombobox
+		if (handle) {
+			handle.close()
 		}
 	})
 }
