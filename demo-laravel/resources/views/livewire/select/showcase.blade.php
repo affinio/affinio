@@ -1,120 +1,158 @@
 <section class="select-showcase" wire:key="select-showcase">
-    <article class="select-hero-card">
-        <div>
-            <p class="select-hero__eyebrow">Surface Lab</p>
-            <h2>Headless selects that stay in sync</h2>
-            <p>
-                <code>@affino/listbox-laravel</code> keeps combobox semantics, keyboard loops, and Livewire models aligned while DOM nodes
-                morph. Bind to a property, dispatch manual actions, or render multiple selections without touching Alpine.
-            </p>
-        </div>
-
-        <div class="select-hero__stats">
-            <div>
-                <span>Primary region</span>
-                <strong>{{ $primaryRegionLabel }}</strong>
-            </div>
-            <div>
-                <span>Watchers</span>
-                <strong>{{ count($watchlists) }}</strong>
-            </div>
-            <div>
-                <span>Escalation tier</span>
-                <strong>{{ $priorityTierLabel }}</strong>
-            </div>
-        </div>
-    </article>
+    <header class="select-lede">
+        <p class="select-kicker">Affino · Livewire</p>
+        <h1>Listbox demos built for Laravel</h1>
+        <p class="select-note">
+            Same dark skin as the tooltip and popover demos—visuals stay consistent while the component handles behavior, focus, and Livewire
+            sync.
+        </p>
+    </header>
 
     <div class="select-grid">
-        <article class="select-card">
-            <p class="select-card__eyebrow">Mode 01</p>
-            <h3>Reflowed Livewire regions</h3>
-            <p class="select-card__lead">
-                The single-select control rehydrates after each Livewire update. Surface geometry, focus return, and aria-expanded are all
-                driven by the JS helper.
-            </p>
+        <article class="select-panel" id="demo-basic">
+            <header class="select-panel__head">
+                <span class="select-pill">Demo 01 · Drop-in select</span>
+                <h2>Basic select that never resets</h2>
+                <p>Wire it like `<x-affino-listbox model="region" />` and keep keyboard loops, aria, and Livewire state intact.</p>
+            </header>
+
+            <ul class="select-checklist">
+                <li>Full keyboard control (Enter, ↑/↓, Esc)</li>
+                <li>`wire:model="region"` mirrors the hidden input</li>
+                <li>Livewire morphs do not close the list</li>
+            </ul>
 
             <x-affino-listbox
-                listbox-id="primary-region-select"
-                label="Primary region"
-                placeholder="Choose a region"
-                model="primaryRegion"
-                :selected="$primaryRegion"
+                listbox-id="demo-basic-region"
+                model="region"
+                placeholder="Select region"
+                :selected="$region"
+                aria-label="Primary region"
             >
                 <x-slot:trigger>
                     <button type="button" class="select-trigger">
-                        <span>
-                            <small>Region</small>
-                            <strong>{{ $primaryRegionLabel }}</strong>
-                        </span>
-                        <span class="select-trigger__hint">Switch</span>
+                        <span class="select-trigger__label">Region</span>
+                        <span class="select-trigger__value">{{ $regionLabel }}</span>
+                        <span class="select-trigger__hint">wire:model="region"</span>
                     </button>
                 </x-slot:trigger>
 
                 <div class="select-menu">
-                    @foreach ($regions as $region)
+                    @foreach ($demoRegions as $regionOption)
                         <x-affino-listbox.option
-                            :value="$region['value']"
-                            :label="$region['label']"
-                            :selected="$region['value'] === $primaryRegion"
+                            :value="$regionOption['value']"
+                            :label="$regionOption['label']"
+                            :selected="$regionOption['value'] === $region"
                         >
                             <div class="select-option">
                                 <div>
-                                    <p>{{ $region['label'] }}</p>
-                                    <small>{{ $region['meta'] }}</small>
+                                    <strong>{{ $regionOption['label'] }}</strong>
+                                    <small>{{ $regionOption['meta'] }}</small>
                                 </div>
-                                <span class="select-option__status">{{ $region['status'] }}</span>
+                                <span class="select-option__meta">ARIA-ready</span>
                             </div>
                         </x-affino-listbox.option>
                     @endforeach
                 </div>
             </x-affino-listbox>
 
-            <div class="select-card__actions">
-                <button type="button" class="select-btn" wire:click="randomizePrimary">Shuffle region</button>
-                <span class="select-card__meta">Pinned: {{ $primaryRegionLabel }}</span>
+            <div class="select-actions" data-affino-listbox-sticky="demo-basic-region">
+                <button type="button" class="select-btn" wire:click="cycleRegion">Simulate Livewire update</button>
+                <span class="select-meta">Current value: <code>{{ $region }}</code></span>
             </div>
         </article>
 
-        <article class="select-card">
-            <p class="select-card__eyebrow">Mode 02</p>
-            <h3>Multi-select watcher pools</h3>
-            <p class="select-card__lead">
-                Multi-select listboxes emit arrays directly into the Livewire model. No hidden inputs or manual parsing—`set()` receives
-                the hydrated array instantly.
-            </p>
+        <article class="select-panel" id="demo-dynamic">
+            <header class="select-panel__head">
+                <span class="select-pill">Demo 02 · Dynamic options</span>
+                <h2>Livewire keeps dropdowns open</h2>
+                <p>Swap the dataset with Livewire and keep focus, selection, and geometry.</p>
+            </header>
+
+            <div class="select-dataset" data-affino-listbox-sticky="demo-service">
+                <button type="button" class="select-btn select-btn--subtle" wire:click="loadPreviousDataset">Previous dataset</button>
+                <button type="button" class="select-btn" wire:click="loadNextDataset">Load next dataset</button>
+                @if ($serviceDataset)
+                    <span class="select-meta">
+                        {{ $serviceDataset['label'] }} · {{ $serviceDataset['description'] }}
+                    </span>
+                @endif
+            </div>
 
             <x-affino-listbox
-                listbox-id="watcher-select"
-                label="Coverage pools"
-                placeholder="Assign follow-the-sun coverage"
-                mode="multiple"
-                model="watchlists"
-                :selected="$watchlists"
+                listbox-id="demo-service"
+                model="service"
+                placeholder="Choose service"
+                :selected="$service"
+                aria-label="Service dataset"
             >
                 <x-slot:trigger>
                     <button type="button" class="select-trigger">
-                        <span>
-                            <small>Watchers</small>
-                            <strong>{{ count($watchlists) > 0 ? count($watchlists) . ' active' : 'No teams assigned' }}</strong>
-                        </span>
-                        <span class="select-trigger__hint">Toggle</span>
+                        <span class="select-trigger__label">Service</span>
+                        <span class="select-trigger__value">{{ $serviceLabel }}</span>
+                        <span class="select-trigger__hint">DOM morph safe</span>
                     </button>
                 </x-slot:trigger>
 
                 <div class="select-menu">
-                    @foreach ($watcherPools as $pool)
+                    @foreach ($serviceOptions as $option)
                         <x-affino-listbox.option
-                            :value="$pool['value']"
-                            :label="$pool['label']"
-                            :selected="in_array($pool['value'], $watchlists, true)"
+                            :value="$option['value']"
+                            :label="$option['label']"
+                            :selected="$option['value'] === $service"
                         >
-                            <div class="select-option select-option--chips">
+                            <div class="select-option">
                                 <div>
-                                    <p>{{ $pool['label'] }}</p>
-                                    <small>{{ $pool['meta'] }}</small>
+                                    <strong>{{ $option['label'] }}</strong>
+                                    <small>{{ $option['meta'] }}</small>
                                 </div>
-                                <span class="select-chip">{{ strtoupper($pool['value']) }}</span>
+                                <span class="select-option__meta">{{ $serviceDataset['label'] ?? 'Dataset' }}</span>
+                            </div>
+                        </x-affino-listbox.option>
+                    @endforeach
+                </div>
+            </x-affino-listbox>
+
+            <p class="select-note">Livewire rebuilds the option list every click, yet the dropdown stays open and the selection persists.</p>
+        </article>
+
+        <article class="select-panel" id="demo-multiselect">
+            <header class="select-panel__head">
+                <span class="select-pill">Demo 03 · Ranges</span>
+                <h2>Multi-select with Shift/Ctrl</h2>
+                <p>Desktop-grade selection: Shift ranges, Ctrl/⌘ toggles, and Ctrl+A select-all.</p>
+            </header>
+
+            <div class="select-hint">Hold Shift to select a range. Use Ctrl/⌘ to toggle. Press Ctrl+A to select every team.</div>
+
+            <x-affino-listbox
+                listbox-id="demo-teams"
+                model="teamSelection"
+                mode="multiple"
+                placeholder="Choose coverage teams"
+                :selected="$teamSelection"
+                aria-label="Coverage pools"
+            >
+                <x-slot:trigger>
+                    <button type="button" class="select-trigger">
+                        <span class="select-trigger__label">Watchers</span>
+                        <span class="select-trigger__value">
+                            {{ count($teamSelection) ? count($teamSelection) . ' selected' : 'No teams assigned' }}
+                        </span>
+                        <span class="select-trigger__hint">mode="multiple"</span>
+                    </button>
+                </x-slot:trigger>
+
+                <div class="select-menu">
+                    @foreach ($responseTeams as $team)
+                        <x-affino-listbox.option
+                            :value="$team['value']"
+                            :label="$team['label']"
+                            :selected="in_array($team['value'], $teamSelection, true)"
+                        >
+                            <div class="select-option select-option--stacked">
+                                <strong>{{ $team['label'] }}</strong>
+                                <small>{{ $team['meta'] }}</small>
                             </div>
                         </x-affino-listbox.option>
                     @endforeach
@@ -122,70 +160,69 @@
             </x-affino-listbox>
 
             <div class="select-chip-row">
-                @forelse ($watchlists as $value)
-                    <span class="select-chip select-chip--filled">{{ strtoupper($value) }}</span>
+                @forelse ($teamSelection as $value)
+                    <span class="select-chip">{{ strtoupper($value) }}</span>
                 @empty
-                    <span class="select-chip">No watchers yet</span>
+                    <span class="select-chip select-chip--muted">No teams yet</span>
                 @endforelse
             </div>
 
-            <div class="select-card__actions">
-                <button type="button" class="select-btn" wire:click="applyFollowTheSun">Follow-the-sun preset</button>
-                <button type="button" class="select-btn select-btn--ghost" wire:click="clearWatchlists">Clear</button>
+            <div class="select-actions" data-affino-listbox-sticky="demo-teams">
+                <button type="button" class="select-btn" wire:click="seedTeams">Preset (EMEA · USW · APAC)</button>
+                <button type="button" class="select-btn select-btn--subtle" wire:click="clearTeams">Clear</button>
             </div>
         </article>
 
-        <article class="select-card">
-            <p class="select-card__eyebrow">Mode 03</p>
-            <h3>Manual controller dispatch</h3>
-            <p class="select-card__lead">
-                Manual buttons dispatch <code>affino-listbox:manual</code> so the controller opens, closes, or selects values while Livewire is
-                still morphing the DOM.
-            </p>
+        <article class="select-panel" id="demo-manual">
+            <header class="select-panel__head">
+                <span class="select-pill">Demo 04 · Manual control</span>
+                <h2>Dispatch actions from Livewire</h2>
+                <p>`affino-listbox:manual` drives the controller even while Livewire is morphing the DOM.</p>
+            </header>
 
             <x-affino-listbox
-                listbox-id="priority-tier-select"
-                label="Escalation tier"
-                placeholder="Choose tier"
-                model="priorityTier"
-                :selected="$priorityTier"
+                listbox-id="manual-tier-select"
+                model="manualTier"
+                placeholder="Choose escalation tier"
+                :selected="$manualTier"
+                aria-label="Escalation tier"
             >
                 <x-slot:trigger>
                     <div class="select-trigger select-trigger--ghost">
-                        <div>
-                            <small>Escalation tier</small>
-                            <strong>{{ $priorityTierLabel }}</strong>
-                        </div>
-                        <span class="select-trigger__hint">Manual</span>
+                        <span class="select-trigger__label">Tier</span>
+                        <span class="select-trigger__value">{{ $manualTierLabel }}</span>
+                        <span class="select-trigger__hint">manual bridge</span>
                     </div>
                 </x-slot:trigger>
 
                 <div class="select-menu">
-                    @foreach ($priorityTiers as $tier)
+                    @foreach ($manualTiers as $tier)
                         <x-affino-listbox.option
                             :value="$tier['value']"
                             :label="$tier['label']"
-                            :selected="$tier['value'] === $priorityTier"
+                            :selected="$tier['value'] === $manualTier"
                         >
-                            <div class="select-option">
-                                <div>
-                                    <p>{{ $tier['label'] }}</p>
-                                    <small>{{ $tier['meta'] }}</small>
-                                </div>
+                            <div class="select-option select-option--stacked">
+                                <strong>{{ $tier['label'] }}</strong>
+                                <small>{{ $tier['meta'] }}</small>
                             </div>
                         </x-affino-listbox.option>
                     @endforeach
                 </div>
             </x-affino-listbox>
 
-            <div class="select-card__actions select-card__actions--stack">
-                <button type="button" class="select-btn" wire:click="openPriority">Open controller</button>
-                <div class="select-manual-buttons">
-                    <button type="button" class="select-btn select-btn--ghost" wire:click="setPriority('tier-0')">Tier 0</button>
-                    <button type="button" class="select-btn select-btn--ghost" wire:click="setPriority('tier-2')">Tier 2</button>
-                    <button type="button" class="select-btn select-btn--ghost" wire:click="setPriority('tier-3')">Tier 3</button>
-                </div>
+            <div class="select-manual-bridge">
+                <button type="button" class="select-btn" wire:click="openManualTier">Open controller</button>
+                <button type="button" class="select-btn select-btn--subtle" wire:click="closeManualTier">Close</button>
+                <button type="button" class="select-btn select-btn--subtle" wire:click="selectManualTier('tier-0')">Select Tier 0</button>
+                <button type="button" class="select-btn select-btn--subtle" wire:click="selectManualTier('tier-1')">Select Tier 1</button>
+                <button type="button" class="select-btn select-btn--subtle" wire:click="selectManualTier('none')">Mark unassigned</button>
             </div>
+
+            <p class="select-note">
+                Buttons dispatch `affino-listbox:manual` to the DOM controller, so the dropdown responds immediately while Livewire keeps the
+                source of truth.
+            </p>
         </article>
     </div>
 </section>
