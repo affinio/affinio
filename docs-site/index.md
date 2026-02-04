@@ -63,6 +63,16 @@ This keeps the state machines portable while letting you stay in your framework'
 
 [→ Popover documentation](/popover/)
 
+### Dialog
+
+| Package | Description |
+| --- | --- |
+| **@affino/dialog-core** | Overlay controller with guard-aware close requests, overlay registrars, and scroll/focus orchestration |
+| **@affino/dialog-vue** | Vue 3 bindings that expose `useDialogController`, sheet helpers, and manual stacking controls |
+| **@affino/dialog-laravel** | Blade + Livewire helper that hydrates dialogs after morphs and exposes manual controller bridges |
+
+[→ Dialog documentation](/dialog/)
+
 ## Getting Started
 
 ```bash

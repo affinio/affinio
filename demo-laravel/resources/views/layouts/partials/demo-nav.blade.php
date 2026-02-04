@@ -18,6 +18,18 @@
             ],
         ],
         [
+            'label' => 'Dialogs',
+            'description' => '@affino/dialog-laravel',
+            'pattern' => 'livewire.dialogs.*',
+            'links' => [
+                [
+                    'label' => 'Command center',
+                    'href' => route('livewire.dialogs.overview'),
+                    'pattern' => 'livewire.dialogs.overview',
+                ],
+            ],
+        ],
+        [
             'label' => 'Popovers',
             'description' => '@affino/popover-laravel',
             'pattern' => 'livewire.popovers.*',

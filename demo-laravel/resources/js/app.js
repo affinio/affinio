@@ -1,13 +1,22 @@
 import "./bootstrap"
+import { bootstrapAffinoDialogs } from "@affino/dialog-laravel"
 import { bootstrapAffinoTooltips } from "@affino/tooltip-laravel"
 import { bootstrapAffinoPopovers } from "@affino/popover-laravel"
 import { bootstrapAffinoListboxes } from "@affino/listbox-laravel"
 import { bootstrapAffinoComboboxes } from "@affino/combobox-laravel"
 
+bootstrapAffinoDialogs()
 bootstrapAffinoTooltips()
 bootstrapAffinoPopovers()
 bootstrapAffinoListboxes()
 bootstrapAffinoComboboxes()
+registerManualControllerBridge({
+	eventName: "affino-dialog:manual",
+	rootAttribute: "data-affino-dialog-root",
+	property: "affinoDialog",
+	rehydrate: bootstrapAffinoDialogs,
+	supportsOptions: true,
+})
 registerManualControllerBridge({
 	eventName: "affino-tooltip:manual",
 	rootAttribute: "data-affino-tooltip-root",
@@ -33,8 +42,113 @@ registerComboboxManualBridge({
 	rehydrate: bootstrapAffinoComboboxes,
 })
 registerScrollGuards()
+registerLivewireDialogCommands()
+registerManualDialogFocusRecovery({
+	dialogId: "manual-ops-dialog",
+	focusSelector: "[data-manual-dialog-focus-target]",
+})
 
-function registerManualControllerBridge({ eventName, rootAttribute, property, rehydrate }) {
+function registerLivewireDialogCommands() {
+	if (typeof document === "undefined" || typeof window === "undefined") {
+		return
+	}
+	const flag = "__affinoDialogLivewireCommandsRegistered"
+	if (window[flag]) {
+		return
+	}
+	window[flag] = true
+
+	document.addEventListener("click", async (nativeEvent) => {
+		const target = nativeEvent.target instanceof Element ? nativeEvent.target.closest("[data-affino-dialog-command]") : null
+		if (!target) {
+			return
+		}
+		const command = target.getAttribute("data-affino-dialog-command")
+		if (!command) {
+			return
+		}
+		const dialogRoot = target.closest("[data-affino-dialog-root]")
+		const dialogId = dialogRoot?.getAttribute("data-affino-dialog-root")
+		const dialogWasOpen = dialogRoot?.getAttribute("data-affino-dialog-state") === "open"
+        const dialogPinned = dialogRoot?.getAttribute("data-affino-dialog-pinned") === "true"
+		const livewireRoot = target.closest("[data-affino-livewire-id]")
+		const componentId = livewireRoot?.getAttribute("data-affino-livewire-id")
+		const livewire = window.Livewire ?? null
+		if (!componentId || typeof livewire?.find !== "function") {
+			return
+		}
+		const component = livewire.find(componentId)
+		if (!component) {
+			return
+		}
+		if (target instanceof HTMLButtonElement && target.disabled) {
+			return
+		}
+		const button = target instanceof HTMLButtonElement ? target : null
+		const previousDisabled = button?.disabled ?? false
+		button?.setAttribute("disabled", "disabled")
+		target.classList.add("is-busy")
+		try {
+			await component.call("logEvent", command)
+		} finally {
+			target.classList.remove("is-busy")
+			if (button && !previousDisabled) {
+				button.removeAttribute("disabled")
+			}
+			if (dialogWasOpen && dialogId && dialogPinned) {
+				requestAnimationFrame(() => {
+					document.dispatchEvent(
+						new CustomEvent("affino-dialog:manual", {
+							detail: { id: dialogId, action: "open", reason: "morph-resume" },
+						}),
+					)
+				})
+			}
+		}
+	})
+}
+
+function registerManualDialogFocusRecovery({ dialogId, focusSelector }) {
+	if (typeof document === "undefined" || typeof window === "undefined") {
+		return
+	}
+	const flag = "__affinoManualFocusRecoveryRegistered"
+	if (window[flag]) {
+		return
+	}
+	window[flag] = true
+
+	let activeRoot = null
+	let observer = null
+
+	const setupObserver = () => {
+		const root = document.querySelector(`[data-affino-dialog-root="${dialogId}"]`)
+		if (!root || root === activeRoot) {
+			return
+		}
+		observer?.disconnect()
+		activeRoot = root
+		let previousState = root.getAttribute("data-affino-dialog-state")
+		observer = new MutationObserver(() => {
+			const nextState = root.getAttribute("data-affino-dialog-state")
+			if (previousState === "open" && nextState && nextState !== "open") {
+				const focusTarget = document.querySelector(focusSelector)
+				if (focusTarget instanceof HTMLElement) {
+					focusTarget.focus({ preventScroll: true })
+				}
+			}
+			previousState = nextState
+		})
+		observer.observe(root, { attributes: true, attributeFilter: ["data-affino-dialog-state"] })
+	}
+
+	setupObserver()
+	document.addEventListener("livewire:navigated", () => {
+		setupObserver()
+	})
+}
+
+function registerManualControllerBridge({ eventName, rootAttribute, property, rehydrate, supportsOptions = false }) {
 	const handledFlag = "__affinoManualHandled"
 	const maxRetries = 20 // Give Livewire enough frames (~300ms) to rehydrate new popover roots
 
@@ -63,6 +177,10 @@ function registerManualControllerBridge({ eventName, rootAttribute, property, re
 		}
 
 		if (detail.action === "close") {
+			if (supportsOptions && Object.prototype.hasOwnProperty.call(detail, "options")) {
+				handle.close(reason, detail.options)
+				return
+			}
 			handle.close(reason)
 			return
 		}
@@ -77,7 +195,7 @@ function registerManualControllerBridge({ eventName, rootAttribute, property, re
 		}
 		event[handledFlag] = true
 
-		const detail = /** @type {CustomEvent<{ id?: string; action?: string; reason?: string }> } */ (event).detail
+		const detail = /** @type {CustomEvent<{ id?: string; action?: string; reason?: string; options?: any }> } */ (event).detail
 		if (!detail || !detail.id || !detail.action) {
 			return
 		}

@@ -8,8 +8,13 @@ Route::redirect('/popovers', '/livewire/popovers');
 Route::redirect('/popovers/workbench', '/livewire/popovers/workbench');
 Route::redirect('/selects', '/livewire/selects');
 Route::redirect('/comboboxes', '/livewire/comboboxes');
+Route::redirect('/dialogs', '/livewire/dialogs');
 
 Route::prefix('livewire')->name('livewire.')->group(function () {
+	Route::prefix('dialogs')->name('dialogs.')->group(function () {
+		Route::view('/', 'dialogs.overview')->name('overview');
+	});
+
 	Route::prefix('tooltips')->name('tooltips.')->group(function () {
 		Route::view('/', 'tooltips.overview')->name('overview');
 		Route::view('/reports', 'tooltips.reports')->name('reports');

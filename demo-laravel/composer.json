@@ -7,6 +7,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "affino/dialog-laravel": "@dev",
         "affino/tooltip-laravel": "@dev",
         "affino/popover-laravel": "@dev",
         "affino/listbox-laravel": "@dev",
@@ -25,6 +26,13 @@
         "phpunit/phpunit": "^11.5.3"
     },
     "repositories": [
+        {
+            "type": "path",
+            "url": "../packages/dialog-laravel",
+            "options": {
+                "symlink": true
+            }
+        },
         {
             "type": "path",
             "url": "../packages/tooltip-laravel",

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "96f68769bbd469dd6855f5a4e4023c66",
+    "content-hash": "a81edbc025d702877541204b14e99cd9",
     "packages": [
         {
             "name": "affino/combobox-laravel",
@@ -35,6 +35,40 @@
                 "MIT"
             ],
             "description": "Headless Laravel combobox primitives backed by @affino/listbox-core.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "affino/dialog-laravel",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../packages/dialog-laravel",
+                "reference": "c54fbdcf167ad1764ce44ebd8b241c06d7610d57"
+            },
+            "require": {
+                "livewire/livewire": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Affino\\Dialog\\Laravel\\AffinoDialogServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Affino\\Dialog\\Laravel\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Headless Laravel dialog primitives backed by @affino/dialog-core.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
@@ -8597,6 +8631,7 @@
     "minimum-stability": "stable",
     "stability-flags": {
         "affino/combobox-laravel": 20,
+        "affino/dialog-laravel": 20,
         "affino/listbox-laravel": 20,
         "affino/popover-laravel": 20,
         "affino/tooltip-laravel": 20
