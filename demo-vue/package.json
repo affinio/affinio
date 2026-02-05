@@ -28,6 +28,7 @@
     "@affino/combobox-core": "workspace:*",
     "@affino/selection-vue": "workspace:*",
     "@affino/tooltip-vue": "workspace:*",
+    "@affino/vue-adapter": "workspace:*",
     "@affino/selection-core": "workspace:*",
     "@affino/virtualization-core": "workspace:*",
     "@tailwindcss/vite": "^4.1.18",
