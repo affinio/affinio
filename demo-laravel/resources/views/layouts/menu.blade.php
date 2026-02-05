@@ -6,8 +6,12 @@
 
         <title>Affino Menu · Livewire</title>
 
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=general-sans:400,500,600" rel="stylesheet" />
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
 
         @livewireStyles
 
@@ -15,52 +19,55 @@
             @vite(['resources/css/app.css', 'resources/js/app.js'])
         @else
             <style>{!! file_get_contents(resource_path('css/menus.css')) !!}</style>
+            <style>{!! file_get_contents(resource_path('css/vue-shell.css')) !!}</style>
         @endif
     </head>
-    <body class="menu-body">
-        <main class="menu-shell">
-            @include('layouts.partials.demo-nav')
+    <body class="menu-layout">
+        <div class="app-shell">
+            <header class="app-shell__header">
+                @include('layouts.partials.demo-nav')
+            </header>
 
-            <section
-                class="overlay-panel overlay-panel--menu"
-                data-overlay-panel
-                data-overlay-panel-collapsed="false"
-                hidden
-                aria-live="polite"
-            >
-                <div class="overlay-panel__header">
-                    <div>
-                        <p class="overlay-panel__eyebrow">Overlay kernel</p>
-                        <div class="overlay-panel__signal">
-                            <span class="overlay-panel__dot" data-overlay-panel-dot data-active="false" aria-hidden="true"></span>
-                            <div>
-                                <h2 class="overlay-panel__title">
-                                    Menu stack · <span data-overlay-panel-count>0</span>
-                                </h2>
-                                <p class="overlay-panel__copy">
-                                    Pin the hero menu or dive into the cascade and watch every surface register with the shared manager.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        class="overlay-panel__toggle"
-                        data-overlay-panel-toggle
-                        aria-controls="overlay-panel-list"
-                        aria-expanded="true"
-                    >
-                        Hide stack
-                    </button>
+            <main class="app-shell__main" aria-live="polite">
+                <div class="app-shell__content">
+                    @yield('content')
                 </div>
+            </main>
 
-                <ol id="overlay-panel-list" class="overlay-panel__list" data-overlay-panel-list aria-live="polite">
+            <footer class="app-shell__footer app-footer">
+                <div class="app-footer__content">
+                    <p class="app-footer__copy">© 2025 Affino · Laravel reference adapters</p>
+                </div>
+            </footer>
+        </div>
+
+        <aside
+            class="overlay-panel overlay-panel--menu"
+            data-overlay-panel
+            data-overlay-panel-collapsed="false"
+            data-overlay-panel-empty="Stack is idle. Trigger any menu to populate it."
+            hidden
+            aria-live="polite"
+        >
+            <button
+                type="button"
+                class="overlay-panel__toggle"
+                data-overlay-panel-toggle
+                data-overlay-panel-toggle-show="Show stack"
+                data-overlay-panel-toggle-hide="Hide stack"
+                aria-expanded="true"
+            >
+                <span class="overlay-panel__dot" data-overlay-panel-dot data-active="false" aria-hidden="true"></span>
+                <span>Overlay kernel · <span data-overlay-panel-count>0</span></span>
+            </button>
+
+            <div class="overlay-panel__body">
+                <p class="overlay-panel__hint">Live stack from @affino/overlay-kernel</p>
+                <ul class="overlay-panel__list" data-overlay-panel-list aria-live="polite">
                     <li class="overlay-panel__empty">Stack is idle. Trigger any menu to populate it.</li>
-                </ol>
-            </section>
-
-            @yield('content')
-        </main>
+                </ul>
+            </div>
+        </aside>
 
         @livewireScripts
     </body>

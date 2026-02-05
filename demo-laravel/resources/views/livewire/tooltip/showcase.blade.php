@@ -41,7 +41,7 @@
         </div>
     </article>
 
-    <details class="tooltip-advanced">
+    <details class="tooltip-advanced" wire:ignore.self>
         <summary class="tooltip-advanced__summary">
             <div>
                 <p class="tooltip-advanced__eyebrow">Advanced scenarios</p>

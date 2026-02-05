@@ -17,6 +17,9 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
+    resolve: {
+        preserveSymlinks: true,
+    },
     server: {
         host: true,
         port: devPort,

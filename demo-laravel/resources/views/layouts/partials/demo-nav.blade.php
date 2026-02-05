@@ -85,28 +85,34 @@
     ];
 @endphp
 
-<nav class="demo-stack-nav" aria-label="Laravel Surface demos">
-    @foreach ($demoSections as $section)
-        @php
-            $sectionIsActive = request()->routeIs($section['pattern']);
-        @endphp
-        <div class="demo-stack-nav__group {{ $sectionIsActive ? 'is-active' : '' }}">
-            <div class="demo-stack-nav__header">
-                <p class="demo-stack-nav__title">{{ $section['label'] }}</p>
-                <small class="demo-stack-nav__subtitle">{{ $section['description'] }}</small>
+<div class="demo-header">
+    <div class="demo-header__surface" aria-label="Affino Laravel demos">
+        <div class="demo-header__brand">
+            <div class="demo-header__logo">
+                <h1>Affino</h1>
+                <span class="header-pill">alpha</span>
+                <span class="demo-header__badge">Laravel</span>
             </div>
-
-            <ul class="demo-stack-nav__list">
-                @foreach ($section['links'] as $link)
-                    <li>
-                        <a
-                            wire:navigate
-                            href="{{ $link['href'] }}"
-                            class="demo-stack-nav__link {{ request()->routeIs($link['pattern']) ? 'is-active' : '' }}"
-                        >{{ $link['label'] }}</a>
-                    </li>
-                @endforeach
-            </ul>
+            <div class="demo-header__meta">
+                <h2>Menu core · Livewire</h2>
+                <p>Mirrors the Vue reference shell while staying powered by Laravel adapters.</p>
+            </div>
         </div>
-    @endforeach
-</nav>
+
+        <nav class="demo-header__nav" aria-label="Affino demo navigation">
+            @foreach ($demoSections as $section)
+                @php
+                    $target = $section['links'][0] ?? null;
+                    $isActive = request()->routeIs($section['pattern']);
+                @endphp
+                @if ($target)
+                    <a
+                        wire:navigate
+                        href="{{ $target['href'] }}"
+                        class="nav-link {{ $isActive ? 'nav-link--active' : '' }}"
+                    >{{ $section['label'] }}</a>
+                @endif
+            @endforeach
+        </nav>
+    </div>
+</div>

@@ -444,7 +444,11 @@ code {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
-  position: relative;
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  width: min(340px, calc(100vw - 2.5rem));
+  z-index: 60;
   overflow: hidden;
   box-shadow: 0 30px 70px rgba(5, 6, 20, 0.55);
 }
@@ -607,8 +611,11 @@ code {
 }
 
 @media (max-width: 640px) {
-  .overlay-panel {
+  .overlay-panel--select {
     padding: 1.1rem 1.2rem;
+    bottom: 0.85rem;
+    right: 0.85rem;
+    width: calc(100vw - 1.7rem);
   }
 
   .overlay-panel__title {
@@ -617,6 +624,11 @@ code {
 }
 
 .overlay-panel--select {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  width: min(340px, calc(100vw - 2.5rem));
+  z-index: 60;
   border-color: rgba(248, 184, 3, 0.45);
   background: linear-gradient(135deg, rgba(12, 9, 18, 0.96), rgba(8, 10, 16, 0.92));
   color: var(--select-text);
