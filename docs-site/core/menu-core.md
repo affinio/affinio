@@ -1,11 +1,17 @@
 ---
 title: menu-core
-description: Framework-agnostic menu engine with pointer prediction and submenu support.
+description: Core reference for @affino/menu-core.
 ---
 
 # @affino/menu-core
 
+> Stability: **Stable**
+
 Headless menu engine built on `@affino/surface-core`. It gives you a deterministic menu state machine, keyboard navigation, pointer prediction for submenus, and ARIA wiring without dictating markup or styling.
+
+## Overview
+
+Use `menu-core` when you need desktop-grade menu behavior (nested intent handling + deterministic keyboard traversal) in a headless package.
 
 ## Installation
 
@@ -78,7 +84,7 @@ const prediction = new MousePrediction({ history: 6 })
 const direction = predictMouseDirection(points)
 ```
 
-## API summary
+## Core API
 
 - `MenuCore` - main controller; provides `open()`, `requestClose()`, `toggle()`, `subscribe()`, `getTriggerProps()`, `getPanelProps()`, `getItemProps()`, `registerItem()`, and `select()`.
 - `SubmenuCore` - menu controller that coordinates with a parent for pointer intent.
@@ -90,6 +96,17 @@ const direction = predictMouseDirection(points)
 
 - `MenuCore` integrates with `@affino/overlay-kernel` when you pass `overlayManager` or `getOverlayManager` in the options.
 - Use `closeOnSelect` and `loopFocus` options to tune selection and keyboard behavior.
+
+## Related packages
+
+- `@affino/menu-vue`
+- `@affino/menu-react`
+- `@affino/menu-laravel`
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

@@ -14,7 +14,7 @@ class ExampleTest extends TestCase
     {
         $response = $this->get('/');
 
-        $response->assertRedirect('/livewire/tooltips');
-        $this->get('/livewire/tooltips')->assertOk();
+        $response->assertOk();
+        $response->assertSee('Affino adapters');
     }
 }

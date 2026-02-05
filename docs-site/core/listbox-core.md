@@ -1,11 +1,17 @@
 ---
 title: listbox-core
-description: Headless listbox state machine built on linear selection.
+description: Core reference for @affino/listbox-core.
 ---
 
 # @affino/listbox-core
 
+> Stability: **Stable**
+
 Headless listbox state machine built on top of the linear selection primitives from `@affino/selection-core`.
+
+## Overview
+
+Use `listbox-core` for option-focused keyboard navigation and selection logic without coupling to DOM or framework rendering.
 
 ## Installation
 
@@ -50,6 +56,11 @@ Types:
 - `@affino/selection-core`
 - `@affino/combobox-core`
 - `@affino/selection-vue`
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

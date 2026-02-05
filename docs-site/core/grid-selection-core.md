@@ -1,11 +1,17 @@
 ---
 title: grid-selection-core
-description: Headless grid selection engine for spreadsheets and tables.
+description: Core reference for @affino/grid-selection-core.
 ---
 
 # @affino/grid-selection-core
 
+> Stability: **Stable**
+
 Headless grid selection engine that powers spreadsheets, tables, and tree views.
+
+## Overview
+
+Use `grid-selection-core` for 2D range selection with anchor/focus semantics, append/toggle operations, and normalized rectangular geometry.
 
 ## Installation
 
@@ -59,6 +65,11 @@ Types:
 ## Related packages
 
 - `@affino/selection-core` (re-exports this API)
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

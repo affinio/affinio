@@ -1,11 +1,17 @@
 ---
 title: combobox-core
-description: Headless combobox reducer built on listbox selection.
+description: Core reference for @affino/combobox-core.
 ---
 
 # @affino/combobox-core
 
+> Stability: **Stable**
+
 Headless combobox reducer that layers filtering + disclosure state on top of listbox primitives from `@affino/listbox-core`.
+
+## Overview
+
+Use `combobox-core` when you need query/filter state plus listbox-style selection and keyboard focus management in one headless primitive.
 
 ## Installation
 
@@ -58,6 +64,11 @@ Types:
 
 - `@affino/listbox-core`
 - `@affino/selection-core`
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

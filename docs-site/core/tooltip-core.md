@@ -1,11 +1,17 @@
 ---
 title: tooltip-core
-description: Deterministic tooltip controller with arrow and live-region helpers.
+description: Core reference for @affino/tooltip-core.
 ---
 
 # @affino/tooltip-core
 
+> Stability: **Stable**
+
 Headless tooltip controller built on `@affino/surface-core`. It orchestrates hover/focus timers, ARIA wiring, geometry, and arrow math without dictating markup or styling.
+
+## Overview
+
+Use `tooltip-core` for deterministic hover/focus tooltip behavior with portable timing and accessibility semantics.
 
 ## Installation
 
@@ -73,6 +79,11 @@ The description helper sets `role`, `aria-live`, and `aria-atomic`, and mirrors 
 
 - `@affino/tooltip-vue` - Vue 3 adapter with floating helpers
 - `@affino/overlay-kernel` - global overlay stacking for tooltips
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

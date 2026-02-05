@@ -1,11 +1,17 @@
 ---
 title: surface-core
-description: Shared surface state machine and positioning helpers.
+description: Core reference for @affino/surface-core.
 ---
 
 # @affino/surface-core
 
+> Stability: **Stable**
+
 Headless interaction kernel for any floating surface: menus, tooltips, popovers, and contextual panels.
+
+## Overview
+
+Use `surface-core` as the base lifecycle/positioning layer for floating UI primitives that share timers, state, and placement logic.
 
 ## Installation
 
@@ -52,6 +58,17 @@ class TooltipCore extends SurfaceCore {
 ## Notes
 
 - All surface controllers (menu, tooltip, popover) reuse this kernel so timers and pointer semantics match across the system.
+
+## Related packages
+
+- `@affino/menu-core`
+- `@affino/tooltip-core`
+- `@affino/popover-core`
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

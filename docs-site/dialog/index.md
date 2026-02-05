@@ -1,87 +1,74 @@
-````markdown
 ---
 title: Dialog System
-description: Deterministic dialogs and sheets backed by Affino surfaces with adapters for Vue and Laravel.
+description: Deterministic dialogs with shared core, Vue adapter, and Laravel adapter runtime.
 ---
 
 # Dialog System
 
-Affino dialogs share a single state machine that handles overlay stacking, scroll locking, and focus orchestration across frameworks. `@affino/dialog-core` is the headless controller, while the Vue and Laravel adapters take care of DOM wiring and hydration so you can focus on markup.
+## When to use
+
+Use Dialog when you need modal workflows, guarded close flows, or stack-aware overlays.
 
 ## Packages
 
-| Package | Description |
+| Package | Role |
 | --- | --- |
-| **@affino/dialog-core** | Pure TypeScript controller with overlay registrar, pending close guards, and focus orchestrators. |
-| **@affino/dialog-vue** | Vue 3 bindings that expose `useDialogController`, focus orchestrators, and stacking registrars. |
-| **@affino/dialog-laravel** | Blade + Livewire helper that emits stable data attributes and hydrates dialogs after every morph. |
+| `@affino/dialog-core` | Headless dialog controller (lifecycle, guards, overlay interop). |
+| `@affino/dialog-vue` | Vue composables (`useDialogController`) and focus orchestrator helpers. |
+| `@affino/dialog-laravel` | Blade + hydration contract for dialog roots/triggers/overlays. |
+| `@affino/laravel-adapter` | Recommended Laravel bootstrap entry point. |
 
-## Laravel quick start
+## Installation
 
 ```bash
-composer require affino/dialog-laravel
-php artisan vendor:publish --tag=affino-dialog-laravel-assets
+pnpm add @affino/dialog-core @affino/dialog-vue @affino/dialog-laravel @affino/laravel-adapter
 ```
+
+## Core API
 
 ```ts
-import "./bootstrap"
-import { bootstrapAffinoDialogs } from "@affino/dialog-laravel"
+import { DialogController } from "@affino/dialog-core"
 
-bootstrapAffinoDialogs()
+const controller = new DialogController({ closeStrategy: "blocking" })
+controller.open("programmatic")
+await controller.requestClose("programmatic")
 ```
 
-```blade
-<x-affino-dialog dialog-id="ops-dialog" labelled-by="ops-dialog-title">
-    <x-slot:trigger>
-        <button class="DemoTrigger">Launch command palette</button>
-    </x-slot:trigger>
+See full API at [/core/dialog-core](/core/dialog-core).
 
-    <div class="DemoModal">
-        <header>
-            <h3 id="ops-dialog-title">Command palette</h3>
-            <button data-affino-dialog-dismiss="programmatic">Close</button>
-        </header>
-    </div>
-</x-affino-dialog>
+## Vue usage
+
+```ts
+import { useDialogController } from "@affino/dialog-vue"
+
+const { snapshot, open, close } = useDialogController()
 ```
 
-- `dialog-id` feeds ARIA relationships (`aria-controls`, `aria-labelledby`) and anchors manual controllers.
-- The helper inserts focus sentinels and a backdrop automatically and locks scroll while the dialog is open.
-- Teleportation is enabled by default (`#affino-dialog-host`), so dialogs render outside nested stacking contexts.
+## Laravel usage
 
-## Manual controllers
+```ts
+import { bootstrapAffinoLaravelAdapters } from "@affino/laravel-adapter"
 
-Dispatch `affino-dialog:manual` when Livewire (or any JS) should open/close the dialog without clicking the trigger:
-
-```php
-$this->dispatch('affino-dialog:manual', id: 'ops-dialog', action: 'open', reason: 'programmatic');
-$this->dispatch('affino-dialog:manual', id: 'ops-dialog', action: 'close', options: ['metadata' => ['confirmDiscard' => true]]);
-```
-
-The JS bridge retries for ~20 animation frames so the controller is available even if you dispatch immediately after a morph.
-
-## Overlay behaviors
-
-- Scroll locking and Escape guards are global—open overlays increase a ref count so nested dialogs do not fight each other.
-- Passing `pinned` (or `data-affino-dialog-pinned="true"`) keeps the open state across Livewire rerenders.
-- Sheets (`overlay-kind="sheet"`) reuse the same controller while letting you build tray-like layouts that do not trap focus.
-- `close-strategy="optimistic"` exposes pending close callbacks so you can run async guards before the overlay disappears.
-
-## Vue adapter snapshot
-
-```vue
-<script setup lang="ts">
-import { useDialogController, createDialogFocusOrchestrator } from "@affino/dialog-vue"
-
-const binding = useDialogController({
-  focusOrchestrator: createDialogFocusOrchestrator({
-    dialog: () => surfaceRef.value,
-    initialFocus: () => surfaceRef.value?.querySelector("button"),
-    returnFocus: () => triggerRef.value,
-  }),
+bootstrapAffinoLaravelAdapters({
+  registerScrollGuards: true,
+  diagnostics: import.meta.env.DEV,
 })
-</script>
 ```
 
-Use the same overlay registrar between Vue and Laravel when you mix adapters—the core contract is shared across frameworks.
-````
+## Manual control
+
+Dialog supports `affino-dialog:manual`.
+
+```ts
+document.dispatchEvent(
+  new CustomEvent("affino-dialog:manual", {
+    detail: { id: "settings-dialog", action: "close", reason: "programmatic" },
+  }),
+)
+```
+
+## Troubleshooting
+
+- Dialog not opening: verify `data-affino-dialog-root` id matches manual event `id`.
+- Focus issues after morph: use pinned/manual patterns from Laravel adapter docs.
+- Multiple overlays fighting: ensure all overlays use shared `@affino/overlay-kernel` path.

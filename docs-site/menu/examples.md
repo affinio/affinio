@@ -1,100 +1,65 @@
 ---
 title: Examples
-description: Common menu patterns built with @affino/menu-vue.
+description: Production menu patterns for Vue and React adapters.
 ---
 
 # Examples
 
-## Basic dropdown
+## 1) Basic actions menu
+
+Use for simple command lists tied to one trigger.
 
 ```vue
 <UiMenu>
-  <UiMenuTrigger asChild>
-    <button class="MenuButton">Actions</button>
-  </UiMenuTrigger>
-
-  <UiMenuContent class="MenuPanel">
-    <UiMenuItem id="edit" asChild @select="edit">
-      <button>Edit</button>
-    </UiMenuItem>
-    <UiMenuItem id="archive" asChild @select="archive">
-      <button>Archive</button>
-    </UiMenuItem>
+  <UiMenuTrigger asChild><button>Actions</button></UiMenuTrigger>
+  <UiMenuContent>
+    <UiMenuItem id="edit">Edit</UiMenuItem>
+    <UiMenuItem id="archive">Archive</UiMenuItem>
   </UiMenuContent>
 </UiMenu>
 ```
 
-## Nested submenu
+## 2) Nested submenu
+
+Use when actions branch into secondary categories.
+
+```vue
+<UiSubMenu>
+  <UiSubMenuTrigger asChild><button class="MenuItem">Share ></button></UiSubMenuTrigger>
+  <UiSubMenuContent>
+    <UiMenuItem id="copy-link">Copy link</UiMenuItem>
+    <UiMenuItem id="email">Send email</UiMenuItem>
+  </UiSubMenuContent>
+</UiSubMenu>
+```
+
+## 3) Context menu (right click)
+
+Use for canvas/table/file-tree interactions.
 
 ```vue
 <UiMenu>
-  <UiMenuTrigger asChild>
-    <button class="MenuButton">Share</button>
+  <UiMenuTrigger asChild trigger="contextmenu">
+    <button>Right click me</button>
   </UiMenuTrigger>
-
-  <UiMenuContent class="MenuPanel">
-    <UiMenuItem id="link" asChild @select="copyLink">
-      <button>Copy link</button>
-    </UiMenuItem>
-
-    <UiSubMenu>
-      <UiSubMenuTrigger asChild>
-        <button class="MenuItem with-arrow">Send to…</button>
-      </UiSubMenuTrigger>
-
-      <UiSubMenuContent class="MenuPanel">
-        <UiMenuItem id="email" asChild @select="shareByEmail">
-          <button>Email</button>
-        </UiMenuItem>
-        <UiMenuItem id="slack" asChild @select="shareToSlack">
-          <button>Slack</button>
-        </UiMenuItem>
-      </UiSubMenuContent>
-    </UiSubMenu>
+  <UiMenuContent>
+    <UiMenuItem id="refresh">Refresh</UiMenuItem>
+    <UiMenuItem id="inspect">Inspect</UiMenuItem>
   </UiMenuContent>
 </UiMenu>
 ```
 
-Submenus inherit pointer prediction from the root, so diagonal movement keeps them open.
+## 4) Manual opening (programmatic)
 
-## Context menu
+Use when opening menu from shortcut/palette/controller.
 
-```vue
-<script setup lang="ts">
-import { ref } from 'vue'
-import { UiMenu } from '@affino/menu-vue'
-
-const menuRef = ref<InstanceType<typeof UiMenu> | null>(null)
-
-const showContextMenu = (event: MouseEvent) => {
-  event.preventDefault()
-  const controller = menuRef.value?.controller
-  if (!controller) return
-  controller.setAnchor({ x: event.clientX, y: event.clientY, width: 0, height: 0 })
-  controller.open('pointer')
-}
-
-const hideContextMenu = () => {
-  const controller = menuRef.value?.controller
-  controller?.close('pointer')
-  controller?.setAnchor(null)
-}
-</script>
-
-<template>
-  <div class="Canvas" @contextmenu="showContextMenu" @pointerdown="hideContextMenu">
-    <UiMenu ref="menuRef">
-      <UiMenuContent class="MenuPanel">
-        <UiMenuItem id="refresh" asChild @select="refresh">
-          <button>Refresh data</button>
-        </UiMenuItem>
-        <UiMenuItem id="inspect" asChild @select="inspect">
-          <button>Inspect node</button>
-        </UiMenuItem>
-      </UiMenuContent>
-    </UiMenu>
-  </div>
-</template>
+```ts
+controller.setAnchor({ x, y, width: 0, height: 0 })
+controller.open("programmatic")
 ```
 
-Need more patterns? Browse the [demo source](https://github.com/affinio/affinio/tree/main/demo-vue/src/pages/menu).
+## Notes
+
+- Keep item ids stable for analytics/shortcuts.
+- Disabled items should remain registered for consistent keyboard indexing.
+- For deeper behavior rules see [/core/menu-core](/core/menu-core).

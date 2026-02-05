@@ -16,6 +16,8 @@
     },
     "dependencies": {
         "@affino/laravel-adapter": "workspace:*",
+        "@affino/disclosure-laravel": "workspace:*",
+        "@affino/tabs-laravel": "workspace:*",
         "@affino/overlay-kernel": "workspace:*",
         "@affino/dialog-laravel": "workspace:*",
         "@affino/combobox-laravel": "workspace:*",

@@ -1,11 +1,17 @@
 ---
 title: overlay-kernel
-description: Shared overlay stack manager for dialogs, popovers, tooltips, and menus.
+description: Core reference for @affino/overlay-kernel.
 ---
 
 # @affino/overlay-kernel
 
+> Stability: **Stable**
+
 Global overlay stack manager that coordinates stacking, close requests, and focus/pointer policy across Affino surfaces.
+
+## Overview
+
+Use `overlay-kernel` when multiple overlay primitives must share one stack contract (priority, close reasons, and ownership cascades).
 
 ## Installation
 
@@ -55,6 +61,18 @@ Key types:
 
 - Controllers such as `@affino/dialog-core`, `@affino/popover-core`, and `@affino/tooltip-core` can accept an overlay manager directly.
 - The manager emits stack and close-request events so adapters can coordinate Escape, pointer-outside, and owner-close cascades.
+
+## Related packages
+
+- `@affino/dialog-core`
+- `@affino/popover-core`
+- `@affino/tooltip-core`
+- `@affino/menu-core`
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

@@ -1,85 +1,67 @@
 ---
 title: Menu Overview
-description: Headless Vue & React menu primitives powered by framework-agnostic core.
+description: Headless menu system with core engine and Vue/React/Laravel adapters.
 ---
 
-# Menu Overview
+# Menu System
 
-Affino's menu system is built on **@affino/menu-core**, a framework-agnostic engine handling state machines, pointer prediction, keyboard navigation, and positioning. Framework adapters (`@affino/menu-vue` and `@affino/menu-react`) wrap the core with reactive primitives while keeping the API surface identical.
+## When to use
 
-## Architecture
-
-```
-┌─────────────────────────────────────┐
-│      @affino/menu-core              │
-│  ────────────────────────────────   │
-│  • State machines                   │
-│  • Diagonal pointer prediction      │
-│  • Keyboard navigation              │
-│  • Positioning & collision          │
-│  • Focus management                 │
-│  • Zero framework dependencies      │
-└─────────────────────────────────────┘
-           ▲              ▲
-           │              │
-    ┌──────┴──────┐ ┌────┴──────┐
-    │ menu-vue    │ │ menu-react│
-    │ Renderless  │ │ Hooks +   │
-    │ components  │ │ compounds │
-    └─────────────┘ └───────────┘
-```
+Use Menu for command surfaces, context menus, and nested action hierarchies with keyboard + pointer intent handling.
 
 ## Packages
 
-### @affino/menu-core
+| Package | Role |
+| --- | --- |
+| `@affino/menu-core` | Headless menu engine (state, keyboard nav, pointer intent, positioning). |
+| `@affino/menu-vue` | Vue components/composables on top of core. |
+| `@affino/menu-react` | React adapter with mirrored menu semantics. |
+| `@affino/menu-laravel` | Laravel hydration runtime for menu roots and panels. |
+| `@affino/laravel-adapter` | Recommended Laravel bootstrap entry point. |
 
-The framework-agnostic engine. Use it directly for custom integrations or if you need menu logic outside Vue/React.
+## Installation
 
-**Key exports:**
-- `MenuCore` - Imperative API for open/close/highlight/select
-- `SubmenuCore` - Submenu controller with pointer prediction
-- `createMenuTree` - Shared pointer + geometry adapters for complex trees
-- `MousePrediction` / `predictMouseDirection` - Diagonal pointer heuristics
-- `computePosition` - Collision-safe positioning
+```bash
+pnpm add @affino/menu-core @affino/menu-vue @affino/menu-react @affino/menu-laravel @affino/laravel-adapter
+```
 
-### @affino/menu-vue
+## Core API
 
-Vue 3 adapter with renderless components and composition API hooks.
+```ts
+import { MenuCore } from "@affino/menu-core"
 
-**Key components:**
-- `UiMenu`, `UiMenuTrigger`, `UiMenuContent`
-- `UiMenuItem`, `UiMenuLabel`, `UiMenuSeparator`
-- `UiSubMenu`, `UiSubMenuTrigger`, `UiSubMenuContent`
+const menu = new MenuCore({ closeOnSelect: true })
+menu.open("programmatic")
+```
 
-**Hooks:**
-- `useMenuController()` — Access imperative controller
-- `useMenuState()` — Subscribe to menu state
+See full API at [/core/menu-core](/core/menu-core).
 
-### @affino/menu-react
+## Vue usage
 
-React 18 adapter mirroring the Vue API. Same components, same controller hooks, identical behavior.
+Use component primitives from `@affino/menu-vue` (`UiMenu`, `UiMenuTrigger`, `UiMenuContent`, etc.) or controller hooks.
 
-Bring your own markup and design system—Affino handles accessibility, pointer heuristics, and submenu geometry while keeping the controller API identical across frameworks.
+## Laravel usage
 
-## Why it matters
+```ts
+import { bootstrapAffinoLaravelAdapters } from "@affino/laravel-adapter"
 
-- **Accessible by default** – Correct roles, keyboard nav, and looped focus.
-- **Native-feeling pointers** – Diagonal mouse intent keeps submenus open while you move.
-- **Headless & composable** – Wrap any DOM element via `asChild`; no CSS opinions.
-- **Play nice with demos** – One controller can drive dropdowns, context menus, and palettes on the same page.
+bootstrapAffinoLaravelAdapters()
+```
 
-## When to reach for it
+## Manual control
 
-Use Menu Vue when you need:
+Menu supports `affino-menu:manual`.
 
-- Multi-level menus or context menus that feel as smooth as native desktop UIs.
-- Imperative hooks to open menus from shortcuts, command bars, or pointer coordinates.
-- A renderless foundation you can theme with Tailwind, CSS variables, UnoCSS, or vanilla CSS.
+```ts
+document.dispatchEvent(
+  new CustomEvent("affino-menu:manual", {
+    detail: { id: "actions-menu", action: "open", reason: "programmatic" },
+  }),
+)
+```
 
-You probably don’t need it if you only require a single static dropdown, already use a full component suite with menus included, or need full-page navigation.
+## Troubleshooting
 
-## Learn more
-
-- [Interactive demos](https://affino.dev) – Try the live menus.
-- [Full documentation on GitHub](https://github.com/affinio/affinio/tree/main/docs) – Architecture, controller API, internals.
-- [React adapter details](/menu/react) – Installation steps and FAQ for the new React package.
+- Submenu closes too early: validate pointer intent and submenu hierarchy wiring.
+- Keyboard navigation skips items: check disabled item mapping and item registration.
+- Laravel runtime not hydrating: ensure root/panel/trigger data attributes are present after morph.

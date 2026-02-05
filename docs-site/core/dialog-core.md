@@ -1,11 +1,17 @@
 ---
 title: dialog-core
-description: Dialog engine with async guards and overlay stacking.
+description: Core reference for @affino/dialog-core.
 ---
 
 # @affino/dialog-core
 
+> Stability: **Stable**
+
 Headless dialog engine that coordinates lifecycle hooks, focus scopes, async close guards, and overlay stacking across frameworks.
+
+## Overview
+
+Use `dialog-core` for modal/sheet flows that need deterministic lifecycle phases, guarded closing, and shared overlay stack behavior.
 
 ## Installation
 
@@ -67,6 +73,11 @@ Instance methods:
 
 - `@affino/dialog-vue` - Vue 3 adapter with focus + scroll orchestration
 - `@affino/overlay-kernel` - optional global overlay manager
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

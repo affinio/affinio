@@ -1,64 +1,75 @@
 ---
 title: Popover System
-description: Headless popover core plus Vue adapter powered by Affino surfaces.
+description: Headless popover core with Vue and Laravel adapters.
 ---
 
 # Popover System
 
-`@affino/popover-core` gives you the same deterministic surface semantics as menus and tooltips while staying 100% framework agnostic. Pair it with `@affino/popover-vue` when you need renderless Vue helpers that take care of ARIA wiring, outside clicks, scroll locking, and positioning.
+## When to use
+
+Use Popover for anchored, interactive floating panels (filters, inline forms, contextual tools).
 
 ## Packages
 
-| Package | Description |
+| Package | Role |
 | --- | --- |
-| **@affino/popover-core** | Headless controller with trigger/content prop helpers, escape + outside guards, and arrow positioning utilities. |
-| **@affino/popover-vue** | Vue 3 composables (`usePopoverController`, `useFloatingPopover`) that wire refs to `computePosition()` and close on outside interactions. |
+| `@affino/popover-core` | Headless popover controller + positioning/arrow helpers. |
+| `@affino/popover-vue` | Vue composables (`usePopoverController`, `useFloatingPopover`). |
+| `@affino/popover-laravel` | Blade hydration runtime for popover roots. |
+| `@affino/laravel-adapter` | Recommended Laravel bootstrap entry point. |
 
-## Vue quick start
+## Installation
 
-```vue
-<script setup lang="ts">
+```bash
+pnpm add @affino/popover-core @affino/popover-vue @affino/popover-laravel @affino/laravel-adapter
+```
+
+## Core API
+
+```ts
+import { PopoverCore } from "@affino/popover-core"
+
+const popover = new PopoverCore({ closeOnInteractOutside: true })
+popover.open("programmatic")
+```
+
+See full API at [/core/popover-core](/core/popover-core).
+
+## Vue usage
+
+```ts
 import { usePopoverController, useFloatingPopover } from "@affino/popover-vue"
 
-const controller = usePopoverController({ id: "filters" })
+const controller = usePopoverController({ closeOnInteractOutside: true })
 const floating = useFloatingPopover(controller, {
   placement: "bottom",
   align: "start",
   gutter: 12,
-  arrow: { size: 12 },
 })
-</script>
-
-<template>
-  <button ref="floating.triggerRef" class="PopoverTrigger" v-bind="controller.getTriggerProps()">
-    Filters
-  </button>
-
-  <Teleport :to="floating.teleportTarget">
-    <div
-      v-if="controller.state.value.open"
-      ref="floating.contentRef"
-      class="PopoverPanel"
-      v-bind="controller.getContentProps({ role: 'dialog' })"
-      :style="floating.contentStyle"
-    >
-      <span
-        v-if="floating.arrowProps"
-        class="PopoverArrow"
-        v-bind="floating.arrowProps"
-        :style="floating.arrowProps.style"
-      />
-      <slot />
-    </div>
-  </Teleport>
-</template>
 ```
 
-## Core behaviors
+## Laravel usage
 
-- Trigger props expose `aria-haspopup`, `aria-expanded`, and `aria-controls` so DOM remains declarative.
-- Content props manage Escape handling and `aria-modal` toggles. Modal popovers can opt into scroll locking via the adapter.
-- The floating helper teleports panels into an overlay host by default, updates inline geometry on resize/scroll, and restores focus to the trigger when the surface closes.
-- `controller.interactOutside(event)` funnels outside pointer/focus intents through the core so analytics hooks fire before the surface closes.
+```ts
+import { bootstrapAffinoLaravelAdapters } from "@affino/laravel-adapter"
 
-Keep the panel focusable (`tabindex="-1"`) when it contains custom controls so keyboard users can land on it after the trigger opens the surface.
+bootstrapAffinoLaravelAdapters()
+```
+
+## Manual control
+
+Popover supports `affino-popover:manual`.
+
+```ts
+document.dispatchEvent(
+  new CustomEvent("affino-popover:manual", {
+    detail: { id: "filters-popover", action: "toggle", reason: "programmatic" },
+  }),
+)
+```
+
+## Troubleshooting
+
+- Popover closes unexpectedly: check pinned/modal/manual flags.
+- Wrong position: verify trigger/content refs are connected before open.
+- Scroll lock conflicts: route all lock behavior through overlay kernel-based adapters.

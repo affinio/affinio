@@ -1,19 +1,40 @@
 ---
 title: Advanced Topics
-description: Jump into architecture, controller APIs, and performance guides.
+description: Internals, performance, and integration guidance for Affino menus.
 ---
 
 # Advanced Topics
 
-Need to dive deeper? The GitHub documentation covers every internal detail:
+## Controller and tree internals
 
-- **Architecture & internals** – Shared state tree, pointer prediction, layering strategy.  
-  <https://github.com/affinio/affinio/blob/main/docs/reference/architecture.md>
+For low-level menu behavior, use `@affino/menu-core` directly:
 
-- **Controller API** – Imperative helpers, programmatic context menus, shortcuts, and debug tips.  
-  <https://github.com/affinio/affinio/blob/main/docs/reference/controller.md>
+- `MenuCore`
+- `SubmenuCore`
+- `createMenuTree`
+- pointer intent helpers (`MousePrediction`, `predictMouseDirection`)
 
-- **Mouse prediction & heuristics** – Tune diagonal intent, delays, and guard rails.  
-  <https://github.com/affinio/affinio/tree/main/packages/menu-core>
+Reference: [/core/menu-core](/core/menu-core)
 
-These deep dives stay in GitHub so the website can focus on quick onboarding.
+## Performance notes
+
+- Prefer stable item registration over re-creating menu trees each render.
+- Keep submenu depth shallow when possible.
+- Use transform/opacity animation only for panel motion.
+
+## Laravel integration notes
+
+When using Laravel adapters in production, prefer one runtime bootstrap:
+
+```ts
+import { bootstrapAffinoLaravelAdapters } from "@affino/laravel-adapter"
+bootstrapAffinoLaravelAdapters()
+```
+
+This keeps menu behavior aligned with dialogs/popovers/tooltips in the same app.
+
+## Documentation links
+
+- Menu overview: [/menu/](/menu/)
+- Adapter runtime: [/adapters/laravel](/adapters/laravel)
+- Overlay stack internals: [/core/overlay-kernel](/core/overlay-kernel)

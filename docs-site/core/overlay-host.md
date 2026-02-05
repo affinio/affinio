@@ -1,11 +1,17 @@
 ---
 title: overlay-host
-description: Portal host, scroll lock, and global keydown helpers.
+description: Core reference for @affino/overlay-host.
 ---
 
 # @affino/overlay-host
 
+> Stability: **Stable**
+
 Tiny helpers for creating a shared overlay portal host, toggling scroll lock, and wiring a single global `keydown` listener.
+
+## Overview
+
+Use `overlay-host` for DOM-facing overlay utilities when you need host provisioning and global listeners around headless overlay controllers.
 
 ## Installation
 
@@ -42,6 +48,17 @@ keydown.activate()
 - `createGlobalKeydownManager(handler, options?)` - attaches/detaches a single keydown listener.
 
 All helpers no-op when `document`/`window` are missing, so they are safe in SSR contexts.
+
+## Related packages
+
+- `@affino/overlay-kernel`
+- `@affino/dialog-core`
+- `@affino/popover-core`
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

@@ -1,11 +1,17 @@
 ---
 title: focus-utils
-description: Framework-agnostic focus and tab trap helpers.
+description: Core reference for @affino/focus-utils.
 ---
 
 # @affino/focus-utils
 
+> Stability: **Stable**
+
 Focus utilities shared across Affino dialogs, menus, and tooltips.
+
+## Overview
+
+Framework-agnostic helpers for collecting focusable nodes, trapping tab navigation, and managing edge focus in overlays.
 
 ## Installation
 
@@ -41,6 +47,17 @@ function onKeydown(event: KeyboardEvent) {
 - `hasFocusSentinels(container, selector?)` - check for sentinel elements.
 
 All helpers no-op when `window`/`document` are missing, so they are safe in SSR contexts.
+
+## Related packages
+
+- `@affino/dialog-core`
+- `@affino/menu-core`
+- `@affino/tooltip-core`
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

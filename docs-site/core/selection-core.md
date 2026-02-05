@@ -1,11 +1,17 @@
 ---
 title: selection-core
-description: Linear (1D) selection primitives with anchor/focus semantics.
+description: Core reference for @affino/selection-core.
 ---
 
 # @affino/selection-core
 
+> Stability: **Stable**
+
 Headless linear selection primitives (1D ranges) that power listboxes, comboboxes, and other selection-driven surfaces. The package also re-exports the 2D grid engine from `@affino/grid-selection-core` for backward compatibility.
+
+## Overview
+
+Use `selection-core` for pure 1D range math (anchor/focus/range operations) that can be reused across listbox/combobox adapters.
 
 ## Installation
 
@@ -75,6 +81,11 @@ If you need row/column math (spreadsheets, grids), use `@affino/grid-selection-c
 - `@affino/listbox-core` - listbox state machine built on top of linear selection
 - `@affino/combobox-core` - combobox reducer with filtering + listbox navigation
 - `@affino/selection-vue` - Vue bindings for linear + listbox selection
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

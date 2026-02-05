@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@affino/dialog-vue": "workspace:*",
+    "@affino/disclosure-vue": "workspace:*",
     "@affino/aria-utils": "workspace:*",
     "@affino/focus-utils": "workspace:*",
     "@affino/grid-selection-vue": "workspace:*",
@@ -28,6 +29,7 @@
     "@affino/combobox-core": "workspace:*",
     "@affino/selection-vue": "workspace:*",
     "@affino/tooltip-vue": "workspace:*",
+    "@affino/tabs-vue": "workspace:*",
     "@affino/vue-adapter": "workspace:*",
     "@affino/selection-core": "workspace:*",
     "@affino/virtualization-core": "workspace:*",

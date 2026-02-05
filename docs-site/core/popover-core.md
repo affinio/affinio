@@ -1,11 +1,17 @@
 ---
 title: popover-core
-description: Headless popover controller with trigger/content helpers.
+description: Core reference for @affino/popover-core.
 ---
 
 # @affino/popover-core
 
+> Stability: **Stable**
+
 Headless popover controller built on `@affino/surface-core`. It keeps ARIA wiring, toggle semantics, and positioning helpers in sync so adapters can stay thin.
+
+## Overview
+
+Use `popover-core` for anchored interactive panels that need deterministic open/close behavior plus collision-aware geometry.
 
 ## Installation
 
@@ -59,6 +65,11 @@ const arrowProps = popover.getArrowProps({
 
 - `@affino/popover-vue` - Vue 3 adapter with floating helpers
 - `@affino/overlay-host` - portal + scroll lock helpers
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

@@ -2,7 +2,9 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/livewire/tooltips');
+Route::view('/', 'adapters.overview')->name('adapters.overview');
+Route::view('/disclosures', 'disclosures.overview')->name('disclosures.overview');
+Route::view('/tabs', 'tabs.overview')->name('tabs.overview');
 Route::redirect('/reports', '/livewire/tooltips/reports');
 Route::redirect('/popovers', '/livewire/popovers');
 Route::redirect('/popovers/workbench', '/livewire/popovers/workbench');

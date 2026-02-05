@@ -1,11 +1,17 @@
 ---
 title: virtualization-core
-description: Headless virtualization math with overscan and scroll limit helpers.
+description: Core reference for @affino/virtualization-core.
 ---
 
 # @affino/virtualization-core
 
+> Stability: **Stable**
+
 Headless virtualization math for scroll-heavy lists and grids. This package is pure math: no DOM measurement, no rendering, and no framework hooks.
+
+## Overview
+
+Use `virtualization-core` when you need deterministic visible-window and overscan calculations independent of UI framework/runtime.
 
 ## Installation
 
@@ -64,6 +70,16 @@ Scroll helpers:
 
 - The virtualizer is axis-agnostic; your adapter provides the strategy.
 - Overscan controllers are optional but make large lists feel smoother under fast scrolling.
+
+## Related packages
+
+- `@affino/grid-selection-core`
+- `@affino/selection-core`
+
+## Used by adapters
+
+- Laravel runtime: [/adapters/laravel](/adapters/laravel)
+- Vue runtime: [/adapters/vue](/adapters/vue)
 
 ## License
 

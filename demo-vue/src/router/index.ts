@@ -39,6 +39,16 @@ const router = createRouter({
       name: "popover-demo",
       component: () => import("@/pages/popover/PopoverPage.vue"),
     },
+    {
+      path: "/disclosure",
+      name: "disclosure-demo",
+      component: () => import("@/pages/DisclosurePage.vue"),
+    },
+    {
+      path: "/tabs",
+      name: "tabs-demo",
+      component: () => import("@/pages/TabsPage.vue"),
+    },
     ...menuRoutes,
   ],
 })

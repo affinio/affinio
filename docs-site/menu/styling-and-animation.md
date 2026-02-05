@@ -1,38 +1,24 @@
 ---
 title: Styling & Animation
-description: Theme Menu Vue with CSS variables or utility classes.
+description: Visual styling hooks and motion patterns for Affino menus.
 ---
 
 # Styling & Animation
 
-Menu Vue ships zero CSS. Style it using whatever system you already have.
+Affino menu adapters are behavior-first and CSS-agnostic.
 
-## Data attributes to target
+## Data attributes you can target
 
-- `data-state="open" | "closed"` on panels and triggers.
-- `data-motion="from-top" | "from-bottom" | "from-left" | "from-right"` on panels.
-- `data-side` mirrors the resolved placement.
-- `data-state="highlighted"` and `aria-disabled="true"` on items.
+- `data-state="open|closed"` on trigger/panel
+- `data-motion="from-top|from-bottom|from-left|from-right"` on panels
+- `data-side` for resolved placement side
+- item state attributes such as highlighted/disabled flags
 
-Example hooks:
+## Example styling hooks
 
 ```css
 .MenuItem[data-state="highlighted"] {
-  background: color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
-[data-motion="from-bottom"][data-state="closed"] {
-  opacity: 0;
-  transform: translateY(6px) scale(0.96);
-  pointer-events: none;
-}
-```
-
-## Simple animation
-
-```css
-[data-motion="from-bottom"] {
-  transition: opacity 140ms ease, transform 140ms cubic-bezier(.2,.8,.4,1);
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 [data-motion="from-bottom"][data-state="open"] {
@@ -46,6 +32,19 @@ Example hooks:
 }
 ```
 
-Pair these hooks with Tailwind variants (`data-[state=open]:animate-in`), Motion One, or any animation library.
+## Animation guidance
 
-For advanced theming ideas, check the [demo stylesheets](https://github.com/affinio/affinio/blob/main/demo-vue/src/assets/main.css).
+- Keep durations short: `120-180ms`.
+- Prefer opacity + transform transitions.
+- Avoid layout-affecting animation for nested submenu chains.
+
+## Theming strategy
+
+- Define menu tokens once (`--menu-bg`, `--menu-border`, `--menu-item-hover`).
+- Map tokens in both Vue/React implementations.
+- Reuse same token names in Laravel views to keep visual parity.
+
+## Related
+
+- Examples: [/menu/examples](/menu/examples)
+- Core behavior: [/core/menu-core](/core/menu-core)
