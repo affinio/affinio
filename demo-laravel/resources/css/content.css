@@ -38,4 +38,16 @@
     .component-card__link {
         @apply mt-auto inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-strong)] transition-colors duration-150 hover:text-white;
     }
+
+    .page-shell {
+        @apply flex flex-col gap-8;
+    }
+
+    .tooltip-demo-section {
+        @apply flex flex-col gap-4 rounded-[1rem] border border-[var(--panel-border)] bg-[var(--panel-bg)] p-6;
+    }
+
+    .tooltip-demo-section h3 {
+        @apply m-0 text-lg text-[var(--text-strong)];
+    }
 }

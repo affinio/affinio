@@ -1,4 +1,99 @@
 @layer components {
+    .tooltip-playground {
+        @apply flex flex-col gap-6;
+    }
+
+    .tooltip-playground__controls {
+        @apply flex flex-wrap items-center gap-4 rounded-[0.9rem] border border-[var(--panel-border)] bg-white/5 p-4 text-sm text-[var(--text-soft)];
+    }
+
+    .tooltip-control {
+        @apply flex flex-col gap-2 text-xs uppercase tracking-[0.2em];
+    }
+
+    .tooltip-control .affino-listbox {
+        @apply min-w-[180px];
+    }
+
+    .tooltip-control .affino-listbox {
+        @apply relative;
+    }
+
+    .tooltip-control .tooltip-control__listbox--placement {
+        @apply min-w-[220px];
+    }
+
+    .tooltip-control .affino-listbox__button {
+        @apply flex w-full items-center justify-between gap-2 rounded-full border border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2 text-sm normal-case text-[var(--text-strong)] transition-colors duration-150 hover:border-[var(--panel-border-strong)] hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400/60;
+    }
+
+    .tooltip-control .affino-listbox__value {
+        @apply truncate;
+    }
+
+    .tooltip-control [data-affino-listbox-surface] {
+        @apply absolute left-0 top-full z-20 mt-2 flex w-full flex-col gap-2 rounded-[0.85rem] border border-[var(--panel-border)] bg-[rgba(4,6,13,0.96)] p-2 text-sm normal-case text-[var(--text-strong)] shadow-[0_16px_40px_rgba(2,6,23,0.4)];
+    }
+
+    .tooltip-control [data-affino-listbox-surface],
+    .tooltip-control .affino-listbox-option {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .tooltip-control [data-affino-listbox-surface]:focus,
+    .tooltip-control [data-affino-listbox-surface]:focus-visible,
+    .tooltip-control [data-affino-listbox-surface]:-moz-focusring,
+    .tooltip-control .affino-listbox-option:focus,
+    .tooltip-control .affino-listbox-option:focus-visible,
+    .tooltip-control .affino-listbox-option:-moz-focusring {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    .tooltip-control .affino-listbox__button::-moz-focus-inner {
+        border: 0;
+    }
+
+    .tooltip-control .affino-listbox-option {
+        @apply cursor-pointer rounded-[0.65rem] px-3 py-2 text-[var(--text-soft)] transition-colors duration-150 hover:bg-white/10 hover:text-[var(--text-strong)];
+    }
+
+    .tooltip-control .affino-listbox-option.is-selected {
+        @apply bg-white/10 text-[var(--text-strong)];
+    }
+
+    .tooltip-control--toggle {
+        @apply flex-row items-center gap-2 text-sm uppercase tracking-normal;
+    }
+
+    .tooltip-control--toggle input {
+        @apply h-4 w-4 accent-sky-400;
+    }
+
+    .tooltip-playground__stage {
+        @apply flex min-h-[160px] items-center justify-center rounded-[1rem] border border-dashed border-[var(--panel-border)] bg-[rgba(5,8,20,0.6)] p-6;
+    }
+
+    .tooltip-demo {
+        @apply flex flex-col gap-3;
+    }
+
+    .tooltip-demo__lead {
+        @apply m-0 text-sm text-[var(--text-soft)];
+    }
+
+    .tooltip-trigger {
+        @apply w-fit rounded-full border border-[var(--panel-border)] bg-white/5 px-4 py-2 text-sm text-[var(--text-strong)] transition-colors duration-150 hover:border-[var(--panel-border-strong)] hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400/60;
+    }
+
+    .tooltip-trigger--ghost {
+        @apply border-transparent bg-transparent text-[var(--text-soft)] hover:border-[var(--panel-border)] hover:text-[var(--text-strong)];
+    }
+
+    .tooltip-surface {
+        @apply max-w-[240px] rounded-[0.85rem] border border-[var(--panel-border)] bg-[rgba(4,6,13,0.92)] px-4 py-3 text-[0.85rem] text-[var(--text-soft)] shadow-[0_12px_30px_rgba(2,6,23,0.4)];
+    }
+
     .sidebar-listbox__tooltip {
         @apply max-w-[260px] rounded-[0.85rem] border border-[var(--panel-border)] bg-[rgba(4,6,13,0.92)] px-4 py-3 text-[0.85rem] text-[var(--text-soft)];
     }

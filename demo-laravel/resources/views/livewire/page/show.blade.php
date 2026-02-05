@@ -1,4 +1,8 @@
-<section class="app-hero" aria-label="{{ $pageName }} page">
-    <p class="eyebrow">Livewire page</p>
-    <h2>Hello {{ $pageName }}</h2>
-</section>
+<div class="page-shell">
+    @if ($page === 'tooltips')
+        <section class="tooltip-demo-section" aria-label="Tooltip demo">
+            <h3>Simple tooltip</h3>
+            <livewire:tooltip.simple />
+        </section>
+    @endif
+</div>
