@@ -6,102 +6,76 @@ We build **headless UI primitives** that keep accessibility, performance, and be
 
 > Think **“precision cockpit”**, not “themeable widget”.
 
-🌐 **Live demos & docs:** https://affino.dev
+🌐 **Live demos:** https://affino.dev  
+📚 **Docs:** https://docs.affino.dev
 
 ---
 
 ## Why Teams Pick Affino
 
-- **Predictable behavior**  
-  Deterministic state machines, explicit transitions, zero surprise latency. QA-friendly by design.
-
-- **Accessibility baked in**  
-  Screen readers, keyboard loops, focus restoration, and pointer intent are first-class concerns.
-
-- **Framework-agnostic core**  
-  All interaction logic lives outside the view layer. Vue today, React tomorrow, anything next.
-
-- **Serious depth**  
-  Diagonal hover intent, infinite submenu trees, snapshot-driven subscriptions, controller APIs for automation.
-
-- **Zero lock-in**  
-  You keep your DOM, design system, routing, and rendering strategies. Affino only supplies the brains.
+- Predictable, accessible, headless behavior for complex UI.
+- Framework-agnostic core with thin adapters (Vue, Laravel, React).
+- Designed for data-dense, enterprise-grade interaction flows.
 
 ---
 
-## Crafted For
-
-- Engineering dashboards and internal tools where correctness outweighs decoration.
-- Data-dense frontends mixing keyboard, mouse, pen, and automation flows.
-- Product teams who want **premium UX primitives** without inheriting someone else’s styling opinions.
-
----
-
-## Interaction Pillars
-
-- **Headless menus**  
-  Shared tree state, safe focus handoffs, nested coordination, and full programmatic control.
-
-- **Intent-aware pointer logic**  
-  Grace zones and timers keep submenus open during diagonal travel and respect human hesitation.
-
-- **Snapshot subscriptions**  
-  No render thrash, no hidden observers — just deterministic state snapshots.
-
-- **Positioning intelligence**  
-  Viewport-safe geometry, collision handling, and gutter control with zero runtime dependencies.
-
----
-
-## Core Packages
+## Core Packages (Core Primitives)
 
 | Package | Purpose |
 |------|------|
 | `@affino/surface-core` | Shared lifecycle + positioning primitives for floating surfaces |
+| `@affino/overlay-kernel` | Shared overlay stack manager for focus, pointer, and scroll policies |
+| `@affino/overlay-host` | Portal host + scroll lock helpers for overlays |
+| `@affino/focus-utils` | Cross-framework focus helpers for overlays and menus |
+| `@affino/aria-utils` | ARIA helpers for dialog and overlay primitives |
 | `@affino/menu-core` | Framework-agnostic menu engine (state, intent, positioning) |
 | `@affino/tooltip-core` | Deterministic tooltip controller built on the shared surface core |
 | `@affino/popover-core` | Toggleable popover controller with trigger/content helpers and arrow positioning |
-| `@affino/selection-core` | Grid and range selection primitives |
+| `@affino/selection-core` | Headless selection primitives for linear lists |
+| `@affino/listbox-core` | Listbox state machine built on selection-core |
+| `@affino/combobox-core` | Combobox state helpers composed from listbox-core |
+| `@affino/grid-selection-core` | Grid-based multi-range selection primitives |
+| `@affino/tabs-core` | Headless tabs controller |
+| `@affino/disclosure-core` | Headless disclosure/accordion controller |
 | `@affino/virtualization-core` | High-performance virtualization building blocks |
 
 ---
 
-## Menu Adapters
+## Framework Adapters (Quick Start)
 
-| Package | Framework | Status | Notes |
-|------|------|------|------|
-| `@affino/menu-vue` | Vue 3.4+ | Alpha | Renderless components, `asChild`, controller hooks, Tailwind-friendly motion markers |
-| `@affino/menu-react` | React 18+ | Alpha | Mirrors Vue API with hooks, headless components, and identical controller contracts |
+Laravel / Livewire:
 
-You can switch between Vue and React demos instantly using the framework toggle on the site.
+```ts
+import { bootstrapAffinoLaravelAdapters } from "@affino/laravel-adapter"
 
-👉 **Try it live:** https://affino.dev
+bootstrapAffinoLaravelAdapters({
+  registerScrollGuards: true,
+  diagnostics: import.meta.env?.DEV ?? false,
+})
+```
 
-## Tooltip Adapters
+Vue 3:
 
-| Package | Framework | Status | Notes |
-|------|------|------|------|
-| `@affino/tooltip-vue` | Vue 3.4+ | Alpha | `useTooltipController` + `useFloatingTooltip` with overlay hosts, Teleport overrides, and `z-index` controls for modals |
+```ts
+import { bootstrapAffinoVueAdapters } from "@affino/vue-adapter"
 
-## Popover Adapters
+bootstrapAffinoVueAdapters({
+  diagnostics: import.meta.env?.DEV ?? false,
+})
+```
 
-| Package | Framework | Status | Notes |
-|------|------|------|------|
-| `@affino/popover-vue` | Vue 3.4+ | Alpha | `usePopoverController` + `useFloatingPopover` with outside-click guards, arrow helpers, and optional scroll locking |
+Adapters are published for:
+- Laravel (Livewire): `@affino/laravel-adapter` + `*-laravel` packages
+- Vue 3: `@affino/vue-adapter` + `*-vue` packages
+- React: `@affino/menu-react` (menu system)
 
 ---
 
 ## Documentation & Demos
 
-- 🧪 **Live interaction demos:** https://affino.dev
-- 🧩 **Framework adapters:** see individual package READMEs
-
-The docs cover:
-- Installation and setup
-- Adapter architecture
-- Controller APIs
-- Accessibility guarantees
-- Real-world integration patterns
+- Live demos: https://affino.dev
+- Docs: https://docs.affino.dev
+- Package-specific READMEs for deep API details
 
 ---
 

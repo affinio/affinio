@@ -1,0 +1,5 @@
+@layer components {
+    .app-footer {
+        @apply mt-auto rounded-[1rem] border border-[var(--panel-border)] bg-[var(--panel-bg)] p-5 text-center text-sm text-[var(--text-muted)];
+    }
+}

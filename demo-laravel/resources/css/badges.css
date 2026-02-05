@@ -1,0 +1,29 @@
+@layer components {
+    .status-badge {
+        @apply inline-flex items-center gap-[0.4rem] rounded-full border border-[var(--panel-border)] bg-white/5 px-[0.65rem] py-[0.2rem] text-[0.72rem] uppercase tracking-[0.2em];
+    }
+
+    .status-badge__dot {
+        @apply inline-flex h-[0.35rem] w-[0.35rem] rounded-full bg-current;
+    }
+
+    .status-badge--stable {
+        @apply text-[#6ee7b7];
+    }
+
+    .status-badge--beta {
+        @apply text-[#fcd34d];
+    }
+
+    .status-badge--preview {
+        @apply text-[#93c5fd];
+    }
+
+    .overlay-panel__badge {
+        @apply flex items-center gap-[0.4rem] text-[0.78rem] text-[rgba(226,232,240,0.85)];
+    }
+
+    .overlay-panel__badge-pill {
+        @apply rounded-full bg-[linear-gradient(120deg,#6366f1,#14b8a6)] px-[0.5rem] py-[0.15rem] text-[#020617] font-semibold;
+    }
+}

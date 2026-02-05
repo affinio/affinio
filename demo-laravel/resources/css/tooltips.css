@@ -1,0 +1,5 @@
+@layer components {
+    .sidebar-listbox__tooltip {
+        @apply max-w-[260px] rounded-[0.85rem] border border-[var(--panel-border)] bg-[rgba(4,6,13,0.92)] px-4 py-3 text-[0.85rem] text-[var(--text-soft)];
+    }
+}

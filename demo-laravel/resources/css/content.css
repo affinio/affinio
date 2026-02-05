@@ -1,0 +1,41 @@
+@layer components {
+    .app-main {
+        @apply flex flex-col gap-10;
+    }
+
+    .app-hero {
+        @apply rounded-[1.25rem] border border-[var(--panel-border)] bg-[var(--panel-bg)] p-8;
+    }
+
+    .app-hero h2 {
+        @apply m-0 text-[clamp(1.5rem,3.2vw,2.2rem)] text-[var(--text-strong)];
+    }
+
+    .app-hero p {
+        @apply m-0 max-w-3xl text-[var(--text-soft)];
+    }
+
+    .component-grid {
+        @apply grid gap-4 md:grid-cols-2 xl:grid-cols-3;
+    }
+
+    .component-card {
+        @apply flex h-full flex-col gap-4 rounded-[1.1rem] border border-[var(--panel-border)] bg-[linear-gradient(130deg,rgba(123,91,255,0.12),rgba(3,208,255,0.06))] p-6;
+    }
+
+    .component-card__head {
+        @apply flex flex-wrap items-center justify-between gap-3;
+    }
+
+    .component-card__head h3 {
+        @apply m-0 text-lg text-[var(--text-strong)];
+    }
+
+    .component-card p {
+        @apply m-0 text-sm leading-relaxed text-[var(--text-soft)];
+    }
+
+    .component-card__link {
+        @apply mt-auto inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-strong)] transition-colors duration-150 hover:text-white;
+    }
+}
