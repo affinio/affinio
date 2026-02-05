@@ -7,31 +7,16 @@ import { bootstrapAffinoComboboxes } from "@affino/combobox-laravel"
 import { bootstrapAffinoMenus } from "@affino/menu-laravel"
 import { getDocumentOverlayManager } from "@affino/overlay-kernel"
 
+const MAX_MANUAL_RETRIES = 20 // Give Livewire enough frames (~300ms) to rehydrate new roots
+const MANUAL_HANDLED_FLAG = "__affinoManualHandled"
+
 bootstrapAffinoDialogs()
 bootstrapAffinoTooltips()
 bootstrapAffinoPopovers()
 bootstrapAffinoListboxes()
 bootstrapAffinoComboboxes()
 bootstrapAffinoMenus()
-registerManualControllerBridge({
-	eventName: "affino-dialog:manual",
-	rootAttribute: "data-affino-dialog-root",
-	property: "affinoDialog",
-	rehydrate: bootstrapAffinoDialogs,
-	supportsOptions: true,
-})
-registerManualControllerBridge({
-	eventName: "affino-tooltip:manual",
-	rootAttribute: "data-affino-tooltip-root",
-	property: "affinoTooltip",
-	rehydrate: bootstrapAffinoTooltips,
-})
-registerManualControllerBridge({
-	eventName: "affino-popover:manual",
-	rootAttribute: "data-affino-popover-root",
-	property: "affinoPopover",
-	rehydrate: bootstrapAffinoPopovers,
-})
+registerManualControllerBridges()
 registerListboxManualBridge({
 	eventName: "affino-listbox:manual",
 	rootAttribute: "data-affino-listbox-root",
@@ -58,6 +43,38 @@ registerManualDialogFocusRecovery({
 })
 registerOverlayKernelPanels()
 
+function registerManualControllerBridges() {
+	;[
+		{
+			eventName: "affino-dialog:manual",
+			rootAttribute: "data-affino-dialog-root",
+			property: "affinoDialog",
+			rehydrate: bootstrapAffinoDialogs,
+			supportsOptions: true,
+		},
+		{
+			eventName: "affino-tooltip:manual",
+			rootAttribute: "data-affino-tooltip-root",
+			property: "affinoTooltip",
+			rehydrate: bootstrapAffinoTooltips,
+		},
+		{
+			eventName: "affino-popover:manual",
+			rootAttribute: "data-affino-popover-root",
+			property: "affinoPopover",
+			rehydrate: bootstrapAffinoPopovers,
+		},
+		{
+			eventName: "affino-menu:manual",
+			rootAttribute: "data-affino-menu-root",
+			property: "affinoMenu",
+			rehydrate: bootstrapAffinoMenus,
+		},
+	].forEach((config) => {
+		registerManualControllerBridge(config)
+	})
+}
+
 function registerLivewireDialogCommands() {
 	if (typeof document === "undefined" || typeof window === "undefined") {
 		return
@@ -80,7 +97,7 @@ function registerLivewireDialogCommands() {
 		const dialogRoot = target.closest("[data-affino-dialog-root]")
 		const dialogId = dialogRoot?.getAttribute("data-affino-dialog-root")
 		const dialogWasOpen = dialogRoot?.getAttribute("data-affino-dialog-state") === "open"
-        const dialogPinned = dialogRoot?.getAttribute("data-affino-dialog-pinned") === "true"
+		const dialogPinned = dialogRoot?.getAttribute("data-affino-dialog-pinned") === "true"
 		const livewireRoot = target.closest("[data-affino-livewire-id]")
 		const componentId = livewireRoot?.getAttribute("data-affino-livewire-id")
 		const livewire = window.Livewire ?? null
@@ -159,21 +176,15 @@ function registerManualDialogFocusRecovery({ dialogId, focusSelector }) {
 }
 
 function registerManualControllerBridge({ eventName, rootAttribute, property, rehydrate, supportsOptions = false }) {
-	const handledFlag = "__affinoManualHandled"
-	const maxRetries = 20 // Give Livewire enough frames (~300ms) to rehydrate new popover roots
-
 	const findHandle = (id) => {
-		const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(id) : id
-		const selector = `[${rootAttribute}="${escapedId}"]`
-		const root = document.querySelector(selector)
-		return { root, handle: root && root[property] }
+		const root = findRootById(rootAttribute, id)
+		return root?.[property]
 	}
 
 	const invokeAction = (detail, attempt = 0) => {
-		rehydrate?.()
-		const { handle } = findHandle(detail.id)
+		const handle = findHandle(detail.id)
 		if (!handle) {
-			if (attempt < maxRetries) {
+			if (attempt < MAX_MANUAL_RETRIES) {
 				requestAnimationFrame(() => invokeAction(detail, attempt + 1))
 			}
 			return
@@ -200,16 +211,17 @@ function registerManualControllerBridge({ eventName, rootAttribute, property, re
 
 	const handler = (rawEvent) => {
 		const event = rawEvent
-		if (event[handledFlag]) {
+		if (event[MANUAL_HANDLED_FLAG]) {
 			return
 		}
-		event[handledFlag] = true
+		event[MANUAL_HANDLED_FLAG] = true
 
 		const detail = /** @type {CustomEvent<{ id?: string; action?: string; reason?: string; options?: any }> } */ (event).detail
 		if (!detail || !detail.id || !detail.action) {
 			return
 		}
 
+		rehydrate?.()
 		invokeAction(detail)
 	}
 
@@ -217,21 +229,15 @@ function registerManualControllerBridge({ eventName, rootAttribute, property, re
 }
 
 function registerListboxManualBridge({ eventName, rootAttribute, property, rehydrate }) {
-	const handledFlag = "__affinoManualHandled"
-	const maxRetries = 20
-
 	const findHandle = (id) => {
-		const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(id) : id
-		const selector = `[${rootAttribute}="${escapedId}"]`
-		const root = document.querySelector(selector)
+		const root = findRootById(rootAttribute, id)
 		return root?.[property]
 	}
 
 	const invoke = (detail, attempt = 0) => {
-		rehydrate?.()
 		const handle = findHandle(detail.id)
 		if (!handle) {
-			if (attempt < maxRetries) {
+			if (attempt < MAX_MANUAL_RETRIES) {
 				requestAnimationFrame(() => invoke(detail, attempt + 1))
 			}
 			return
@@ -260,16 +266,17 @@ function registerListboxManualBridge({ eventName, rootAttribute, property, rehyd
 
 	const handler = (rawEvent) => {
 		const event = rawEvent
-		if (event[handledFlag]) {
+		if (event[MANUAL_HANDLED_FLAG]) {
 			return
 		}
-		event[handledFlag] = true
+		event[MANUAL_HANDLED_FLAG] = true
 
 		const detail = /** @type {CustomEvent<{ id?: string; action?: string; index?: number; value?: string; toggle?: boolean; extend?: boolean }> } */ (event).detail
 		if (!detail || !detail.id || !detail.action) {
 			return
 		}
 
+		rehydrate?.()
 		invoke(detail)
 	}
 
@@ -278,20 +285,16 @@ function registerListboxManualBridge({ eventName, rootAttribute, property, rehyd
 
 function registerComboboxManualBridge({ eventName, rootAttribute, property, rehydrate }) {
 	const handledFlag = "__affinoComboboxManualHandled"
-	const maxRetries = 20
 
 	const findHandle = (id) => {
-		const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(id) : id
-		const selector = `[${rootAttribute}="${escapedId}"]`
-		const root = document.querySelector(selector)
+		const root = findRootById(rootAttribute, id)
 		return root?.[property]
 	}
 
 	const invoke = (detail, attempt = 0) => {
-		rehydrate?.()
 		const handle = findHandle(detail.id)
 		if (!handle) {
-			if (attempt < maxRetries) {
+			if (attempt < MAX_MANUAL_RETRIES) {
 				requestAnimationFrame(() => invoke(detail, attempt + 1))
 			}
 			return
@@ -334,6 +337,7 @@ function registerComboboxManualBridge({ eventName, rootAttribute, property, rehy
 			return
 		}
 
+		rehydrate?.()
 		invoke(detail)
 	}
 
@@ -341,6 +345,15 @@ function registerComboboxManualBridge({ eventName, rootAttribute, property, rehy
 }
 
 function registerScrollGuards() {
+	if (typeof document === "undefined" || typeof window === "undefined") {
+		return
+	}
+	const flag = "__affinoScrollGuardsRegistered"
+	if (window[flag]) {
+		return
+	}
+	window[flag] = true
+
 	let ticking = false
 
 	const closeAll = () => {
@@ -352,10 +365,12 @@ function registerScrollGuards() {
 	}
 
 	window.addEventListener("scroll", () => {
-		if (ticking) return
+		if (ticking) {
+			return
+		}
 		ticking = true
 		requestAnimationFrame(closeAll)
-	})
+	}, { passive: true })
 }
 
 function closeOpenTooltips() {
@@ -416,9 +431,15 @@ function closeOpenMenus() {
 }
 
 function registerOverlayKernelPanels() {
-	if (typeof document === "undefined") {
+	if (typeof document === "undefined" || typeof window === "undefined") {
 		return
 	}
+	const flag = "__affinoOverlayKernelPanelsRegistered"
+	if (window[flag]) {
+		return
+	}
+	window[flag] = true
+
 	let manager = null
 	try {
 		manager = getDocumentOverlayManager(document)
@@ -536,4 +557,10 @@ function attachOverlayPanel(panel, manager) {
 
 function formatOverlayKind(kind) {
 	return kind.replace(/-/g, " ")
+}
+
+function findRootById(rootAttribute, id) {
+	const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(id) : id
+	const selector = `[${rootAttribute}="${escapedId}"]`
+	return document.querySelector(selector)
 }
