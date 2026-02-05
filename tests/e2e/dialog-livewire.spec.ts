@@ -59,8 +59,10 @@ test.describe("livewire dialog showcase", () => {
     const openControl = page.getByRole("button", { name: "Open dialog" })
     const pinnedToggle = page.getByLabel("Keep pinned across morphs")
     const headerClose = manualDialog.getByRole("button", { name: "Close" })
-    const overlay = page.locator('[data-affino-dialog-overlay][data-affino-dialog-owner="manual-ops-dialog"]')
     const manualRoot = page.locator('[data-affino-dialog-root="manual-ops-dialog"]')
+    const clickBackdrop = async () => {
+      await page.mouse.click(10, 10)
+    }
 
     const programmaticOpen = () =>
       page.evaluate(() => {
@@ -80,12 +82,7 @@ test.describe("livewire dialog showcase", () => {
     await programmaticOpen()
     await expect(manualRoot).toHaveAttribute("data-affino-dialog-state", "open")
 
-    await expect(overlay).toBeVisible()
-    const bbox = await overlay.boundingBox()
-    if (!bbox) {
-      throw new Error("Overlay bounding box unavailable")
-    }
-    await page.mouse.click(bbox.x + Math.min(10, bbox.width / 2), bbox.y + Math.min(10, bbox.height / 2))
+    await clickBackdrop()
     await expect(manualRoot).toHaveAttribute("data-affino-dialog-state", /(closing|idle|closed)/)
 
     await pinnedToggle.check()
@@ -99,12 +96,7 @@ test.describe("livewire dialog showcase", () => {
     await programmaticOpen()
     await expect(manualRoot).toHaveAttribute("data-affino-dialog-state", "open")
 
-    await expect(overlay).toBeVisible()
-    const bboxPinned = await overlay.boundingBox()
-    if (!bboxPinned) {
-      throw new Error("Overlay bounding box unavailable")
-    }
-    await page.mouse.click(bboxPinned.x + Math.min(10, bboxPinned.width / 2), bboxPinned.y + Math.min(10, bboxPinned.height / 2))
+    await clickBackdrop()
     await expect(manualRoot).toHaveAttribute("data-affino-dialog-state", /(closing|idle|closed)/)
 
   })

@@ -192,4 +192,12 @@ function togglePanel() {
     width: calc(100vw - 1.5rem);
   }
 }
+
+@media (min-width: 1024px) {
+  .overlay-panel {
+    top: 6rem;
+    bottom: auto;
+    right: 2rem;
+  }
+}
 </style>
