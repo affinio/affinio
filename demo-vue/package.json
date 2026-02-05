@@ -1,6 +1,6 @@
 {
   "name": "demo-vue",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "type": "module",
   "engines": {
@@ -63,5 +63,7 @@
     "vite": "^7.2.4",
     "vite-plugin-vue-devtools": "^8.0.5",
     "vue-tsc": "^3.1.5"
-  }
+  },
+  "description": "demo-vue workspace package",
+  "license": "MIT"
 }
