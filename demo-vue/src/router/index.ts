@@ -49,6 +49,11 @@ const router = createRouter({
       name: "tabs-demo",
       component: () => import("@/pages/TabsPage.vue"),
     },
+    {
+      path: "/treeview",
+      name: "treeview-demo",
+      component: () => import("@/pages/TreeviewPage.vue"),
+    },
     ...menuRoutes,
   ],
 })

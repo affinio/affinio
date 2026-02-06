@@ -24,6 +24,7 @@
         "@affino/listbox-laravel": "workspace:*",
         "@affino/menu-laravel": "workspace:*",
         "@affino/popover-laravel": "workspace:*",
-        "@affino/tooltip-laravel": "workspace:*"
+        "@affino/tooltip-laravel": "workspace:*",
+        "@affino/treeview-laravel": "workspace:*"
     }
 }

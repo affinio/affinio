@@ -30,6 +30,7 @@ class Navigation extends Component
     private function defaultComponents(): array
     {
         return [
+            ['value' => 'treeview', 'name' => 'Treeview', 'path' => '/treeview'],
             ['value' => 'tabs', 'name' => 'Tabs', 'path' => '/tabs'],
             ['value' => 'disclosure', 'name' => 'Disclosure', 'path' => '/disclosure'],
             ['value' => 'listbox', 'name' => 'Listbox', 'path' => '/listbox'],

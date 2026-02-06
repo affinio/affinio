@@ -36,6 +36,7 @@ We build **headless UI primitives** that keep accessibility, performance, and be
 | `@affino/combobox-core` | Combobox state helpers composed from listbox-core |
 | `@affino/grid-selection-core` | Grid-based multi-range selection primitives |
 | `@affino/tabs-core` | Headless tabs controller |
+| `@affino/treeview-core` | Headless hierarchical treeview controller |
 | `@affino/disclosure-core` | Headless disclosure/accordion controller |
 | `@affino/virtualization-core` | High-performance virtualization building blocks |
 

@@ -1,15 +1,25 @@
 <?php
 
-use App\Livewire\Page\Show as PageShow;
+use App\Livewire\Page\Combobox as ComboboxPage;
+use App\Livewire\Page\Dialogs as DialogsPage;
+use App\Livewire\Page\Disclosure as DisclosurePage;
+use App\Livewire\Page\Listbox as ListboxPage;
+use App\Livewire\Page\Menus as MenusPage;
+use App\Livewire\Page\OverlayKernel as OverlayKernelPage;
+use App\Livewire\Page\Popovers as PopoversPage;
+use App\Livewire\Page\Tabs as TabsPage;
+use App\Livewire\Page\Tooltips as TooltipsPage;
+use App\Livewire\Page\Treeview as TreeviewPage;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'app')->name('home');
-Route::get('/tabs', PageShow::class)->defaults('page', 'tabs')->name('pages.tabs');
-Route::get('/disclosure', PageShow::class)->defaults('page', 'disclosure')->name('pages.disclosure');
-Route::get('/listbox', PageShow::class)->defaults('page', 'listbox')->name('pages.listbox');
-Route::get('/combobox', PageShow::class)->defaults('page', 'combobox')->name('pages.combobox');
-Route::get('/menus', PageShow::class)->defaults('page', 'menus')->name('pages.menus');
-Route::get('/popovers', PageShow::class)->defaults('page', 'popovers')->name('pages.popovers');
-Route::get('/dialogs', PageShow::class)->defaults('page', 'dialogs')->name('pages.dialogs');
-Route::get('/tooltips', PageShow::class)->defaults('page', 'tooltips')->name('pages.tooltips');
-Route::get('/overlay-kernel', PageShow::class)->defaults('page', 'overlay-kernel')->name('pages.overlay-kernel');
+Route::get('/treeview', TreeviewPage::class)->name('pages.treeview');
+Route::get('/tabs', TabsPage::class)->name('pages.tabs');
+Route::get('/disclosure', DisclosurePage::class)->name('pages.disclosure');
+Route::get('/listbox', ListboxPage::class)->name('pages.listbox');
+Route::get('/combobox', ComboboxPage::class)->name('pages.combobox');
+Route::get('/menus', MenusPage::class)->name('pages.menus');
+Route::get('/popovers', PopoversPage::class)->name('pages.popovers');
+Route::get('/dialogs', DialogsPage::class)->name('pages.dialogs');
+Route::get('/tooltips', TooltipsPage::class)->name('pages.tooltips');
+Route::get('/overlay-kernel', OverlayKernelPage::class)->name('pages.overlay-kernel');

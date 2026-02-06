@@ -49,64 +49,64 @@ class Showcase extends Component
     public function mount(): void
     {
         $this->demoRegions = [
-            ['value' => 'emea-routing', 'label' => 'EMEA · Routing hub', 'meta' => 'Frankfurt + London'],
-            ['value' => 'amer-edges', 'label' => 'Americas · Edge mesh', 'meta' => 'Seattle + Montréal'],
-            ['value' => 'apac-orbit', 'label' => 'APAC · Orbit lanes', 'meta' => 'Sydney + Seoul'],
-            ['value' => 'latam-field', 'label' => 'LatAm · Field kit', 'meta' => 'Bogotá + São Paulo'],
+            ['value' => 'region-foo', 'label' => 'Foo', 'meta' => 'A'],
+            ['value' => 'region-bar', 'label' => 'Bar', 'meta' => 'B'],
+            ['value' => 'region-baz', 'label' => 'Baz', 'meta' => 'C'],
+            ['value' => 'region-qux', 'label' => 'Qux', 'meta' => 'D'],
         ];
         $this->region = $this->demoRegions[0]['value'];
 
         $this->serviceDatasets = [
             [
-                'id' => 'core',
-                'label' => 'Core services',
-                'description' => 'HTTP + control-plane workloads',
+                'id' => 'alpha',
+                'label' => 'Alpha set',
+                'description' => 'Small set A',
                 'options' => [
-                    ['value' => 'svc-routing', 'label' => 'Routing mesh', 'meta' => 'Edge balancers + keepalives'],
-                    ['value' => 'svc-alerts', 'label' => 'Pager dispatcher', 'meta' => 'Alert fan-out + dedupe'],
-                    ['value' => 'svc-status', 'label' => 'Status writer', 'meta' => 'Customer facing updates'],
+                    ['value' => 'svc-foo', 'label' => 'Foo', 'meta' => 'A'],
+                    ['value' => 'svc-bar', 'label' => 'Bar', 'meta' => 'B'],
+                    ['value' => 'svc-baz', 'label' => 'Baz', 'meta' => 'C'],
                 ],
             ],
             [
-                'id' => 'messaging',
-                'label' => 'Messaging lanes',
-                'description' => 'Queues + async integrations',
+                'id' => 'beta',
+                'label' => 'Beta set',
+                'description' => 'Small set B',
                 'options' => [
-                    ['value' => 'svc-webhooks', 'label' => 'Webhook relay', 'meta' => 'Signed outbound calls'],
-                    ['value' => 'svc-inbox', 'label' => 'Shared inbox', 'meta' => 'Replies from Slack/Teams'],
-                    ['value' => 'svc-transcript', 'label' => 'Transcript mirror', 'meta' => 'Voice + SMS capture'],
+                    ['value' => 'svc-qux', 'label' => 'Qux', 'meta' => 'D'],
+                    ['value' => 'svc-zip', 'label' => 'Zip', 'meta' => 'E'],
+                    ['value' => 'svc-zap', 'label' => 'Zap', 'meta' => 'F'],
                 ],
             ],
             [
-                'id' => 'analytics',
-                'label' => 'Analytics cuts',
-                'description' => 'Usage + anomaly feeds',
+                'id' => 'gamma',
+                'label' => 'Gamma set',
+                'description' => 'Small set C',
                 'options' => [
-                    ['value' => 'svc-dashboards', 'label' => 'Live dashboards', 'meta' => 'MTTR, SLA, burn-up'],
-                    ['value' => 'svc-forecast', 'label' => 'Capacity forecast', 'meta' => 'Seasonality + spikes'],
-                    ['value' => 'svc-export', 'label' => 'Audit export', 'meta' => 'CSV/S3 drops nightly'],
+                    ['value' => 'svc-foo-2', 'label' => 'Foo 2', 'meta' => 'G'],
+                    ['value' => 'svc-bar-2', 'label' => 'Bar 2', 'meta' => 'H'],
+                    ['value' => 'svc-baz-2', 'label' => 'Baz 2', 'meta' => 'I'],
                 ],
             ],
         ];
         $this->applyServiceDataset(0);
 
         $this->responseTeams = [
-            ['value' => 'ops-emea', 'label' => 'EMEA responders', 'meta' => 'Madrid · remote'],
-            ['value' => 'ops-usw', 'label' => 'US West surge', 'meta' => 'Seattle · hybrid'],
-            ['value' => 'ops-use', 'label' => 'US East desk', 'meta' => 'Atlanta · onsite'],
-            ['value' => 'ops-apac', 'label' => 'APAC follow-the-sun', 'meta' => 'Singapore · remote'],
-            ['value' => 'ops-latam', 'label' => 'LatAm standby', 'meta' => 'Bogotá · hybrid'],
+            ['value' => 'team-foo', 'label' => 'Foo team', 'meta' => 'A'],
+            ['value' => 'team-bar', 'label' => 'Bar team', 'meta' => 'B'],
+            ['value' => 'team-baz', 'label' => 'Baz team', 'meta' => 'C'],
+            ['value' => 'team-qux', 'label' => 'Qux team', 'meta' => 'D'],
+            ['value' => 'team-zip', 'label' => 'Zip team', 'meta' => 'E'],
         ];
-        $this->teamSelection = ['ops-emea', 'ops-usw'];
+        $this->teamSelection = ['team-foo', 'team-bar'];
 
         $this->manualTiers = [
-            ['value' => 'none', 'label' => 'Unassigned', 'meta' => 'Queue triage before escalation'],
-            ['value' => 'tier-3', 'label' => 'Tier 3 · Backlog', 'meta' => 'Async review'],
-            ['value' => 'tier-2', 'label' => 'Tier 2 · Regional', 'meta' => 'On-duty regional lead'],
-            ['value' => 'tier-1', 'label' => 'Tier 1 · Sustained', 'meta' => 'Incident command'],
-            ['value' => 'tier-0', 'label' => 'Tier 0 · Critical', 'meta' => 'VP + executive paging'],
+            ['value' => 'tier-none', 'label' => 'None', 'meta' => '—'],
+            ['value' => 'tier-low', 'label' => 'Low', 'meta' => 'L'],
+            ['value' => 'tier-mid', 'label' => 'Mid', 'meta' => 'M'],
+            ['value' => 'tier-high', 'label' => 'High', 'meta' => 'H'],
+            ['value' => 'tier-max', 'label' => 'Max', 'meta' => 'X'],
         ];
-        $this->manualTier = 'tier-2';
+        $this->manualTier = 'tier-mid';
     }
 
     public function cycleRegion(): void
@@ -147,7 +147,7 @@ class Showcase extends Component
 
     public function seedTeams(): void
     {
-        $this->teamSelection = ['ops-emea', 'ops-usw', 'ops-apac'];
+        $this->teamSelection = ['team-foo', 'team-bar', 'team-qux'];
     }
 
     public function openManualTier(): void

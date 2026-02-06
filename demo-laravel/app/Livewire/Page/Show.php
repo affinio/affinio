@@ -15,6 +15,7 @@ class Show extends Component
      * @var array<string, string>
      */
     private const PAGE_NAMES = [
+        'treeview' => 'Treeview',
         'tabs' => 'Tabs',
         'disclosure' => 'Disclosure',
         'listbox' => 'Listbox',

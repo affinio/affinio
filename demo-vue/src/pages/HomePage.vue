@@ -16,6 +16,12 @@ const advancedFlows = [
     label: "Tabs workspace",
   },
   {
+    title: "Treeview",
+    description: "Hierarchical navigation with keyboard-first focus paths.",
+    to: "/treeview",
+    label: "Treeview lab",
+  },
+  {
     title: "Menus",
     description: "Pointer intent, nested stacks, and context surfaces.",
     to: "/menu/simple",

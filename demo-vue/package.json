@@ -18,6 +18,7 @@
   "dependencies": {
     "@affino/dialog-vue": "workspace:*",
     "@affino/disclosure-vue": "workspace:*",
+    "@affino/treeview-vue": "workspace:*",
     "@affino/aria-utils": "workspace:*",
     "@affino/focus-utils": "workspace:*",
     "@affino/grid-selection-vue": "workspace:*",
