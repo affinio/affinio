@@ -1,5 +1,25 @@
 @layer components {
     .app-footer {
-        @apply mt-auto rounded-[1rem] border border-[var(--panel-border)] bg-[var(--panel-bg)] p-5 text-center text-sm text-[var(--text-muted)];
+        @apply mt-auto flex flex-wrap items-center justify-between gap-4 rounded-[1rem] border border-[var(--panel-border)] bg-[var(--panel-bg)] px-6 py-5 text-sm text-[var(--text-muted)];
+    }
+
+    .app-footer__brand {
+        @apply flex flex-col gap-1;
+    }
+
+    .app-footer__title {
+        @apply text-[var(--text-strong)] uppercase tracking-[0.18em] text-xs;
+    }
+
+    .app-footer__meta {
+        @apply text-sm text-[var(--text-muted)];
+    }
+
+    .app-footer__links {
+        @apply flex items-center gap-4 text-sm;
+    }
+
+    .app-footer__links a {
+        @apply text-[var(--text-soft)] transition-colors duration-150 hover:text-[var(--text-strong)];
     }
 }

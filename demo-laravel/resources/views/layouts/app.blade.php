@@ -16,7 +16,7 @@
                 <div class="app-header__top">
                     <div class="app-header__brand">
                         <div class="app-header__title">
-                            <h1>Affino Core</h1>
+                            <h1>Affino Laravel Demos</h1>
                             <span class="app-header__version" data-affino-version>v—</span>
                         </div>
                         <p>
@@ -46,7 +46,14 @@
             </main>
 
             <footer class="app-footer">
-                <span>© {{ date('Y') }} Affino. Laravel demo layout.</span>
+                <div class="app-footer__brand">
+                    <span class="app-footer__title">Affino Core</span>
+                    <span class="app-footer__meta">Livewire demo · Core-first UI primitives</span>
+                </div>
+                <div class="app-footer__links">
+                    <a href="https://github.com/affinio/affinio" target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <span>© {{ date('Y') }} Affino</span>
+                </div>
             </footer>
         </div>
 

@@ -64,10 +64,10 @@
             wire:key="{{ $rootKey }}"
         >
             <button type="button" class="tooltip-trigger" data-affino-tooltip-trigger>
-                Centered trigger
+                Hover me
             </button>
             <div class="tooltip-surface" data-affino-tooltip-surface data-state="{{ $isOpen ? 'open' : 'closed' }}" @if (! $isOpen) hidden @endif>
-                Core tooltip surfaced through Livewire.
+                Guide users at the exact moment of intent, without breaking flow.
             </div>
         </div>
     </div>

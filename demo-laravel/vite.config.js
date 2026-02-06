@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import laravel from 'laravel-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
+import { createWorkspaceAliases } from '../config/workspace-aliases';
 
 const devHost = process.env.VITE_DEV_SERVER_HOST ?? '0.0.0.0';
 const devPort = Number(process.env.VITE_DEV_SERVER_PORT ?? 5173);
@@ -27,6 +28,10 @@ export default defineConfig({
         tailwindcss(),
     ],
     resolve: {
+        alias: createWorkspaceAliases(import.meta.url, {
+            '@': 'demo-laravel/resources/js',
+        }),
+        dedupe: ['@affino/overlay-kernel'],
         preserveSymlinks: true,
     },
     server: {

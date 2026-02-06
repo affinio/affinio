@@ -1,0 +1,21 @@
+<?php
+
+namespace App\Livewire\Tooltip;
+
+use Illuminate\View\View;
+use Livewire\Component;
+
+class Ignored extends Component
+{
+    public int $count = 0;
+
+    public function increment(): void
+    {
+        $this->count++;
+    }
+
+    public function render(): View
+    {
+        return view('livewire.tooltip.ignored');
+    }
+}
