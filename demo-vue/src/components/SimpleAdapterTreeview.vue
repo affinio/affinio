@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, watch } from "vue"
+import { computed, nextTick, watch, type ComponentPublicInstance } from "vue"
 import { useTreeviewController, type TreeviewNode } from "@affino/treeview-vue"
 
 type NodeValue =
@@ -142,9 +142,12 @@ const selectedMeta = computed(() => {
 const hasChildren = (value: NodeValue) => (childrenByParent.get(value) ?? []).length > 0
 
 const itemElements = new Map<NodeValue, HTMLButtonElement>()
-const bindItemElement = (value: NodeValue) => (element: Element | null): void => {
-  if (element instanceof HTMLButtonElement) {
-    itemElements.set(value, element)
+const bindItemElement = (value: NodeValue) => (element: Element | ComponentPublicInstance | null): void => {
+  const resolved = element instanceof Element
+    ? element
+    : (element?.$el instanceof Element ? element.$el : null)
+  if (resolved instanceof HTMLButtonElement) {
+    itemElements.set(value, resolved)
     return
   }
   itemElements.delete(value)

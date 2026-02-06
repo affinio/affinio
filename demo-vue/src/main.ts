@@ -1,9 +1,9 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
-import './assets/main.css'
 import '@affino/menu-vue/styles.css'
 import '@affino/menu-react/styles.css'
+import './assets/main.css'
 import { initializeOverlayKernel } from './utils/overlayKernel'
 
 import App from './App.vue'
@@ -13,6 +13,8 @@ document.body.classList.add('dark')
 
 document.documentElement.classList.add('dark')
 document.body.classList.add('dark')
+document.documentElement.dataset.affinoPreset = 'classic'
+document.body.dataset.affinoPreset = 'classic'
 
 initializeOverlayKernel()
 
