@@ -148,6 +148,10 @@
         @apply flex w-full items-center justify-between gap-3 rounded-[0.65rem] border border-transparent px-3 py-2 text-left text-[var(--text-strong)] transition-colors duration-150 hover:border-[var(--panel-border-strong)] hover:bg-white/10;
     }
 
+    .menu-item[data-state="highlighted"] {
+        @apply border-[var(--panel-border-strong)] bg-white/10;
+    }
+
     .menu-item:focus-visible {
         outline: none;
         border-color: rgba(110, 231, 183, 0.6);

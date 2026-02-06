@@ -1,0 +1,148 @@
+@layer components {
+    [data-affino-preset="classic"] {
+        --classic-font: "Lucida Console", "Courier New", monospace;
+        --classic-bg: #070d1a;
+        --classic-surface: #0b1222;
+        --classic-surface-soft: #10192c;
+        --classic-border: rgba(203, 231, 255, 0.38);
+        --classic-border-strong: rgba(203, 231, 255, 0.6);
+        --classic-text: rgba(238, 245, 255, 0.96);
+        --classic-text-soft: rgba(238, 245, 255, 0.75);
+        --classic-text-muted: rgba(188, 209, 232, 0.72);
+        --classic-focus: rgba(123, 208, 255, 0.92);
+        --classic-selected-bg: #0f1a2e;
+        --classic-selected-fg: rgba(227, 237, 252, 0.92);
+    }
+
+    body[data-affino-preset="classic"],
+    [data-affino-preset="classic"] .app-shell,
+    [data-affino-preset="classic"] .app-main {
+        font-family: var(--classic-font);
+    }
+
+    [data-affino-preset="classic"] .app-header,
+    [data-affino-preset="classic"] .app-footer,
+    [data-affino-preset="classic"] .app-hero,
+    [data-affino-preset="classic"] .component-card,
+    [data-affino-preset="classic"] [class*="-page-hero"],
+    [data-affino-preset="classic"] [class*="-page-cases__intro"],
+    [data-affino-preset="classic"] [class*="-edge"],
+    [data-affino-preset="classic"] [class*="-playground__stage"],
+    [data-affino-preset="classic"] [class*="-manual__root"],
+    [data-affino-preset="classic"] [class*="-manual"],
+    [data-affino-preset="classic"] [class*="-meta"],
+    [data-affino-preset="classic"] .overlay-panel {
+        border-radius: 0 !important;
+        border-color: var(--classic-border) !important;
+        background: var(--classic-surface) !important;
+        box-shadow: none !important;
+    }
+
+    [data-affino-preset="classic"] [class*="-page-hero__chip"],
+    [data-affino-preset="classic"] .component-card__link,
+    [data-affino-preset="classic"] .app-header__version,
+    [data-affino-preset="classic"] .treeview-page-hero__link {
+        border-radius: 0 !important;
+        border-color: var(--classic-border) !important;
+        background: var(--classic-surface-soft) !important;
+        color: var(--classic-text) !important;
+        box-shadow: none !important;
+    }
+
+    [data-affino-preset="classic"] [class*="edge__summary"]::after {
+        width: 1rem !important;
+        height: 1rem !important;
+        border-radius: 0 !important;
+        border-color: var(--classic-border-strong) !important;
+        background: var(--classic-surface-soft) !important;
+        color: var(--classic-text) !important;
+        content: "+" !important;
+        transform: none !important;
+    }
+
+    [data-affino-preset="classic"] [data-affino-disclosure-state="open"] [class*="edge__summary"]::after {
+        content: "-" !important;
+        transform: none !important;
+    }
+
+    [data-affino-preset="classic"] [class*="-edge__kicker"],
+    [data-affino-preset="classic"] [class*="-page-hero__eyebrow"],
+    [data-affino-preset="classic"] [class*="-playground__hint"],
+    [data-affino-preset="classic"] dt,
+    [data-affino-preset="classic"] .eyebrow {
+        color: var(--classic-text-muted) !important;
+    }
+
+    [data-affino-preset="classic"] [class*="-edge__title"],
+    [data-affino-preset="classic"] [class*="-page-hero__content"] h2,
+    [data-affino-preset="classic"] [class*="-page-cases__intro"] h3,
+    [data-affino-preset="classic"] h1,
+    [data-affino-preset="classic"] h2,
+    [data-affino-preset="classic"] h3 {
+        color: var(--classic-text) !important;
+    }
+
+    [data-affino-preset="classic"] [class*="-edge__lead"],
+    [data-affino-preset="classic"] [class*="-page-hero__content"] p,
+    [data-affino-preset="classic"] [class*="-page-cases__intro"] p,
+    [data-affino-preset="classic"] dd,
+    [data-affino-preset="classic"] p {
+        color: var(--classic-text-soft);
+    }
+
+    [data-affino-preset="classic"] button,
+    [data-affino-preset="classic"] [role="button"],
+    [data-affino-preset="classic"] input,
+    [data-affino-preset="classic"] select,
+    [data-affino-preset="classic"] textarea,
+    [data-affino-preset="classic"] [data-affino-dialog-trigger],
+    [data-affino-preset="classic"] [data-affino-tooltip-trigger],
+    [data-affino-preset="classic"] [data-affino-popover-trigger],
+    [data-affino-preset="classic"] [data-affino-menu-trigger],
+    [data-affino-preset="classic"] [data-affino-menu-item],
+    [data-affino-preset="classic"] [data-affino-listbox-trigger],
+    [data-affino-preset="classic"] [data-affino-listbox-option],
+    [data-affino-preset="classic"] [data-affino-combobox-trigger],
+    [data-affino-preset="classic"] [data-affino-combobox-option],
+    [data-affino-preset="classic"] [data-affino-tabs-trigger],
+    [data-affino-preset="classic"] [data-affino-treeview-item],
+    [data-affino-preset="classic"] [data-affino-disclosure-trigger] {
+        font-family: var(--classic-font) !important;
+        border-radius: 0 !important;
+        border-color: var(--classic-border) !important;
+        background: var(--classic-surface-soft) !important;
+        color: var(--classic-text) !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    [data-affino-preset="classic"] [data-affino-tooltip-surface],
+    [data-affino-preset="classic"] [data-affino-popover-surface],
+    [data-affino-preset="classic"] [data-affino-dialog-surface],
+    [data-affino-preset="classic"] [data-affino-menu-surface],
+    [data-affino-preset="classic"] [data-affino-listbox-surface],
+    [data-affino-preset="classic"] [data-affino-combobox-surface],
+    [data-affino-preset="classic"] [data-affino-tabs-content],
+    [data-affino-preset="classic"] [data-affino-disclosure-content] {
+        border-radius: 0 !important;
+        border-color: var(--classic-border-strong) !important;
+        background: var(--classic-surface) !important;
+        color: var(--classic-text) !important;
+        box-shadow: none !important;
+    }
+
+    [data-affino-preset="classic"] [aria-selected="true"],
+    [data-affino-preset="classic"] [data-state="selected"],
+    [data-affino-preset="classic"] [data-affino-listbox-option-selected="true"],
+    [data-affino-preset="classic"] [data-affino-combobox-option-selected="true"],
+    [data-affino-preset="classic"] [data-affino-tabs-state="open"] [data-state="active"] {
+        background: var(--classic-selected-bg) !important;
+        color: var(--classic-selected-fg) !important;
+        border-color: var(--classic-border-strong) !important;
+    }
+
+    [data-affino-preset="classic"] :focus-visible {
+        outline: 1px dotted var(--classic-focus) !important;
+        outline-offset: -1px !important;
+    }
+}
