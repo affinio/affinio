@@ -1,0 +1,350 @@
+@layer components {
+    .popover-page-hero {
+        @apply grid gap-6 rounded-[1.25rem] border border-[var(--panel-border)] bg-[linear-gradient(140deg,rgba(10,26,40,0.92),rgba(7,16,28,0.96))] p-6 lg:grid-cols-[0.95fr_1.1fr] lg:p-8;
+    }
+
+    .popover-page-hero__content {
+        @apply flex flex-col gap-4;
+    }
+
+    .popover-page-hero__eyebrow {
+        @apply m-0 text-xs uppercase tracking-[0.2em] text-cyan-300;
+    }
+
+    .popover-page-hero__content h2 {
+        @apply m-0 text-[clamp(1.45rem,3.1vw,2.25rem)] leading-tight text-[var(--text-strong)];
+    }
+
+    .popover-page-hero__content p {
+        @apply m-0 max-w-2xl text-sm leading-relaxed text-[var(--text-soft)];
+    }
+
+    .popover-page-hero__chips {
+        @apply mt-2 flex flex-wrap gap-2;
+    }
+
+    .popover-page-hero__chip {
+        @apply inline-flex items-center rounded-full border border-[var(--panel-border)] bg-white/5 px-3 py-1 text-xs text-[var(--text-soft)];
+    }
+
+    .popover-page-hero__preview {
+        @apply relative flex flex-col gap-4 rounded-[1rem] border border-cyan-300/70 bg-[linear-gradient(150deg,rgba(92,226,240,0.16),rgba(8,16,28,0.92))] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.35)] lg:p-6;
+    }
+
+    .popover-page-hero__preview h3 {
+        @apply m-0 text-lg text-[var(--text-strong)];
+    }
+
+    .popover-page-hero__preview .popover-playground__stage {
+        @apply min-h-[220px] border-[var(--panel-border-strong)] bg-[rgba(6,12,22,0.8)];
+    }
+
+    .popover-page-hero__preview .popover-trigger {
+        @apply border-cyan-400/80 bg-cyan-300 px-6 py-3 text-base font-semibold text-[#08242a] shadow-[0_12px_24px_rgba(92,226,240,0.28)] hover:border-cyan-200 hover:bg-cyan-200 hover:text-[#061a1d] focus-visible:outline-cyan-300/80;
+    }
+
+    .popover-page-cases {
+        @apply flex flex-col gap-5;
+    }
+
+    .popover-page-cases__intro {
+        @apply rounded-[1rem] border border-[var(--panel-border)] bg-[rgba(8,12,26,0.9)] p-5;
+    }
+
+    .popover-page-cases__intro h3 {
+        @apply m-0 text-[clamp(1.2rem,2vw,1.55rem)] text-[var(--text-strong)];
+    }
+
+    .popover-page-cases__intro p {
+        @apply mb-0 mt-2 max-w-3xl text-sm text-[var(--text-soft)];
+    }
+
+    .popover-edge-list {
+        @apply flex flex-col gap-4;
+    }
+
+    .popover-edge {
+        @apply overflow-hidden rounded-[1rem] border border-[var(--panel-border)] bg-[linear-gradient(145deg,rgba(9,23,34,0.94),rgba(6,14,24,0.96))] shadow-[0_18px_42px_rgba(0,0,0,0.28)] transition-colors duration-200;
+    }
+
+    .popover-edge[data-affino-disclosure-state="open"] {
+        @apply border-[var(--panel-border-strong)];
+    }
+
+    .popover-edge__summary {
+        @apply relative flex w-full cursor-pointer list-none flex-col gap-2 border-0 bg-transparent p-5 pr-14 text-left;
+    }
+
+    .popover-edge__summary:focus-visible {
+        @apply outline outline-2 outline-offset-0 outline-cyan-400/60;
+    }
+
+    .popover-edge__summary::after {
+        content: "+";
+        @apply absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--panel-border)] bg-white/5 text-lg text-[var(--text-soft)] transition-transform duration-200;
+    }
+
+    .popover-edge[data-affino-disclosure-state="open"] .popover-edge__summary::after {
+        transform: rotate(45deg);
+    }
+
+    .popover-edge__kicker {
+        @apply text-[0.64rem] uppercase tracking-[0.16em] text-[var(--text-muted)];
+    }
+
+    .popover-edge__title {
+        @apply m-0 text-[clamp(1.05rem,1.7vw,1.3rem)] text-[var(--text-strong)];
+    }
+
+    .popover-edge__title code {
+        @apply rounded bg-white/10 px-2 py-0.5 text-[0.92em] text-[var(--text-strong)];
+    }
+
+    .popover-edge__lead {
+        @apply text-sm text-[var(--text-soft)];
+    }
+
+    .popover-edge__content {
+        @apply border-t border-[var(--panel-border)] p-5;
+    }
+
+    .popover-edge--quick-edit {
+        @apply border-l-2 border-l-cyan-300/70;
+    }
+
+    .popover-edge--nested {
+        @apply border-l-2 border-l-indigo-300/70;
+        overflow: visible;
+    }
+
+    .popover-edge--modal {
+        @apply border-l-2 border-l-rose-300/70;
+        overflow: visible;
+    }
+
+    .popover-edge--mutation {
+        @apply border-l-2 border-l-orange-300/70;
+    }
+
+    .popover-edge--nested .popover-edge__content,
+    .popover-edge--modal .popover-edge__content {
+        overflow: visible;
+    }
+
+    .popover-playground {
+        @apply flex flex-col gap-6;
+    }
+
+    .popover-playground__controls {
+        @apply flex flex-wrap items-center gap-4 rounded-[0.9rem] border border-[var(--panel-border)] bg-white/5 p-4 text-sm text-[var(--text-soft)];
+    }
+
+    .popover-control {
+        @apply flex flex-col gap-2 text-xs uppercase tracking-[0.2em];
+    }
+
+    .popover-control .affino-listbox {
+        @apply min-w-[180px] relative;
+    }
+
+    .popover-control .popover-control__listbox--placement {
+        @apply min-w-[220px];
+    }
+
+    .popover-control .affino-listbox__button {
+        @apply flex w-full items-center justify-between gap-2 rounded-full border border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2 text-sm normal-case text-[var(--text-strong)] transition-colors duration-150 hover:border-[var(--panel-border-strong)] hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400/60;
+    }
+
+    .popover-control .affino-listbox__value {
+        @apply truncate;
+    }
+
+    .popover-control [data-affino-listbox-surface] {
+        @apply absolute left-0 top-full z-20 mt-2 flex w-full flex-col gap-2 rounded-[0.85rem] border border-[var(--panel-border)] bg-[rgba(4,6,13,0.96)] p-2 text-sm normal-case text-[var(--text-strong)] shadow-[0_16px_40px_rgba(2,6,23,0.4)];
+    }
+
+    .popover-control [data-affino-listbox-surface],
+    .popover-control .affino-listbox-option {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .popover-control [data-affino-listbox-surface]:focus,
+    .popover-control [data-affino-listbox-surface]:focus-visible,
+    .popover-control [data-affino-listbox-surface]:-moz-focusring,
+    .popover-control .affino-listbox-option:focus,
+    .popover-control .affino-listbox-option:focus-visible,
+    .popover-control .affino-listbox-option:-moz-focusring {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    .popover-control .affino-listbox__button::-moz-focus-inner {
+        border: 0;
+    }
+
+    .popover-control .affino-listbox-option {
+        @apply cursor-pointer rounded-[0.65rem] px-3 py-2 text-[var(--text-soft)] transition-colors duration-150 hover:bg-white/10 hover:text-[var(--text-strong)];
+    }
+
+    .popover-control .affino-listbox-option.is-selected {
+        @apply bg-white/10 text-[var(--text-strong)];
+    }
+
+    .popover-control--toggle {
+        @apply flex-row items-center gap-2 text-sm uppercase tracking-normal;
+    }
+
+    .popover-control--toggle input {
+        @apply h-4 w-4 accent-cyan-400;
+    }
+
+    .popover-playground__stage {
+        @apply flex min-h-[160px] items-center justify-center rounded-[1rem] border border-dashed border-[var(--panel-border)] bg-[rgba(5,8,20,0.6)] p-6;
+    }
+
+    .popover-demo {
+        @apply inline-flex;
+    }
+
+    .popover-demo__lead {
+        @apply m-0 text-sm text-[var(--text-soft)];
+    }
+
+    .popover-trigger {
+        @apply w-fit rounded-full border border-[var(--panel-border)] bg-white/5 px-4 py-2 text-sm text-[var(--text-strong)] transition-colors duration-150 hover:border-[var(--panel-border-strong)] hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400/60;
+    }
+
+    .popover-trigger--ghost {
+        @apply border-transparent bg-transparent text-[var(--text-soft)] hover:border-[var(--panel-border)] hover:text-[var(--text-strong)];
+    }
+
+    .popover-demo [data-affino-popover-content] {
+        @apply max-w-[280px] rounded-[0.9rem] border border-[var(--panel-border)] bg-[rgba(4,6,13,0.96)] px-4 py-3 text-[0.85rem] text-[var(--text-soft)] shadow-[0_14px_32px_rgba(2,6,23,0.45)];
+        z-index: 1300;
+    }
+
+    .popover-surface {
+        @apply flex flex-col gap-2;
+    }
+
+    .popover-demo [data-affino-popover-arrow] {
+        @apply h-3 w-3 rotate-45 border border-[var(--panel-border)] bg-[rgba(4,6,13,0.96)];
+    }
+
+    .popover-surface strong {
+        @apply text-[var(--text-strong)];
+    }
+
+    .popover-surface--form {
+        @apply min-w-[240px];
+    }
+
+    .popover-field {
+        @apply flex flex-col gap-1 text-[0.72rem] uppercase tracking-[0.14em] text-[var(--text-muted)];
+    }
+
+    .popover-field input,
+    .popover-field select {
+        @apply rounded-md border border-[var(--panel-border)] bg-[rgba(10,14,28,0.95)] px-2 py-1.5 text-[0.8rem] normal-case tracking-normal text-[var(--text-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-cyan-400/60;
+    }
+
+    .popover-field .affino-listbox {
+        @apply min-w-[170px] relative text-[0.8rem];
+    }
+
+    .popover-field .affino-listbox__button {
+        @apply flex w-full items-center justify-between gap-2 rounded-md border border-[var(--panel-border)] bg-[rgba(10,14,28,0.95)] px-2 py-1.5 text-[0.8rem] normal-case tracking-normal text-[var(--text-strong)] transition-colors duration-150 hover:border-[var(--panel-border-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-cyan-400/60;
+    }
+
+    .popover-field [data-affino-listbox-surface] {
+        @apply absolute left-0 top-full z-[1320] mt-2 flex w-full flex-col gap-1 rounded-[0.7rem] border border-[var(--panel-border)] bg-[rgba(4,6,13,0.98)] p-1.5 text-[0.78rem] normal-case text-[var(--text-strong)] shadow-[0_12px_26px_rgba(2,6,23,0.45)];
+    }
+
+    .popover-field .affino-listbox-option {
+        @apply cursor-pointer rounded-[0.5rem] px-2 py-1.5 text-[var(--text-soft)] transition-colors duration-150 hover:bg-white/10 hover:text-[var(--text-strong)];
+    }
+
+    .popover-field .affino-listbox-option.is-selected {
+        @apply bg-white/10 text-[var(--text-strong)];
+    }
+
+    .popover-surface__live {
+        @apply text-[0.74rem] text-[var(--text-soft)];
+    }
+
+    .popover-surface__live--applied {
+        @apply text-cyan-200/90;
+    }
+
+    .popover-actions {
+        @apply mt-1 flex items-center gap-2;
+    }
+
+    .popover-action {
+        @apply rounded-md border border-[var(--panel-border)] bg-transparent px-2.5 py-1.5 text-[0.75rem] font-medium uppercase tracking-[0.08em] text-[var(--text-soft)] transition-colors duration-150 hover:border-[var(--panel-border-strong)] hover:text-[var(--text-strong)];
+    }
+
+    .popover-action--primary {
+        @apply border-cyan-300/70 bg-cyan-300/15 text-cyan-100 hover:bg-cyan-200/25;
+    }
+
+    .popover-quick-edit {
+        @apply flex flex-col gap-3;
+    }
+
+    .popover-quick-edit__list {
+        @apply flex flex-col gap-3;
+    }
+
+    .popover-quick-edit__row {
+        @apply flex items-center justify-between gap-3 rounded-[0.9rem] border border-[var(--panel-border)] bg-[rgba(7,11,24,0.85)] p-3;
+    }
+
+    .popover-quick-edit__meta {
+        @apply flex flex-col gap-1;
+    }
+
+    .popover-quick-edit__meta strong {
+        @apply text-sm text-[var(--text-strong)];
+    }
+
+    .popover-quick-edit__meta span {
+        @apply text-xs text-[var(--text-soft)];
+    }
+
+    .popover-nested {
+        @apply flex items-center justify-start;
+    }
+
+    .popover-modal-case {
+        @apply flex items-center justify-start;
+    }
+
+    .popover-mutation-board {
+        @apply flex flex-col gap-3;
+    }
+
+    .popover-mutation-board__controls {
+        @apply flex items-center gap-2;
+    }
+
+    .popover-mutation-board__rows {
+        @apply flex flex-col gap-2;
+    }
+
+    .popover-mutation-board__row {
+        @apply flex items-center justify-between gap-3 rounded-[0.8rem] border border-[var(--panel-border)] bg-[rgba(7,11,24,0.75)] px-3 py-2;
+    }
+
+    .popover-mutation-board__meta {
+        @apply flex flex-col;
+    }
+
+    .popover-mutation-board__meta strong {
+        @apply text-sm text-[var(--text-strong)];
+    }
+
+    .popover-mutation-board__meta span {
+        @apply text-xs text-[var(--text-soft)];
+    }
+}

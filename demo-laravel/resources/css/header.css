@@ -32,20 +32,19 @@
     }
 
     .app-header__navLink {
-        @apply relative rounded-full border border-transparent px-3 py-1 pl-5 transition-colors duration-150 hover:border-[var(--panel-border-strong)] hover:bg-white/5 hover:text-[var(--text-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400/60;
-    }
-
-    .app-header__navLink::before {
-        content: "";
-        @apply pointer-events-none absolute left-2 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-transparent transition-colors duration-150;
+        @apply inline-flex items-center gap-2 rounded-full px-2 py-1 transition-colors duration-150 hover:text-[var(--text-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400/60;
     }
 
     .app-header__navLink--active {
-        @apply border-[var(--panel-border-strong)] bg-white/5 text-[var(--text-strong)];
+        @apply text-[var(--text-strong)];
     }
 
-    .app-header__navLink--active::before {
-        background-color: var(--brand-accent);
+    .app-header__navDot {
+        @apply h-1.5 w-1.5 rounded-full bg-transparent;
+    }
+
+    .app-header__navLink--active .app-header__navDot {
+        @apply bg-[#f5cd47];
     }
 
     .app-header__actions {

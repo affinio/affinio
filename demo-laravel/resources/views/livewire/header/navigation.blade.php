@@ -14,6 +14,7 @@
             @if($isActive) aria-current="page" @endif
             wire:navigate
         >
+            <span class="app-header__navDot" aria-hidden="true"></span>
             {{ $componentItem['name'] }}
         </a>
     @endforeach
