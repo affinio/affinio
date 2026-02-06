@@ -32,6 +32,26 @@
         line-height: 1.55;
     }
 
+    .treeview-page-hero__link {
+        margin-top: 0.35rem;
+        align-self: flex-start;
+        border: 1px solid var(--panel-border-strong);
+        border-radius: 999px;
+        padding: 0.4rem 0.85rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text-strong);
+        background: rgba(255, 255, 255, 0.06);
+        transition: border-color 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
+    }
+
+    .treeview-page-hero__link:hover,
+    .treeview-page-hero__link:focus-visible {
+        border-color: rgba(203, 231, 255, 0.6);
+        background: rgba(203, 231, 255, 0.1);
+        transform: translateY(-1px);
+    }
+
     .treeview-page-hero__chips {
         display: flex;
         flex-wrap: wrap;
@@ -182,6 +202,7 @@
     .treeview-node {
         --tree-level: var(--affino-tree-level, 1);
         --tree-offset: calc((var(--tree-level) - 1) * var(--tree-indent));
+        --tree-joint: 0.58rem;
         position: relative;
         width: 100%;
         border: 0;
@@ -194,24 +215,36 @@
         margin: 0;
         padding: 0.14rem 0.25rem 0.14rem calc(var(--tree-offset) + 1.35rem);
         cursor: pointer;
-        background-image: repeating-linear-gradient(
-            to right,
-            transparent 0,
-            transparent calc(var(--tree-indent) - 1px),
-            var(--tree-line) calc(var(--tree-indent) - 1px),
-            var(--tree-line) var(--tree-indent)
-        );
-        background-repeat: no-repeat;
-        background-size: var(--tree-offset) 100%;
-        background-position: 0 0;
+    }
+
+    .treeview-node__guides {
+        position: absolute;
+        left: 0;
+        top: -0.52rem;
+        bottom: -0.52rem;
+        width: var(--tree-offset);
+        pointer-events: none;
+    }
+
+    .treeview-node__guide {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: calc(((var(--guide-index) + 1) * var(--tree-indent)) - var(--tree-joint));
+        border-left: 1px dotted var(--tree-line);
+        display: none;
+    }
+
+    .treeview-node__guide[data-draw="true"] {
+        display: block;
     }
 
     .treeview-node::before {
         content: "";
         position: absolute;
-        left: calc(var(--tree-offset) - 0.58rem);
+        left: calc(var(--tree-offset) - var(--tree-joint));
         top: 50%;
-        width: 0.58rem;
+        width: var(--tree-joint);
         border-top: 1px dotted var(--tree-line);
         transform: translateY(-50%);
     }
@@ -219,7 +252,7 @@
     .treeview-node::after {
         content: "";
         position: absolute;
-        left: calc(var(--tree-offset) - 0.58rem);
+        left: calc(var(--tree-offset) - var(--tree-joint));
         top: -0.52rem;
         bottom: -0.52rem;
         border-left: 1px dotted var(--tree-line);

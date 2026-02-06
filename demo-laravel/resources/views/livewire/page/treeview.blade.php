@@ -4,6 +4,9 @@
             <p class="treeview-page-hero__eyebrow">preview</p>
             <h2>Treeview</h2>
             <p>Keyboard-friendly hierarchy.</p>
+            <a class="treeview-page-hero__link" href="http://127.0.0.1:5173/treeview" target="_blank" rel="noreferrer">
+                Open Vue mirror
+            </a>
         </div>
 
         <div class="treeview-page-hero__preview">

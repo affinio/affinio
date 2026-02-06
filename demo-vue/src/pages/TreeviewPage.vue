@@ -73,9 +73,11 @@ const tree = useTreeviewController({
   gap: 3rem;
   padding: 2rem;
   border-radius: 2rem;
-  background: linear-gradient(180deg, #f9fafb, #e2e8f0);
-  color: #0f172a;
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.3);
+  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
 }
 
 @media (max-width: 768px) {
@@ -94,7 +96,7 @@ const tree = useTreeviewController({
   letter-spacing: 0.35em;
   text-transform: uppercase;
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .adapter-hero h1 {
@@ -105,7 +107,7 @@ const tree = useTreeviewController({
 
 .adapter-hero p {
   margin: 0;
-  color: #475569;
+  color: var(--text-soft);
 }
 
 .adapter-hero__actions {
@@ -121,14 +123,21 @@ const tree = useTreeviewController({
   font-size: 0.95rem;
   padding: 0.85rem 1.4rem;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: white;
-  color: #0f172a;
+  border: 1px solid var(--glass-border);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .adapter-hero__actions a:first-child {
-  background: #0f172a;
-  color: white;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 70%, transparent), var(--accent-strong));
+  color: #05060a;
+}
+
+.adapter-hero__actions a:hover {
+  transform: translateY(-1px);
+  border-color: var(--glass-highlight);
+  background: var(--surface-button-hover);
 }
 
 .adapter-simple {
@@ -139,10 +148,11 @@ const tree = useTreeviewController({
 
 .adapter-code {
   border-radius: 1.5rem;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: #0f172a;
+  border: 1px solid var(--glass-border);
+  background: rgba(5, 8, 14, 0.9);
   color: #e2e8f0;
   padding: 1.5rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .adapter-code p {
@@ -150,7 +160,7 @@ const tree = useTreeviewController({
   text-transform: uppercase;
   letter-spacing: 0.35em;
   font-size: 0.7rem;
-  color: rgba(226, 232, 240, 0.75);
+  color: var(--text-muted);
 }
 
 .adapter-code pre {
@@ -172,7 +182,7 @@ const tree = useTreeviewController({
   text-transform: uppercase;
   letter-spacing: 0.35em;
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .adapter-highlights header h2 {
@@ -187,9 +197,10 @@ const tree = useTreeviewController({
 
 .adapter-grid article {
   border-radius: 1.25rem;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--glass-border);
   padding: 1.25rem;
-  background: white;
+  background: var(--surface-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .adapter-grid h3 {
@@ -198,6 +209,6 @@ const tree = useTreeviewController({
 
 .adapter-grid p {
   margin: 0;
-  color: #475569;
+  color: var(--text-soft);
 }
 </style>

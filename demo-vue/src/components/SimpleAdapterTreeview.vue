@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, nextTick, watch } from "vue"
 import { useTreeviewController, type TreeviewNode } from "@affino/treeview-vue"
 
 type NodeValue =
@@ -74,13 +74,65 @@ const treeview = useTreeviewController<NodeValue>({
   loop: true,
 })
 
+const snapshot = computed(() => treeview.state.value)
+const activeValue = computed(() => snapshot.value.active)
+const selectedValue = computed(() => snapshot.value.selected)
+const expandedSet = computed(() => new Set(snapshot.value.expanded))
+
+const isVisible = (value: NodeValue): boolean => {
+  let parent = parentByValue.get(value) ?? null
+  while (parent) {
+    if (!expandedSet.value.has(parent)) {
+      return false
+    }
+    parent = parentByValue.get(parent) ?? null
+  }
+  return true
+}
+
 const visibleNodes = computed(() => {
-  const visible = new Set(treeview.getVisibleValues())
-  return nodes.filter((node) => visible.has(node.value))
+  return nodes.filter((node) => isVisible(node.value))
 })
 
+const getSiblings = (value: NodeValue): NodeValue[] => {
+  const parent = parentByValue.get(value) ?? null
+  return childrenByParent.get(parent) ?? []
+}
+
+const getSiblingCount = (value: NodeValue): number => {
+  const siblings = getSiblings(value)
+  return siblings.length || 1
+}
+
+const getPosInSet = (value: NodeValue): number => {
+  const siblings = getSiblings(value)
+  const index = siblings.indexOf(value)
+  return index === -1 ? 1 : index + 1
+}
+
+const hasNextSibling = (value: NodeValue): boolean => {
+  const siblings = getSiblings(value)
+  const index = siblings.indexOf(value)
+  return index !== -1 && index < siblings.length - 1
+}
+
+const isLastSibling = (value: NodeValue): boolean => {
+  const siblings = getSiblings(value)
+  return siblings[siblings.length - 1] === value
+}
+
+const getAncestorGuides = (value: NodeValue): boolean[] => {
+  const guides: boolean[] = []
+  let cursor = parentByValue.get(value) ?? null
+  while (cursor) {
+    guides.unshift(hasNextSibling(cursor))
+    cursor = parentByValue.get(cursor) ?? null
+  }
+  return guides
+}
+
 const selectedMeta = computed(() => {
-  const selected = treeview.state.value.selected
+  const selected = selectedValue.value
   if (!selected) {
     return null
   }
@@ -88,6 +140,34 @@ const selectedMeta = computed(() => {
 })
 
 const hasChildren = (value: NodeValue) => (childrenByParent.get(value) ?? []).length > 0
+
+const itemElements = new Map<NodeValue, HTMLButtonElement>()
+const bindItemElement = (value: NodeValue) => (element: Element | null): void => {
+  if (element instanceof HTMLButtonElement) {
+    itemElements.set(value, element)
+    return
+  }
+  itemElements.delete(value)
+}
+
+watch(
+  () => activeValue.value,
+  async (active) => {
+    if (!active) {
+      return
+    }
+    await nextTick()
+    const target = itemElements.get(active)
+    if (!target || target.hidden || target === document.activeElement) {
+      return
+    }
+    try {
+      target.focus({ preventScroll: true })
+    } catch {
+      target.focus()
+    }
+  },
+)
 
 const onNodeKeydown = (event: KeyboardEvent, value: NodeValue) => {
   switch (event.key) {
@@ -139,51 +219,58 @@ const onNodeKeydown = (event: KeyboardEvent, value: NodeValue) => {
       break
   }
 }
+
+const onToggleClick = (value: NodeValue): void => {
+  treeview.toggle(value)
+  treeview.focus(value)
+}
 </script>
 
 <template>
   <section class="treeview-shell">
-    <header class="treeview-header">
-      <p>Affino treeview</p>
-      <h3>Project map</h3>
-      <p>Use keyboard arrows, Enter, Space, Home, and End to navigate nodes.</p>
-    </header>
-
     <div class="treeview-rows" role="tree" aria-label="Project map treeview">
-      <div
+      <button
         v-for="node in visibleNodes"
         :key="node.value"
-        class="treeview-row"
-        :style="{ '--level': String(resolveLevel(node.value)) }"
+        :ref="bindItemElement(node.value)"
+        type="button"
+        class="treeview-node"
+        :class="{
+          'is-selected': selectedValue === node.value,
+        }"
+        :style="{ '--tree-level': String(resolveLevel(node.value)) }"
+        :data-tree-last="isLastSibling(node.value) ? 'true' : 'false'"
+        :data-state="selectedValue === node.value ? 'selected' : 'idle'"
+        role="treeitem"
+        :aria-level="String(resolveLevel(node.value))"
+        :aria-setsize="String(getSiblingCount(node.value))"
+        :aria-posinset="String(getPosInSet(node.value))"
+        :aria-selected="selectedValue === node.value ? 'true' : 'false'"
+        :aria-expanded="hasChildren(node.value) ? (expandedSet.has(node.value) ? 'true' : 'false') : undefined"
+        :tabindex="activeValue === node.value ? 0 : -1"
+        @click="treeview.select(node.value)"
+        @keydown="onNodeKeydown($event, node.value)"
       >
-        <button
+        <span class="treeview-node__guides" aria-hidden="true">
+          <span
+            v-for="(draw, index) in getAncestorGuides(node.value)"
+            :key="`${node.value}-guide-${index}`"
+            class="treeview-node__guide"
+            :data-draw="draw ? 'true' : 'false'"
+            :style="{ '--guide-index': String(index) }"
+          />
+        </span>
+        <span
           v-if="hasChildren(node.value)"
-          class="treeview-toggle"
-          type="button"
-          :aria-label="treeview.isExpanded(node.value) ? 'Collapse branch' : 'Expand branch'"
-          @click="treeview.toggle(node.value)"
-        >
-          {{ treeview.isExpanded(node.value) ? "-" : "+" }}
-        </button>
-        <span v-else class="treeview-toggle treeview-toggle--ghost" aria-hidden="true">*</span>
-
-        <button
-          type="button"
-          class="treeview-item"
-          :class="{
-            'is-active': treeview.isActive(node.value),
-            'is-selected': treeview.isSelected(node.value),
-          }"
-          :aria-selected="treeview.isSelected(node.value) ? 'true' : 'false'"
-          :aria-expanded="hasChildren(node.value) ? (treeview.isExpanded(node.value) ? 'true' : 'false') : undefined"
-          :tabindex="treeview.isActive(node.value) ? 0 : -1"
-          @click="treeview.select(node.value)"
-          @keydown="onNodeKeydown($event, node.value)"
-        >
-          <strong>{{ nodeMeta[node.value].title }}</strong>
-          <span>{{ nodeMeta[node.value].detail }}</span>
-        </button>
-      </div>
+          class="treeview-node__toggle"
+          :data-state="expandedSet.has(node.value) ? 'expanded' : 'collapsed'"
+          aria-hidden="true"
+          @click.stop.prevent="onToggleClick(node.value)"
+        />
+        <span v-else class="treeview-node__toggle treeview-node__toggle--dot" aria-hidden="true" />
+        <span class="treeview-node__label">{{ nodeMeta[node.value].title }}</span>
+        <span class="treeview-node__detail">{{ nodeMeta[node.value].detail }}</span>
+      </button>
     </div>
 
     <footer class="treeview-footer">
@@ -196,105 +283,172 @@ const onNodeKeydown = (event: KeyboardEvent, value: NodeValue) => {
 
 <style scoped>
 .treeview-shell {
-  border-radius: 1.5rem;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: linear-gradient(165deg, #f8fafc, #e2e8f0);
-  padding: 1.25rem;
+  --tree-indent: 1.15rem;
+  --tree-bg: rgba(10, 14, 25, 0.95);
+  --tree-fg: rgba(236, 243, 255, 0.95);
+  --tree-border: rgba(203, 231, 255, 0.38);
+  --tree-line: rgba(203, 231, 255, 0.34);
+  --tree-toggle-bg: rgba(8, 13, 24, 0.98);
+  --tree-toggle-border: rgba(203, 231, 255, 0.55);
+  --tree-toggle-symbol: rgba(236, 243, 255, 0.94);
+  --tree-select-bg: rgba(214, 231, 252, 0.96);
+  --tree-select-fg: #09111f;
+  --tree-focus: rgba(123, 208, 255, 0.9);
+  border: 1px solid var(--tree-border);
+  border-radius: 0;
+  background: var(--tree-bg);
+  color: var(--tree-fg);
+  padding: 0.55rem 0.55rem 0.6rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-}
-
-.treeview-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.treeview-header p:first-child {
-  margin: 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-
-.treeview-header h3 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.treeview-header p:last-child {
-  margin: 0;
-  color: #475569;
+  gap: 0;
+  font-family: "Lucida Console", "Courier New", monospace;
+  font-size: 0.95rem;
+  line-height: 1.15;
+  box-shadow: inset 0 0 0 1px rgba(6, 11, 22, 0.6);
 }
 
 .treeview-rows {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0;
 }
 
-.treeview-row {
-  --level-padding: calc((var(--level, 1) - 1) * 1.2rem);
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.45rem;
-  align-items: start;
-  padding-left: var(--level-padding);
-}
-
-.treeview-toggle {
-  width: 1.4rem;
-  height: 1.4rem;
-  border-radius: 0.45rem;
-  border: 1px solid rgba(15, 23, 42, 0.14);
-  background: white;
-  color: #0f172a;
-  font-weight: 700;
+.treeview-node {
+  --tree-level-value: var(--tree-level, 1);
+  --tree-offset: calc((var(--tree-level-value) - 1) * var(--tree-indent));
+  --tree-joint: 0.58rem;
+  position: relative;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  color: inherit;
+  text-align: left;
+  display: block;
+  min-height: 1.35rem;
+  margin: 0;
+  padding: 0.14rem 0.25rem 0.14rem calc(var(--tree-offset) + 1.35rem);
   cursor: pointer;
 }
 
-.treeview-toggle--ghost {
-  border-color: transparent;
+.treeview-node__guides {
+  position: absolute;
+  left: 0;
+  top: -0.52rem;
+  bottom: -0.52rem;
+  width: var(--tree-offset);
+  pointer-events: none;
+}
+
+.treeview-node__guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(((var(--guide-index) + 1) * var(--tree-indent)) - var(--tree-joint));
+  border-left: 1px dotted var(--tree-line);
+  display: none;
+}
+
+.treeview-node__guide[data-draw="true"] {
+  display: block;
+}
+
+.treeview-node::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--tree-offset) - var(--tree-joint));
+  top: 50%;
+  width: var(--tree-joint);
+  border-top: 1px dotted var(--tree-line);
+  transform: translateY(-50%);
+}
+
+.treeview-node::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--tree-offset) - var(--tree-joint));
+  top: -0.52rem;
+  bottom: -0.52rem;
+  border-left: 1px dotted var(--tree-line);
+}
+
+.treeview-node[aria-level="1"]::before,
+.treeview-node[aria-level="1"]::after {
+  display: none;
+}
+
+.treeview-node[data-tree-last="true"]::after {
+  bottom: 50%;
+}
+
+.treeview-node.is-selected,
+.treeview-node[data-state="selected"] {
+  background-color: var(--tree-select-bg);
+  color: var(--tree-select-fg);
+}
+
+.treeview-node:focus-visible,
+.treeview-node[data-state="selected"][aria-selected="true"] {
+  outline: 1px dotted var(--tree-focus);
+  outline-offset: -1px;
+}
+
+.treeview-node__toggle {
+  position: absolute;
+  left: var(--tree-offset);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.86rem;
+  height: 0.86rem;
+  border-radius: 0;
+  border: 1px solid var(--tree-toggle-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tree-toggle-bg);
+  color: transparent;
+  font-size: 0;
+  line-height: 1;
+}
+
+.treeview-node__toggle::before {
+  content: "+";
+  font-size: 0.74rem;
+  line-height: 1;
+  color: var(--tree-toggle-symbol);
+  font-weight: 700;
+}
+
+.treeview-node__toggle[data-state="expanded"]::before {
+  content: "-";
+}
+
+.treeview-node__toggle--dot {
+  border: 0;
   background: transparent;
-  color: #94a3b8;
-  cursor: default;
 }
 
-.treeview-item {
-  text-align: left;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 0.8rem;
-  background: white;
-  padding: 0.55rem 0.7rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  color: #0f172a;
+.treeview-node__toggle--dot::before {
+  content: "*";
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--tree-line);
+  font-weight: 400;
 }
 
-.treeview-item strong {
-  font-size: 0.94rem;
+.treeview-node__label {
+  display: inline;
+  font-weight: 400;
+  line-height: 1.2;
 }
 
-.treeview-item span {
-  font-size: 0.82rem;
-  color: #475569;
-}
-
-.treeview-item.is-active {
-  outline: 2px solid #2563eb;
-  outline-offset: 1px;
-}
-
-.treeview-item.is-selected {
-  border-color: rgba(37, 99, 235, 0.5);
-  background: linear-gradient(180deg, #eff6ff, #dbeafe);
+.treeview-node__detail {
+  display: none;
 }
 
 .treeview-footer {
-  border-top: 1px dashed rgba(15, 23, 42, 0.18);
+  border-top: 1px dashed var(--tree-line);
   padding-top: 0.85rem;
 }
 
@@ -303,11 +457,11 @@ const onNodeKeydown = (event: KeyboardEvent, value: NodeValue) => {
   font-size: 0.72rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .treeview-footer p:last-child {
   margin: 0.3rem 0 0;
-  color: #1e293b;
+  color: var(--text-soft);
 }
 </style>

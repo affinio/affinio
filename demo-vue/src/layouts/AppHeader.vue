@@ -21,17 +21,23 @@ const activeCore = computed(() => {
   if (route.path.startsWith('/tooltips')) return 'Tooltips'
   if (route.path.startsWith('/dialogs')) return 'Dialog'
   if (route.path.startsWith('/popovers')) return 'Popover'
+  if (route.path.startsWith('/tabs')) return 'Tabs'
+  if (route.path.startsWith('/disclosure')) return 'Disclosure'
+  if (route.path.startsWith('/treeview')) return 'Treeview'
   return 'Overview'
 })
 
 // Какие cores реально имеют адаптеры
 const coreCapabilities: Record<string, { adapters: boolean }> = {
   menu: { adapters: true },
-  dialog: { adapters: false },
+  dialog: { adapters: true },
+  disclosure: { adapters: true },
   selection: { adapters: false },
-  combobox: { adapters: false },
+  combobox: { adapters: true },
+  tabs: { adapters: true },
+  treeview: { adapters: true },
   virtualization: { adapters: false },
-  tooltips: { adapters: false },
+  tooltips: { adapters: true },
   popover: { adapters: true },
 }
 
@@ -136,6 +142,16 @@ const subtitle = computed(() => {
             :class="{ 'nav-link--active': route.path.startsWith('/tooltips') }"
           >
             Tooltips
+          </a>
+        </RouterLink>
+
+        <RouterLink to="/treeview" v-slot="{ href }">
+          <a
+            :href="href"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.path.startsWith('/treeview') }"
+          >
+            Treeview
           </a>
         </RouterLink>
 
