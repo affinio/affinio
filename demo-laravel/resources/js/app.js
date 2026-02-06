@@ -5,6 +5,26 @@ bootstrapAffinoLaravelAdapters()
 
 const overlayPanelBindings = new WeakMap()
 
+function applyVersionBadges(root = document) {
+	if (typeof __AFFINO_VERSION__ === "undefined") {
+		return
+	}
+
+	const targets = []
+	if (root instanceof HTMLElement && root.matches("[data-affino-version]")) {
+		targets.push(root)
+	}
+	if (root instanceof HTMLElement || root instanceof DocumentFragment || root instanceof Document) {
+		root.querySelectorAll?.("[data-affino-version]").forEach((target) => {
+			targets.push(target)
+		})
+	}
+
+	targets.forEach((target) => {
+		target.textContent = `v${__AFFINO_VERSION__}`
+	})
+}
+
 function collectOverlayPanels(root) {
 	const panels = []
 	if (root instanceof HTMLElement && root.matches("[data-overlay-panel]")) {
@@ -147,11 +167,8 @@ function setupOverlayPanelObserver(manager) {
 }
 
 if (typeof document !== "undefined") {
-	const versionTarget = document.querySelector("[data-affino-version]")
-
-	if (versionTarget && typeof __AFFINO_VERSION__ !== "undefined") {
-		versionTarget.textContent = `v${__AFFINO_VERSION__}`
-	}
+	applyVersionBadges(document)
+	document.addEventListener("livewire:navigated", () => applyVersionBadges(document))
 
 	try {
 		const manager = getAffinoOverlayManager(document)
