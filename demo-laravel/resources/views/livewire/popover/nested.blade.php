@@ -11,7 +11,6 @@
         placement="bottom"
         align="start"
         :gutter="10"
-        :close-on-interact-outside="false"
         data-affino-popover-manual="true"
     >
         <x-slot:trigger>

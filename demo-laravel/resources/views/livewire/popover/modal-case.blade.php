@@ -21,7 +21,7 @@
             <span>Use modal popover when action is local but still critical.</span>
             <div class="popover-actions">
                 <button type="button" class="popover-action popover-action--primary" wire:click="acknowledge">Acknowledge</button>
-                <button type="button" class="popover-action">Cancel</button>
+                <button type="button" class="popover-action" data-affino-popover-dismiss="programmatic">Close</button>
             </div>
             <span>Acknowledged: {{ $acknowledged }}</span>
         </div>
