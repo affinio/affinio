@@ -9,9 +9,20 @@ class Pulse extends Component
 {
     public int $ticks = 0;
 
+    public bool $running = false;
+
     public function tick(): void
     {
+        if (! $this->running) {
+            return;
+        }
+
         $this->ticks++;
+    }
+
+    public function toggleRunning(): void
+    {
+        $this->running = ! $this->running;
     }
 
     public function render(): View
