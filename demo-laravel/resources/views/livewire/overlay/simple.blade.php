@@ -51,6 +51,7 @@
                 <x-affino-popover
                     class="overlay-kernel-popoverRoot"
                     :popover-id="$popoverId"
+                    :owner-id="$dialogId"
                     placement="right"
                     align="start"
                     :gutter="8"
