@@ -40,7 +40,6 @@
                 data-affino-menu-parent-item="{{ $automationItemId }}"
                 data-affino-menu-state="closed"
                 data-affino-menu-close-select="true"
-                data-affino-menu-mouse-prediction='{"verticalTolerance":64,"headingThreshold":0.35,"driftBias":0.55}'
                 data-affino-menu-portal="inline"
                 data-affino-menu-placement="right"
                 data-affino-menu-align="start"
@@ -61,7 +60,6 @@
                         data-affino-menu-parent-item="{{ $escalationsItemId }}"
                         data-affino-menu-state="closed"
                         data-affino-menu-close-select="true"
-                        data-affino-menu-mouse-prediction='{"verticalTolerance":64,"headingThreshold":0.35,"driftBias":0.55}'
                         data-affino-menu-portal="inline"
                         data-affino-menu-placement="right"
                         data-affino-menu-align="start"
