@@ -226,6 +226,7 @@
 
     .tooltip-surface {
         @apply max-w-[240px] rounded-[0.85rem] border border-[var(--panel-border)] bg-[rgba(4,6,13,0.92)] px-4 py-3 text-[0.85rem] text-[var(--text-soft)] shadow-[0_12px_30px_rgba(2,6,23,0.4)];
+        z-index: 1400;
     }
 
     .tooltip-surface--dock {

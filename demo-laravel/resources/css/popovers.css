@@ -228,7 +228,7 @@
     }
 
     .popover-demo [data-affino-popover-arrow] {
-        @apply h-3 w-3 rotate-45 border border-[var(--panel-border)] bg-[rgba(4,6,13,0.96)];
+        display: none;
     }
 
     .popover-surface strong {

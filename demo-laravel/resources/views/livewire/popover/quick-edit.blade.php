@@ -17,6 +17,7 @@
                     placement="left"
                     align="start"
                     :gutter="12"
+                    data-affino-popover-state-sync="false"
                 >
                     <x-slot:trigger>
                         <button type="button" class="popover-trigger">
