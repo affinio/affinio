@@ -273,6 +273,11 @@
         color: var(--tree-select-fg);
     }
 
+    .treeview-node[data-state="active"] {
+        outline: 1px dotted var(--tree-focus);
+        outline-offset: -1px;
+    }
+
     .treeview-node:focus-visible,
     .treeview-node[data-state="selected"][aria-selected="true"] {
         outline: 1px dotted var(--tree-focus);
