@@ -112,6 +112,7 @@
                         class="dialogs-button dialogs-button--ghost"
                         data-affino-livewire-owner="{{ $componentId }}"
                         data-affino-livewire-call="resetDraft"
+                        data-affino-livewire-reset-scope="[data-affino-dialog-surface]"
                     >
                         Reset
                     </button>

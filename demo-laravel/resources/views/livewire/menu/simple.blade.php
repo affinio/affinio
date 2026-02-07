@@ -18,6 +18,7 @@
         data-affino-menu-placement="bottom"
         data-affino-menu-align="start"
         data-affino-menu-gutter="8"
+        data-affino-menu-autofocus="none"
     >
         <button type="button" class="menu-trigger" data-affino-menu-trigger>
             Open menu
