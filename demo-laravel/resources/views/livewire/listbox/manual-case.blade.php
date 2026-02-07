@@ -1,5 +1,5 @@
 <div class="listbox-manual">
-    <div class="listbox-manual__actions">
+    <div class="listbox-manual__actions" data-affino-listbox-sticky="{{ $listboxId }}">
         <button type="button" class="listbox-button" wire:click="openFromServer">
             Open
         </button>

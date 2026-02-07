@@ -227,7 +227,20 @@
     .listbox-demo .affino-listbox-option[data-affino-listbox-option-selected="true"],
     .listbox-demo .affino-listbox-option[data-state="selected"],
     .listbox-demo .affino-listbox-option.is-selected {
-        @apply border-cyan-300/60 bg-cyan-200/12 text-[var(--text-strong)];
+        @apply relative border-cyan-300/80 bg-cyan-300/15 pl-9 text-[var(--text-strong)];
+    }
+
+    .listbox-demo .affino-listbox-option[data-affino-listbox-option-selected="true"]::before,
+    .listbox-demo .affino-listbox-option[data-state="selected"]::before,
+    .listbox-demo .affino-listbox-option.is-selected::before {
+        content: "✓";
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: rgba(165, 243, 252, 0.9);
     }
 
     .listbox-optionView {
