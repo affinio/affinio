@@ -1,5 +1,5 @@
 @php
-    $componentId = method_exists($this, 'getId') ? $this->getId() : 'dialogs-nested';
+    $componentId = $this->getId();
     $parentDialogId = "dialogs-nested-parent-{$componentId}";
     $childDialogId = "dialogs-nested-child-{$componentId}";
 @endphp

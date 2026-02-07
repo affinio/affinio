@@ -1,5 +1,5 @@
 @php
-    $componentId = method_exists($this, 'getId') ? $this->getId() : 'overlay-modal-rules';
+    $componentId = $this->getId();
     $popoverId = "overlay-modal-popover-{$componentId}";
     $dialogId = "overlay-modal-dialog-{$componentId}";
 @endphp

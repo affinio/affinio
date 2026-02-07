@@ -1,5 +1,5 @@
 @php
-    $componentId = method_exists($this, 'getId') ? $this->getId() : 'dialogs-mutation';
+    $componentId = $this->getId();
 @endphp
 
 <div class="dialogs-case dialogs-mutation">

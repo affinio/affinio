@@ -1,5 +1,5 @@
 @php
-    $componentId = method_exists($this, 'getId') ? $this->getId() : 'dialogs-pinned';
+    $componentId = $this->getId();
     $dialogId = "dialogs-pinned-{$componentId}";
 @endphp
 

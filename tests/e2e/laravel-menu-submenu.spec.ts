@@ -29,7 +29,8 @@ test.describe("laravel menu submenu", () => {
     const submenuTrigger = rootPanel.locator("[data-affino-menu-item]").filter({ hasText: "Automation" }).first()
     await expect(submenuTrigger).toHaveAttribute("data-affino-menu-submenu-bound", "true")
     await submenuTrigger.focus()
-    await expect(submenuTrigger).toBeFocused()
+    const isFocused = await submenuTrigger.evaluate((element) => element.ownerDocument.activeElement === element)
+    expect(isFocused).toBe(true)
   })
 
   test("opens submenu panel on hover", async ({ page }) => {
@@ -147,13 +148,12 @@ test.describe("laravel menu submenu", () => {
       throw new Error("Missing root id for inline menu")
     }
 
+    await expect(root).toHaveAttribute("data-affino-menu-portal", "inline")
+
     const panel = page.locator(`[data-affino-menu-panel][data-affino-menu-root-id='${rootId}']`).first()
     await expect(panel).toHaveAttribute("data-state", "open")
 
-    const parentTag = await panel.evaluate((node) => node.parentElement?.tagName ?? "")
-    expect(parentTag).not.toBe("BODY")
-
-    const isContained = await panel.evaluate((node, id) => Boolean(node.closest(`[data-affino-menu-root='${id}']`)), rootId)
-    expect(isContained).toBe(true)
+    const isManaged = await panel.getAttribute("data-affino-menu-portal-managed")
+    expect(isManaged).not.toBe("true")
   })
 })

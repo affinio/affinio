@@ -1,5 +1,5 @@
 @php
-    $componentId = method_exists($this, 'getId') ? $this->getId() : 'overlay-kernel-simple';
+    $componentId = $this->getId();
     $dialogId = "overlay-kernel-hero-dialog-{$componentId}";
     $popoverId = "overlay-kernel-hero-popover-{$componentId}";
     $menuRootId = "overlay-kernel-hero-menu-{$componentId}";

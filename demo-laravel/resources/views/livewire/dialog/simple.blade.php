@@ -1,5 +1,5 @@
 @php
-    $componentId = method_exists($this, 'getId') ? $this->getId() : 'dialogs-simple';
+    $componentId = $this->getId();
     $dialogId = "dialogs-hero-{$componentId}";
     $severityListboxId = "dialogs-severity-{$componentId}";
 @endphp
@@ -46,6 +46,7 @@
                     <span>Title</span>
                     <input
                         type="text"
+                        class="@error('title') is-invalid @enderror"
                         value="{{ $title }}"
                         data-affino-livewire-owner="{{ $componentId }}"
                         data-affino-livewire-model="title"
@@ -53,12 +54,16 @@
                         data-affino-focus-key="dialogs-hero-title"
                         placeholder="Incident title"
                     />
+                    @error('title')
+                        <span class="dialogs-error">{{ $message }}</span>
+                    @enderror
                 </label>
 
                 <label class="dialogs-field">
                     <span>Owner</span>
                     <input
                         type="text"
+                        class="@error('owner') is-invalid @enderror"
                         value="{{ $owner }}"
                         data-affino-livewire-owner="{{ $componentId }}"
                         data-affino-livewire-model="owner"
@@ -66,6 +71,9 @@
                         data-affino-focus-key="dialogs-hero-owner"
                         placeholder="Owner"
                     />
+                    @error('owner')
+                        <span class="dialogs-error">{{ $message }}</span>
+                    @enderror
                 </label>
 
                 <label class="dialogs-field">
@@ -85,6 +93,9 @@
                         <x-affino-listbox-option value="medium" :selected="$severity === 'medium'">MEDIUM</x-affino-listbox-option>
                         <x-affino-listbox-option value="low" :selected="$severity === 'low'">LOW</x-affino-listbox-option>
                     </x-affino-listbox>
+                    @error('severity')
+                        <span class="dialogs-error">{{ $message }}</span>
+                    @enderror
                 </label>
 
                 <div class="dialogs-actions">
