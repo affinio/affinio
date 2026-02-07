@@ -212,7 +212,19 @@
 
     .combobox-demo .affino-combobox-option[data-affino-listbox-option-selected="true"],
     .combobox-demo .affino-combobox-option[data-state="selected"] {
-        @apply border-rose-300/60 bg-rose-200/10 text-[var(--text-strong)];
+        @apply relative border-rose-300/80 bg-rose-300/15 pl-9 text-[var(--text-strong)];
+    }
+
+    .combobox-demo .affino-combobox-option[data-affino-listbox-option-selected="true"]::before,
+    .combobox-demo .affino-combobox-option[data-state="selected"]::before {
+        content: "✓";
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: rgba(251, 113, 133, 0.9);
     }
 
     .combobox-optionView {
