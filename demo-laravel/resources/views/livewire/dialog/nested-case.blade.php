@@ -35,6 +35,7 @@
 
             <x-affino-dialog
                 :dialog-id="$childDialogId"
+                :owner-id="$parentDialogId"
                 :modal="true"
                 :close-on-backdrop="true"
                 :close-on-escape="true"
