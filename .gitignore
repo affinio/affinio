@@ -85,6 +85,7 @@ vite.config.ts.timestamp*
 .vitepress/
 
 test-results/
+playwright-report/
 storybook-static/
 .storybook
 .tmp
