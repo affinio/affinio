@@ -44,12 +44,28 @@
 
                 <label class="dialogs-field">
                     <span>Title</span>
-                    <input type="text" wire:model.live="title" data-affino-focus-key="dialogs-hero-title" placeholder="Incident title" />
+                    <input
+                        type="text"
+                        value="{{ $title }}"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-model="title"
+                        data-affino-livewire-model-event="input"
+                        data-affino-focus-key="dialogs-hero-title"
+                        placeholder="Incident title"
+                    />
                 </label>
 
                 <label class="dialogs-field">
                     <span>Owner</span>
-                    <input type="text" wire:model.live="owner" data-affino-focus-key="dialogs-hero-owner" placeholder="Owner" />
+                    <input
+                        type="text"
+                        value="{{ $owner }}"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-model="owner"
+                        data-affino-livewire-model-event="input"
+                        data-affino-focus-key="dialogs-hero-owner"
+                        placeholder="Owner"
+                    />
                 </label>
 
                 <label class="dialogs-field">
@@ -60,6 +76,7 @@
                         placeholder="Select severity"
                         mode="single"
                         model="severity"
+                        :data-affino-livewire-owner="$componentId"
                         :selected="$severity"
                         :display="strtoupper($severity)"
                     >
@@ -71,10 +88,20 @@
                 </label>
 
                 <div class="dialogs-actions">
-                    <button type="button" class="dialogs-button dialogs-button--primary" wire:click="saveDraft">
+                    <button
+                        type="button"
+                        class="dialogs-button dialogs-button--primary"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-call="saveDraft"
+                    >
                         Save
                     </button>
-                    <button type="button" class="dialogs-button dialogs-button--ghost" wire:click="resetDraft">
+                    <button
+                        type="button"
+                        class="dialogs-button dialogs-button--ghost"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-call="resetDraft"
+                    >
                         Reset
                     </button>
                     <button type="button" class="dialogs-button dialogs-button--ghost" data-affino-dialog-dismiss="programmatic">

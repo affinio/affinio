@@ -10,6 +10,8 @@
         --classic-text-soft: rgba(238, 245, 255, 0.75);
         --classic-text-muted: rgba(188, 209, 232, 0.72);
         --classic-focus: rgba(123, 208, 255, 0.92);
+        --classic-hover-bg: #12213a;
+        --classic-hover-fg: rgba(236, 244, 255, 0.96);
         --classic-selected-bg: #0f1a2e;
         --classic-selected-fg: rgba(227, 237, 252, 0.92);
     }
@@ -129,6 +131,17 @@
         background: var(--classic-surface) !important;
         color: var(--classic-text) !important;
         box-shadow: none !important;
+    }
+
+    [data-affino-preset="classic"] [data-affino-menu-item]:not([aria-disabled="true"]):hover,
+    [data-affino-preset="classic"] [data-affino-menu-item][data-state="highlighted"],
+    [data-affino-preset="classic"] [data-affino-listbox-option][data-state="highlighted"],
+    [data-affino-preset="classic"] [data-affino-listbox-option][data-active="true"],
+    [data-affino-preset="classic"] [data-affino-listbox-option]:not([aria-disabled="true"]):not([data-affino-listbox-disabled="true"]):not([aria-selected="true"]):not([data-state="selected"]):not([data-affino-listbox-option-selected="true"]):hover,
+    [data-affino-preset="classic"] [data-affino-combobox-option]:not([aria-disabled="true"]):not([data-affino-listbox-disabled="true"]):not([aria-selected="true"]):not([data-state="selected"]):not([data-affino-combobox-option-selected="true"]):hover {
+        background: var(--classic-hover-bg) !important;
+        color: var(--classic-hover-fg) !important;
+        border-color: var(--classic-border-strong) !important;
     }
 
     [data-affino-preset="classic"] [aria-selected="true"],

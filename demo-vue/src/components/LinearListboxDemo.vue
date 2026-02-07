@@ -277,6 +277,8 @@ watch(
 }
 
 .listbox-item--cursor {
+  border-color: color-mix(in srgb, var(--accent, #7f5bff) 40%, transparent);
+  background: color-mix(in srgb, var(--accent, #7f5bff) 12%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #7f5bff) 45%, transparent);
 }
 

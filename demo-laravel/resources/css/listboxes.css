@@ -219,7 +219,8 @@
         @apply cursor-pointer rounded-[0.65rem] border border-transparent px-3 py-2 text-sm text-[var(--text-soft)] transition-colors duration-150 hover:bg-white/10 hover:text-[var(--text-strong)];
     }
 
-    .listbox-demo .affino-listbox-option[data-active="true"] {
+    .listbox-demo .affino-listbox-option[data-active="true"],
+    .listbox-demo .affino-listbox-option[data-state="highlighted"] {
         @apply border-[var(--panel-border-strong)] bg-white/10 text-[var(--text-strong)];
     }
 

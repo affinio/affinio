@@ -36,7 +36,15 @@
             <h4>Pinned behavior check</h4>
             <label class="dialogs-field">
                 <span>Live note</span>
-                <input type="text" wire:model.live="note" data-affino-focus-key="dialogs-pinned-note" placeholder="Type while pulses run" />
+                <input
+                    type="text"
+                    value="{{ $note }}"
+                    data-affino-livewire-owner="{{ $componentId }}"
+                    data-affino-livewire-model="note"
+                    data-affino-livewire-model-event="input"
+                    data-affino-focus-key="dialogs-pinned-note"
+                    placeholder="Type while pulses run"
+                />
             </label>
             <span class="dialogs-hint">Pinned keeps this dialog open across Livewire morphs.</span>
             <button type="button" class="dialogs-button dialogs-button--ghost" data-affino-dialog-dismiss="programmatic">

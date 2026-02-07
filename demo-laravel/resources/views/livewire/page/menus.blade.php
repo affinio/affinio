@@ -17,4 +17,16 @@
             <livewire:menu.simple />
         </div>
     </section>
+
+    <section class="menu-page-inline" aria-label="Inline menu portal">
+        <div class="menu-page-hero__content">
+            <p class="menu-page-hero__eyebrow">inline</p>
+            <h2>Inline portal</h2>
+            <p>Menu panel stays inside the scrolling container.</p>
+        </div>
+
+        <div class="menu-page-hero__preview">
+            <livewire:menu.inline-portal />
+        </div>
+    </section>
 </div>

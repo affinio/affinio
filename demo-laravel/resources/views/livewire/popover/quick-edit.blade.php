@@ -1,3 +1,7 @@
+@php
+    $componentId = method_exists($this, 'getId') ? $this->getId() : 'popover-quick-edit';
+@endphp
+
 <div class="popover-quick-edit">
     <div class="popover-quick-edit__list">
         @foreach ($services as $service)
@@ -33,6 +37,7 @@
                                 placeholder="Select status"
                                 mode="single"
                                 :model="'drafts.' . $service['id'] . '.status'"
+                                :data-affino-livewire-owner="$componentId"
                                 :selected="$drafts[$service['id']]['status'] ?? $service['status']"
                                 :display="$drafts[$service['id']]['status'] ?? $service['status']"
                             >
@@ -43,8 +48,24 @@
                         </label>
                         <span class="popover-surface__live">Draft: {{ $drafts[$service['id']]['owner'] ?? $service['owner'] }} · {{ $drafts[$service['id']]['status'] ?? $service['status'] }}</span>
                         <div class="popover-actions">
-                            <button type="button" class="popover-action popover-action--primary" wire:click="apply({{ $service['id'] }})">Apply</button>
-                            <button type="button" class="popover-action" wire:click="resetDraft({{ $service['id'] }})">Reset</button>
+                            <button
+                                type="button"
+                                class="popover-action popover-action--primary"
+                                data-affino-livewire-owner="{{ $componentId }}"
+                                data-affino-livewire-call="apply"
+                                data-affino-livewire-args='[{{ (int) $service['id'] }}]'
+                            >
+                                Apply
+                            </button>
+                            <button
+                                type="button"
+                                class="popover-action"
+                                data-affino-livewire-owner="{{ $componentId }}"
+                                data-affino-livewire-call="resetDraft"
+                                data-affino-livewire-args='[{{ (int) $service['id'] }}]'
+                            >
+                                Reset
+                            </button>
                         </div>
                     </div>
                 </x-affino-popover>

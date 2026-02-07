@@ -34,7 +34,14 @@
                     <strong>Nested layer</strong>
                     <span>Confirmations: {{ $confirmations }}</span>
                     <div class="popover-actions">
-                        <button type="button" class="popover-action popover-action--primary" wire:click="confirm">Confirm</button>
+                        <button
+                            type="button"
+                            class="popover-action popover-action--primary"
+                            data-affino-livewire-owner="{{ $componentId }}"
+                            data-affino-livewire-call="confirm"
+                        >
+                            Confirm
+                        </button>
                     </div>
                 </div>
             </x-affino-popover>

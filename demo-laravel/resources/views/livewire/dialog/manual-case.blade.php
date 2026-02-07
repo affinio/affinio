@@ -28,7 +28,12 @@
             <h4>Manual bridge dialog</h4>
             <p>This root is controlled by <code>affino-dialog:manual</code> events from Livewire.</p>
             <div class="dialogs-actions">
-                <button type="button" class="dialogs-button dialogs-button--primary" wire:click="acknowledge">
+                <button
+                    type="button"
+                    class="dialogs-button dialogs-button--primary"
+                    data-affino-livewire-owner="{{ $this->getId() }}"
+                    data-affino-livewire-call="acknowledge"
+                >
                     Acknowledge
                 </button>
                 <button type="button" class="dialogs-button dialogs-button--ghost" data-affino-dialog-dismiss="programmatic">

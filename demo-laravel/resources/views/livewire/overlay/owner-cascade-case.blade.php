@@ -40,7 +40,14 @@
                     <strong>Child layer</strong>
                     <span>Child confirmations: {{ $childConfirms }}</span>
                     <div class="overlay-kernel-actions">
-                        <button type="button" class="overlay-kernel-button" wire:click="confirmChild">Confirm</button>
+                        <button
+                            type="button"
+                            class="overlay-kernel-button"
+                            data-affino-livewire-owner="{{ $componentId }}"
+                            data-affino-livewire-call="confirmChild"
+                        >
+                            Confirm
+                        </button>
                         <button type="button" class="overlay-kernel-button overlay-kernel-button--ghost" data-affino-popover-dismiss="programmatic">Close child</button>
                     </div>
                 </div>
@@ -49,7 +56,8 @@
             <button
                 type="button"
                 class="overlay-kernel-button overlay-kernel-button--ghost"
-                wire:click="recordParentClose"
+                data-affino-livewire-owner="{{ $componentId }}"
+                data-affino-livewire-call="recordParentClose"
                 data-affino-dialog-dismiss="programmatic"
             >
                 Close parent dialog

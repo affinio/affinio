@@ -37,7 +37,15 @@
 
                 <label class="overlay-kernel-field">
                     <span>Operator note</span>
-                    <input type="text" wire:model.live="note" data-affino-focus-key="overlay-kernel-note" placeholder="Type status note" />
+                    <input
+                        type="text"
+                        value="{{ $note }}"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-model="note"
+                        data-affino-livewire-model-event="input"
+                        data-affino-focus-key="overlay-kernel-note"
+                        placeholder="Type status note"
+                    />
                 </label>
 
                 <x-affino-popover
@@ -57,7 +65,14 @@
                         <strong>Decision checkpoint</strong>
                         <span>Acknowledged: {{ $acknowledged }}</span>
                         <div class="overlay-kernel-actions">
-                            <button type="button" class="overlay-kernel-button" wire:click="acknowledge">Acknowledge</button>
+                            <button
+                                type="button"
+                                class="overlay-kernel-button"
+                                data-affino-livewire-owner="{{ $componentId }}"
+                                data-affino-livewire-call="acknowledge"
+                            >
+                                Acknowledge
+                            </button>
                             <button type="button" class="overlay-kernel-button overlay-kernel-button--ghost" data-affino-popover-dismiss="programmatic">Close</button>
                         </div>
                     </div>

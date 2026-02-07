@@ -41,13 +41,22 @@
                                 <span>Row draft</span>
                                 <input
                                     type="text"
-                                    wire:model.live="drafts.{{ $rowId }}"
+                                    value="{{ $drafts[$rowId] ?? '' }}"
+                                    data-affino-livewire-owner="{{ $componentId }}"
+                                    data-affino-livewire-model="drafts.{{ $rowId }}"
+                                    data-affino-livewire-model-event="input"
                                     data-affino-focus-key="dialogs-mutation-draft-{{ $rowId }}"
                                     placeholder="Type and mutate list"
                                 />
                             </label>
                             <div class="dialogs-actions">
-                                <button type="button" class="dialogs-button dialogs-button--ghost" wire:click="clearDraft({{ $rowId }})">
+                                <button
+                                    type="button"
+                                    class="dialogs-button dialogs-button--ghost"
+                                    data-affino-livewire-owner="{{ $componentId }}"
+                                    data-affino-livewire-call="clearDraft"
+                                    data-affino-livewire-args='[{{ $rowId }}]'
+                                >
                                     Clear text
                                 </button>
                                 <button type="button" class="dialogs-button dialogs-button--ghost" data-affino-dialog-dismiss="programmatic">

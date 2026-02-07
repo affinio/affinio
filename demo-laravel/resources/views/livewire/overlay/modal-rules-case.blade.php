@@ -26,7 +26,14 @@
                 <strong>Modal popover flow</strong>
                 <span>Outside pointer/focus is blocked until close.</span>
                 <div class="overlay-kernel-actions">
-                    <button type="button" class="overlay-kernel-button" wire:click="approvePopover">Approve</button>
+                    <button
+                        type="button"
+                        class="overlay-kernel-button"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-call="approvePopover"
+                    >
+                        Approve
+                    </button>
                     <button type="button" class="overlay-kernel-button overlay-kernel-button--ghost" data-affino-popover-dismiss="programmatic">Close</button>
                 </div>
             </div>
@@ -50,11 +57,33 @@
                 <h4>Critical confirmation dialog</h4>
                 <label class="overlay-kernel-field">
                     <span>Draft message</span>
-                    <input type="text" wire:model.live="draftMessage" data-affino-focus-key="overlay-modal-draft" placeholder="Type draft" />
+                    <input
+                        type="text"
+                        value="{{ $draftMessage }}"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-model="draftMessage"
+                        data-affino-livewire-model-event="input"
+                        data-affino-focus-key="overlay-modal-draft"
+                        placeholder="Type draft"
+                    />
                 </label>
                 <div class="overlay-kernel-actions">
-                    <button type="button" class="overlay-kernel-button" wire:click="saveDialog">Save</button>
-                    <button type="button" class="overlay-kernel-button overlay-kernel-button--ghost" wire:click="clearDialogDraft">Clear</button>
+                    <button
+                        type="button"
+                        class="overlay-kernel-button"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-call="saveDialog"
+                    >
+                        Save
+                    </button>
+                    <button
+                        type="button"
+                        class="overlay-kernel-button overlay-kernel-button--ghost"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-call="clearDialogDraft"
+                    >
+                        Clear
+                    </button>
                     <button type="button" class="overlay-kernel-button overlay-kernel-button--ghost" data-affino-dialog-dismiss="programmatic">Close</button>
                 </div>
             </div>

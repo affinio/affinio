@@ -23,7 +23,12 @@
             <p>Open a second dialog from here and verify deterministic stack order in overlay inspector.</p>
 
             <div class="dialogs-actions">
-                <button type="button" class="dialogs-button dialogs-button--primary" wire:click="approveParent">
+                <button
+                    type="button"
+                    class="dialogs-button dialogs-button--primary"
+                    data-affino-livewire-owner="{{ $componentId }}"
+                    data-affino-livewire-call="approveParent"
+                >
                     Parent approve
                 </button>
             </div>
@@ -44,7 +49,12 @@
                 <div class="dialogs-surface dialogs-surface--compact">
                     <h4>Child layer</h4>
                     <div class="dialogs-actions">
-                        <button type="button" class="dialogs-button dialogs-button--primary" wire:click="approveChild">
+                        <button
+                            type="button"
+                            class="dialogs-button dialogs-button--primary"
+                            data-affino-livewire-owner="{{ $componentId }}"
+                            data-affino-livewire-call="approveChild"
+                        >
                             Child approve
                         </button>
                         <button type="button" class="dialogs-button dialogs-button--ghost" data-affino-dialog-dismiss="programmatic">

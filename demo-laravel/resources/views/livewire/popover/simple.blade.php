@@ -108,6 +108,7 @@
                         placeholder="Select priority"
                         mode="single"
                         model="draftPriority"
+                        :data-affino-livewire-owner="$componentId"
                         :selected="$draftPriority"
                         :display="$draftPriority"
                     >
@@ -119,8 +120,22 @@
                 <span class="popover-surface__live">Live: {{ $draftOwner !== '' ? $draftOwner : 'Unassigned' }} · {{ $draftPriority }}</span>
                 <span class="popover-surface__live popover-surface__live--applied">Applied: {{ $appliedOwner }} · {{ $appliedPriority }}</span>
                 <div class="popover-actions">
-                    <button type="button" class="popover-action popover-action--primary" wire:click="applyDraft">Apply</button>
-                    <button type="button" class="popover-action" wire:click="resetDraft">Reset</button>
+                    <button
+                        type="button"
+                        class="popover-action popover-action--primary"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-call="applyDraft"
+                    >
+                        Apply
+                    </button>
+                    <button
+                        type="button"
+                        class="popover-action"
+                        data-affino-livewire-owner="{{ $componentId }}"
+                        data-affino-livewire-call="resetDraft"
+                    >
+                        Reset
+                    </button>
                 </div>
             </div>
 

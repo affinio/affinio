@@ -1,3 +1,7 @@
+@php
+    $componentId = method_exists($this, 'getId') ? $this->getId() : 'popover-mutation-board';
+@endphp
+
 <div class="popover-mutation-board">
     <div class="popover-mutation-board__controls">
         <button type="button" class="popover-trigger" wire:click="addItem">
@@ -31,7 +35,15 @@
                         <span>Owner: {{ $item['owner'] }}</span>
                         <span>ETA: {{ $item['eta'] }}</span>
                         <div class="popover-actions">
-                            <button type="button" class="popover-action" wire:click="removeItem({{ $item['id'] }})">Remove row</button>
+                            <button
+                                type="button"
+                                class="popover-action"
+                                data-affino-livewire-owner="{{ $componentId }}"
+                                data-affino-livewire-call="removeItem"
+                                data-affino-livewire-args='[{{ (int) $item['id'] }}]'
+                            >
+                                Remove row
+                            </button>
                         </div>
                     </div>
                 </x-affino-popover>
