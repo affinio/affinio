@@ -77,6 +77,8 @@ Adapters are published for:
 - Live demos: https://affino.dev
 - Docs: https://docs.affino.dev
 - Package-specific READMEs for deep API details
+- Repository process docs: `docs/process/README.md`
+- Ops runbooks: `docs/ops/slo-sla.md`
 
 ---
 

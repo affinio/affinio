@@ -46,6 +46,65 @@ const state = virtualizer.update({
 const visibleItems = items.slice(state.startIndex, state.endIndex)
 ```
 
+## Adapter recipe
+
+Recommended per-frame flow:
+
+1. Read scroll offset and direction from DOM event delta.
+2. Update dynamic overscan controller.
+3. Compute/clamp scroll limit.
+4. Call `virtualizer.update` with normalized context.
+5. Render `[startIndex, endIndex)` only.
+
+```ts
+import {
+  clampScrollOffset,
+  computeVerticalScrollLimit,
+  createAxisVirtualizer,
+  createVerticalOverscanController,
+} from "@affino/virtualization-core"
+
+const overscanController = createVerticalOverscanController({ minOverscan: 4 })
+const virtualizer = createAxisVirtualizer("vertical", strategy, null)
+
+function updateVirtualWindow(frame: {
+  offset: number
+  delta: number
+  timestamp: number
+  viewportSize: number
+  itemSize: number
+  totalCount: number
+}) {
+  const direction = frame.delta === 0 ? 0 : frame.delta > 0 ? 1 : -1
+  const overscan = overscanController.update({
+    timestamp: frame.timestamp,
+    delta: frame.delta,
+    viewportSize: frame.viewportSize,
+    itemSize: frame.itemSize,
+    virtualizationEnabled: true,
+  }).overscan
+
+  const limit = computeVerticalScrollLimit({
+    estimatedItemSize: frame.itemSize,
+    totalCount: frame.totalCount,
+    viewportSize: frame.viewportSize,
+    overscanTrailing: Math.ceil(overscan / 2),
+    visibleCount: Math.max(1, Math.floor(frame.viewportSize / Math.max(1, frame.itemSize))),
+  })
+
+  return virtualizer.update({
+    axis: "vertical",
+    viewportSize: frame.viewportSize,
+    scrollOffset: clampScrollOffset({ offset: frame.offset, limit }),
+    virtualizationEnabled: true,
+    estimatedItemSize: frame.itemSize,
+    totalCount: frame.totalCount,
+    overscan,
+    meta: { scrollDirection: direction },
+  })
+}
+```
+
 ## Core API
 
 Axis virtualizer:
@@ -66,10 +125,13 @@ Scroll helpers:
 - `computeHorizontalScrollLimit(input)`
 - `clampScrollOffset({ offset, limit })`
 
-## Notes
+## Guardrails
 
-- The virtualizer is axis-agnostic; your adapter provides the strategy.
-- Overscan controllers are optional but make large lists feel smoother under fast scrolling.
+- `update()` reuses a mutable state object reference; copy fields in adapter state if immutable reactivity is required.
+- Strategy methods should stay pure and deterministic (no DOM reads/side effects).
+- `totalCount` must match the dataset currently being virtualized.
+- Range contract is always `[startIndex, endIndex)` (end exclusive).
+- Use `virtualizationEnabled: false` for tiny datasets to skip unnecessary windowing math.
 
 ## Related packages
 

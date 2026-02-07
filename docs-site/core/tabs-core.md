@@ -7,24 +7,16 @@ description: Core reference for @affino/tabs-core.
 
 > Stability: **Stable**
 
-Headless tabs primitive built as single-value selection.
+Headless tabs primitive for single-value selection.
 
 ## Overview
 
-Use `tabs-core` when one active value should drive which panel is visible, with portable state across frameworks.
+Use `tabs-core` when one active value controls visible panel state.
 
 ## Installation
 
 ```bash
 npm install @affino/tabs-core
-```
-
-## State
-
-```ts
-type TabsState<Value = string> = {
-  value: Value | null
-}
 ```
 
 ## Quick start
@@ -41,25 +33,27 @@ const snapshot = tabs.getSnapshot()
 
 ## Core API
 
-Main methods:
-
+- `new TabsCore(defaultValue?)`
 - `select(value)`
 - `clear()`
 - `getSnapshot()`
 - `subscribe(listener)`
 - `destroy()`
 
+## Guarantees
+
+- Duplicate `select(value)` is a no-op.
+- Duplicate `clear()` is a no-op.
+- Subscribers run only when snapshot value changes.
+- `getSnapshot()` always returns a frozen immutable snapshot.
+
+## Adapter usage
+
+- Keep one source of truth for tabs state.
+- Use snapshot value to map active trigger/panel attributes.
+- Route manual runtime control (`affino-tabs:manual`) to `select`/`clear` in adapter layers.
+
 ## Related packages
 
-- `@affino/tabs-vue`
 - `@affino/tabs-laravel`
-- `@affino/laravel-adapter`
-
-## Used by adapters
-
-- Laravel runtime: [/adapters/laravel](/adapters/laravel)
-- Vue runtime: [/adapters/vue](/adapters/vue)
-
-## License
-
-MIT
+- `@affino/tabs-vue`

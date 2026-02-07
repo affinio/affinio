@@ -7,17 +7,23 @@ description: Core reference for @affino/surface-core.
 
 > Stability: **Stable**
 
-Headless interaction kernel for any floating surface: menus, tooltips, popovers, and contextual panels.
+Headless interaction kernel for floating surfaces.
 
 ## Overview
 
-Use `surface-core` as the base lifecycle/positioning layer for floating UI primitives that share timers, state, and placement logic.
+Use `surface-core` as the shared lifecycle primitive for menu/tooltip/popover/dialog adapters.
 
 ## Installation
 
 ```bash
 npm install @affino/surface-core
 ```
+
+## Timing semantics
+
+`open`, `close`, and `toggle` are immediate transitions.
+
+`openDelay` and `closeDelay` are only consumed when adapter/controller code schedules timers (for example pointer-leave close orchestration).
 
 ## Quick start
 
@@ -38,38 +44,33 @@ class TooltipCore extends SurfaceCore {
 }
 ```
 
+## Reason mapping
+
+Use `SurfaceReason` consistently:
+
+- `pointer`
+- `keyboard`
+- `programmatic`
+
 ## Core API
 
-- `SurfaceCore` - base controller with timers, open/close, and subscriptions.
-- `computePosition(anchorRect, surfaceRect, options?)` - collision-aware placement.
-- `SurfaceTimers` - shared timer orchestration.
-- `SurfaceEvents` - tiny event dispatcher for controllers.
-- `SurfaceDiagnostics` - dev-time validation for geometry inputs.
+- `open(reason?)`
+- `close(reason?)`
+- `toggle()`
+- `getSnapshot()`
+- `subscribe(listener)`
+- `cancelPendingClose()`
+- `computePosition(anchorRect, surfaceRect, options?)`
+- `destroy()`
 
-## Position options
+## Snapshot guarantees
 
-`computePosition` accepts:
+- `getSnapshot()` returns a frozen immutable object.
+- Snapshot reference is stable for no-op transitions.
 
-- `placement`: `"top" | "bottom" | "left" | "right" | "auto"`
-- `align`: `"start" | "center" | "end" | "auto"`
-- `gutter`: spacing between anchor and surface
-- `viewportPadding`: minimum space from edges
+## Adapter guardrails
 
-## Notes
-
-- All surface controllers (menu, tooltip, popover) reuse this kernel so timers and pointer semantics match across the system.
-
-## Related packages
-
-- `@affino/menu-core`
-- `@affino/tooltip-core`
-- `@affino/popover-core`
-
-## Used by adapters
-
-- Laravel runtime: [/adapters/laravel](/adapters/laravel)
-- Vue runtime: [/adapters/vue](/adapters/vue)
-
-## License
-
-MIT
+- Keep one canonical surface state source.
+- Treat snapshots as immutable values.
+- Schedule delays explicitly in adapter/controller code.
+- Destroy controllers to release timers/subscriptions.

@@ -34,8 +34,8 @@ const context = {
   mode: "single" as const,
   loop: true,
   disabled: false,
-  optionCount: options.length,
-  isDisabled: (index: number) => options[index]?.disabled ?? false,
+  optionCount: filteredOptions.length,
+  isDisabled: (index: number) => filteredOptions[index]?.disabled ?? false,
 }
 
 let state = createComboboxState()
@@ -53,12 +53,51 @@ state = activateComboboxIndex({ state, context, index: state.listbox.activeIndex
 - `moveComboboxFocus({ state, context, delta, extend? })`
 - `activateComboboxIndex({ state, context, index, toggle?, extend? })`
 - `clearComboboxSelection(state)`
+- `getSelectedIndexCount(selection)`
 - `getSelectedIndexes(selection)`
+- `mapSelectedIndexes(selection, map)`
 - `isIndexSelected(selection, index)`
 
 Types:
 
 - `ComboboxState`, `ComboboxContext`, `ComboboxMode`
+
+## Filter lifecycle
+
+Recommended adapter flow:
+
+1. Input change: `state = setComboboxFilter(state, value)`.
+2. Recompute `filteredOptions` from `state.filter`.
+3. Build `context.optionCount`/`context.isDisabled` from `filteredOptions`.
+4. Run focus/selection operations (`moveComboboxFocus`, `activateComboboxIndex`) with that context.
+5. On clear, run `clearComboboxSelection`; close/open remains an explicit adapter decision.
+
+Guaranteed semantics:
+
+- `setComboboxFilter` mutates only `filter`.
+- `setComboboxOpen` mutates only `open`.
+- `clearComboboxSelection` clears `filter` and listbox state while preserving `open`.
+
+## Adapter boundaries
+
+`combobox-core` handles:
+
+- headless reducer transitions for `open`, `filter`, and listbox state,
+- mode-dependent behavior (single-mode ignores `toggle`/`extend`),
+- selection helper derivations (`getSelectedIndexes`, `mapSelectedIndexes`).
+
+Adapter handles:
+
+- rendering and option indexing in DOM,
+- actual filtering strategy and async data loading,
+- a11y attributes/events and side effects,
+- UX policy (open on input, close on selection, keep-open multi-select).
+
+Avoid these pitfalls:
+
+- deriving `optionCount` from unfiltered data while rendering filtered data,
+- mutating `state.listbox.selection` directly,
+- mixing implicit close/open behavior into filter changes.
 
 ## Related packages
 

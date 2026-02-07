@@ -47,6 +47,28 @@ state = resolveLinearSelectionUpdate({
 })
 ```
 
+## Package boundaries
+
+- Use `@affino/selection-core` for 1D linear selection.
+- Use `@affino/grid-selection-core` for 2D table/spreadsheet selection.
+- `@affino/selection-core` re-exports grid APIs for backward compatibility.
+
+## Migration guidance
+
+Recommended migration end-state:
+
+```ts
+import { selectLinearIndex } from "@affino/selection-core"
+import { selectSingleCell } from "@affino/grid-selection-core"
+```
+
+Migration rules:
+
+- Keep existing grid imports from `@affino/selection-core` only as temporary compatibility.
+- For new grid code, import directly from `@affino/grid-selection-core`.
+- Prefer intent operations (`selectLinearIndex`, `extendLinearSelectionToIndex`, `toggleLinearIndex`) over direct `ranges` mutation.
+- Use `resolveLinearSelectionUpdate` for controlled hydration/snapshot normalization, not as a per-event default.
+
 ## Core API
 
 Linear range utilities:
@@ -75,6 +97,14 @@ Types:
 ## Grid selection
 
 If you need row/column math (spreadsheets, grids), use `@affino/grid-selection-core`. This package re-exports those APIs so you can migrate gradually.
+
+## Guardrails
+
+- Keep one source of truth for `LinearSelectionState`.
+- Treat outputs as immutable snapshots and replace full state.
+- Pass finite integer indexes; avoid relying on truncation/fallback behavior.
+- `resolveLinearSelectionUpdate` throws when `activeRangeIndex` is invalid.
+- Avoid mixing manual range mutations with operation helpers in the same event path.
 
 ## Related packages
 

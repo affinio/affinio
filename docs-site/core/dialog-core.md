@@ -37,6 +37,26 @@ controller.open("keyboard")
 await controller.requestClose("programmatic")
 ```
 
+## Standard modal helpers
+
+```ts
+import {
+  createStandardModalDialogController,
+  createStandardModalDialogOptions,
+} from "@affino/dialog-core"
+
+const controller = createStandardModalDialogController()
+const options = createStandardModalDialogOptions({
+  pendingNavigationMessage: "Saving changes...",
+})
+```
+
+Helper defaults:
+
+- `overlayKind: "dialog"`
+- `closeStrategy: "blocking"`
+- modal focus/outside interaction traits enabled in `overlayEntryTraits`
+
 ## Guard strategies
 
 - **blocking** (default): waits for the guard to resolve before closing.
@@ -64,6 +84,7 @@ Instance methods:
 - `open(reason?)`
 - `requestClose(reason?, options?)`
 - `close(reason?, options?)` (alias for `requestClose`)
+- `canHandleClose(reason?)` (preflight check for close eligibility)
 - `setCloseGuard(fn)`
 - `subscribe(listener)`
 - `on(event, listener)`

@@ -11,20 +11,12 @@ Core primitive for disclosure/collapsible behavior with deterministic boolean st
 
 ## Overview
 
-Use `disclosure-core` for expandable sections where state is simply open/closed and you want a framework-agnostic controller.
+Use `disclosure-core` for expandable sections where state is open/closed and framework adapters own rendering.
 
 ## Installation
 
 ```bash
 npm install @affino/disclosure-core
-```
-
-## State
-
-```ts
-type DisclosureState = {
-  open: boolean
-}
 ```
 
 ## Quick start
@@ -37,31 +29,36 @@ const disclosure = new DisclosureCore(false)
 disclosure.open()
 disclosure.close()
 disclosure.toggle()
+
 const snapshot = disclosure.getSnapshot()
+const isOpen = disclosure.isOpen()
 ```
 
 ## Core API
 
-Main methods:
-
+- `new DisclosureCore(defaultOpen?)`
 - `open()`
 - `close()`
 - `toggle()`
+- `isOpen()`
 - `getSnapshot()`
 - `subscribe(listener)`
 - `destroy()`
 
+## Guarantees
+
+- Duplicate open/close calls are no-ops.
+- Subscribers are notified only on state transitions.
+- `getSnapshot()` returns frozen immutable values.
+- Snapshot reference is stable between no-op operations.
+
+## Adapter usage
+
+- Keep one source of truth for disclosure state.
+- Bind rendered state directly from snapshots.
+- Route manual runtime actions (`affino-disclosure:manual`) to open/close/toggle in adapter layers.
+
 ## Related packages
 
-- `@affino/disclosure-vue`
 - `@affino/disclosure-laravel`
-- `@affino/laravel-adapter`
-
-## Used by adapters
-
-- Laravel runtime: [/adapters/laravel](/adapters/laravel)
-- Vue runtime: [/adapters/vue](/adapters/vue)
-
-## License
-
-MIT
+- `@affino/disclosure-vue`

@@ -1,0 +1,30 @@
+# Global fallback owner
+* @anton
+
+# CI / governance
+/.github/ @anton
+/scripts/ @anton
+
+# Documentation
+/docs/ @anton
+/docs-site/ @anton
+
+# Core packages
+/packages/*-core/ @anton
+/packages/overlay-kernel/ @anton
+/packages/overlay-host/ @anton
+/packages/aria-utils/ @anton
+/packages/focus-utils/ @anton
+/packages/virtualization-core/ @anton
+
+# Framework adapters
+/packages/*-laravel/ @anton
+/packages/*-vue/ @anton
+/packages/menu-react/ @anton
+/packages/laravel-adapter/ @anton
+/packages/vue-adapter/ @anton
+
+# Demo / tests
+/demo-vue/ @anton
+/demo-laravel/ @anton
+/tests/ @anton

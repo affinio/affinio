@@ -51,6 +51,46 @@ Types:
 
 - `ListboxState`, `ListboxContext`
 
+## Adapter contract
+
+`listbox-core` owns selection/focus logic. The adapter owns event wiring and option indexing.
+
+Context invariants:
+
+- `context.optionCount` must equal the number of rendered options for the current frame.
+- `context.isDisabled(index)` must be deterministic during one interaction cycle.
+- Index ordering in `context` must match the DOM ordering used for `aria-activedescendant`.
+
+State rules:
+
+- Keep one canonical `ListboxState` value in adapter state.
+- Replace state with each operation result (`state = op({ ...state })` style), do not mutate.
+- Recreate `context` from current options before each action.
+
+Recommended DOM/event mapping:
+
+- `ArrowDown` -> `moveListboxFocus({ delta: 1 })`
+- `ArrowUp` -> `moveListboxFocus({ delta: -1 })`
+- `Home` / `End` -> `activateListboxIndex({ index: 0 | optionCount - 1 })`
+- `Shift + Arrow*` -> same move with `extend: true`
+- click option -> `activateListboxIndex({ index, toggle })`
+- `Space` on active option -> `toggleActiveListboxOption({ state })`
+- clear -> `clearListboxSelection({ preserveActiveIndex: true, state })`
+- select all -> `selectAllListboxOptions({ context })`
+
+Runtime guarantees:
+
+- Disabled options are skipped in keyboard navigation.
+- Disabled index activation updates `activeIndex` without mutating selection.
+- Non-finite `optionCount` is treated as empty context.
+- Thrown errors in `isDisabled` are caught and treated as "not disabled".
+
+Anti-patterns:
+
+- Building `context` via global `document.querySelectorAll` instead of component root scope.
+- Applying manual selection patching after core operations in the same handler.
+- Mutating `selection.ranges` directly.
+
 ## Related packages
 
 - `@affino/selection-core`

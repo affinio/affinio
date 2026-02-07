@@ -7,11 +7,11 @@ description: Core reference for @affino/menu-core.
 
 > Stability: **Stable**
 
-Headless menu engine built on `@affino/surface-core`. It gives you a deterministic menu state machine, keyboard navigation, pointer prediction for submenus, and ARIA wiring without dictating markup or styling.
+Headless menu engine for deterministic open/close state, keyboard navigation, submenu intent handling, and ARIA props.
 
 ## Overview
 
-Use `menu-core` when you need desktop-grade menu behavior (nested intent handling + deterministic keyboard traversal) in a headless package.
+Use `menu-core` when you need framework-agnostic menu behavior and want adapters to control rendering and DOM lifecycle.
 
 ## Installation
 
@@ -37,31 +37,92 @@ const unregister = menu.registerItem("export")
 const itemProps = menu.getItemProps("export")
 ```
 
-Wire `triggerProps` to your trigger element, `panelProps` to the menu container, and `itemProps` to each item. The core keeps `aria-*` attributes, `data-state`, timers, and keyboard semantics in sync.
+## Public contract
 
-## Submenus
+### `MenuCore`
 
-Use `SubmenuCore` for nested menus and pointer prediction:
+Primary methods:
+
+- `open(reason?)`
+- `close(reason?)`
+- `requestClose(reason?)`
+- `toggle()`
+- `subscribe(listener)`
+- `getSnapshot()`
+- `registerItem(id, { disabled? })`
+- `getTriggerProps()`
+- `getPanelProps()`
+- `getItemProps(id)`
+- `highlight(id | null)`
+- `moveFocus(1 | -1)`
+- `select(id)`
+- `destroy()`
+
+### `SubmenuCore`
 
 ```ts
 import { SubmenuCore } from "@affino/menu-core"
 
-const submenu = new SubmenuCore({ parent: menu })
-const submenuProps = submenu.getPanelProps()
+const submenu = new SubmenuCore(parentMenu, {
+  parentItemId: "file-export",
+})
 ```
 
-For complex trees, use `createMenuTree()` to build parent/child branches and share geometry + pointer adapters between them:
+Submenu-specific APIs:
+
+- `setTriggerRect(rect | null)`
+- `setPanelRect(rect | null)`
+- `recordPointer({ x, y })`
+
+### `createMenuTree`
 
 ```ts
 import { createMenuTree } from "@affino/menu-core"
 
-const tree = createMenuTree({ rootId: "file" })
-const root = tree.getBranch("file")
+const tree = createMenuTree({ options: { id: "root-menu" } })
+const root = tree.root
+
+root.registerItem("file")
+const submenu = tree.createSubmenu({
+  parent: root,
+  parentItemId: "file",
+})
+
+tree.destroy()
 ```
 
-## Positioning
+`MenuTreeBranch` exposes stable facade methods:
 
-Menu positioning re-exports the shared helper from `@affino/surface-core`:
+- `getSnapshot()`, `subscribe(listener)`
+- `getTriggerProps()`, `getPanelProps()`, `getItemProps(id)`
+- `registerItem(id, options?)`
+- `open/close/toggle/highlight/moveFocus/select`
+- `geometry` / `pointer` adapters on submenu branches
+- `destroy()`
+
+Failure contract:
+
+- `createSubmenu({ parentItemId })` throws when parent menu has no registered item with that id.
+- Error text: `Cannot create submenu for unregistered parent item "<id>". Register the parent item before calling createSubmenu().`
+
+## Adapter flow (recommended)
+
+1. Create one `MenuCore` (or tree root) per menu root.
+2. Register/unregister item ids with mount/unmount.
+3. Bind returned trigger/panel/item props to DOM handlers.
+4. Subscribe once and project snapshot to render state.
+5. Destroy core on component teardown.
+
+## Guardrails
+
+- Keep one canonical state source from `subscribe`; avoid parallel local copies.
+- Keep item ids stable across re-renders; call unregister disposers on removal.
+- Do not mutate core snapshots; treat them as read-only output.
+- Register `parentItemId` before calling `createSubmenu(...)`.
+- Feed geometry/pointer updates only for submenu use-cases.
+- Always call `destroy()` for `MenuCore`, `SubmenuCore`, or `createMenuTree()` controller.
+
+## Positioning
 
 ```ts
 import { computePosition } from "@affino/menu-core"
@@ -75,8 +136,6 @@ const position = computePosition(anchorRect, panelRect, {
 
 ## Pointer prediction
 
-The pointer predictor keeps submenus open during diagonal moves toward them:
-
 ```ts
 import { MousePrediction, predictMouseDirection } from "@affino/menu-core"
 
@@ -84,18 +143,14 @@ const prediction = new MousePrediction({ history: 6 })
 const direction = predictMouseDirection(points)
 ```
 
-## Core API
+## Overlay kernel integration
 
-- `MenuCore` - main controller; provides `open()`, `requestClose()`, `toggle()`, `subscribe()`, `getTriggerProps()`, `getPanelProps()`, `getItemProps()`, `registerItem()`, and `select()`.
-- `SubmenuCore` - menu controller that coordinates with a parent for pointer intent.
-- `createMenuTree()` - build a tree of menu branches with shared pointer + geometry adapters.
-- `computePosition()` - collision-aware positioning helper (re-export).
-- `MousePrediction` / `predictMouseDirection()` - pointer prediction utilities.
+`MenuCore` supports optional `@affino/overlay-kernel` mediation via:
 
-## Notes
-
-- `MenuCore` integrates with `@affino/overlay-kernel` when you pass `overlayManager` or `getOverlayManager` in the options.
-- Use `closeOnSelect` and `loopFocus` options to tune selection and keyboard behavior.
+- `overlayManager`
+- `getOverlayManager`
+- `overlayKind`
+- `overlayEntryTraits`
 
 ## Related packages
 

@@ -1,144 +1,67 @@
 # Contributing to Affino
 
-Thanks for your interest in contributing to **Affino** 🎉\
-Affino is a collection of high-performance, headless UI primitives
-focused on deterministic behavior, accessibility, and framework
-independence.
+Thanks for contributing to Affino.
 
-This guide explains how to propose changes, report issues, and submit
-pull requests.
+## Core principles
 
-------------------------------------------------------------------------
+- Headless-first architecture.
+- Deterministic behavior over implicit magic.
+- Clear package boundaries (`core` vs adapters).
+- Test and docs updates for behavior/API changes.
 
-## Philosophy
-
-Affino libraries follow a few core principles:
-
--   **Headless first** --- logic is separated from rendering
--   **Deterministic behavior** --- no hidden side effects or DOM
-    coupling
--   **Performance over magic** --- explicit state, no implicit observers
--   **Small surface area** --- APIs are intentionally minimal
--   **Framework-agnostic cores** --- adapters live on top
-
-When contributing, please align with these principles.
-
-------------------------------------------------------------------------
-
-## Repository Structure
-
-    packages/
-      menu-core
-      menu-vue
-      menu-react
-      selection-core
-      virtualization-core
-    docs/
-
--   **core packages** contain framework-agnostic logic only
--   **adapters** bind cores to specific frameworks
--   **docs** contain usage guides and architecture notes
-
-------------------------------------------------------------------------
-
-## Ways to Contribute
-
-You can help by:
-
--   Reporting bugs or edge cases
--   Improving documentation or examples
--   Proposing API improvements
--   Adding framework adapters
--   Improving tests or performance
-
-------------------------------------------------------------------------
-
-## Reporting Issues
-
-Before opening an issue, please:
-
-1.  Search existing issues to avoid duplicates
-2.  Include a minimal reproduction if possible
-3.  Specify the package (`menu-core`, `selection-core`, etc.)
-4.  Describe expected vs actual behavior
-
-------------------------------------------------------------------------
-
-## Development Setup
+## Development setup
 
 Requirements:
 
--   Node.js 18+
--   pnpm
+- Node.js `20.x` (recommended)
+- `pnpm`
 
-Install dependencies:
+Install:
 
-``` bash
+```bash
 pnpm install
 ```
 
-Run local development:
+Useful commands:
 
-``` bash
-pnpm dev
+```bash
+pnpm run check
+pnpm run build
+pnpm run test:e2e
+pnpm run quality:max
 ```
 
-Run tests:
+Local app/docs runs:
 
-``` bash
-pnpm test
+```bash
+pnpm --filter demo-vue dev
+pnpm --filter demo-laravel dev
+pnpm --dir docs-site dev
 ```
 
-------------------------------------------------------------------------
+## Pull request requirements
 
-## Pull Request Guidelines
+- Use the PR template in `/.github/PULL_REQUEST_TEMPLATE.md`.
+- Keep PR scope focused (one logical change).
+- Add/update tests for behavior changes.
+- Update docs/readme for public API or integration contract changes.
+- Add changeset for releasable package changes (or explain why not needed).
 
--   Keep PRs focused and minimal
--   One logical change per PR
--   Add or update tests when relevant
--   Update docs if behavior or API changes
--   Avoid breaking changes unless discussed first
+## Ownership and review
 
-------------------------------------------------------------------------
+- Ownership is defined in `/.github/CODEOWNERS`.
+- Review and process rules:
+  - `docs/process/review-policy.md`
+  - `docs/process/definition-of-done.md`
+  - `docs/process/branch-strategy.md`
+  - `docs/process/branch-protection-policy.md`
+  - `docs/process/release-process.md`
 
-## Commit Style
+## Reporting
 
--   Use clear, descriptive commit messages
--   Prefer imperative tone: `fix`, `add`, `refactor`
--   Avoid unrelated formatting changes
+- Bugs/features: use issue templates in `/.github/ISSUE_TEMPLATE/`.
+- Security issues: follow `SECURITY.md` and report privately.
 
-------------------------------------------------------------------------
+## Code of conduct
 
-## Code Style
-
--   TypeScript strict mode is enforced
--   Prefer explicit types over inference for public APIs
--   Avoid framework-specific assumptions in core packages
--   No DOM access inside core logic
-
-------------------------------------------------------------------------
-
-## API Changes
-
-If you want to change a public API:
-
-1.  Open an issue first
-2.  Explain the motivation and trade-offs
-3.  Consider backward compatibility
-4.  Be ready to iterate on feedback
-
-------------------------------------------------------------------------
-
-## Code of Conduct
-
-By participating in this project, you agree to follow the\
-[Contributor Covenant Code of Conduct](./CODE_OF_CONDUCT.md).
-
-------------------------------------------------------------------------
-
-## Questions
-
-If you're unsure about anything, open an issue or start a discussion.
-Thoughtful questions are always welcome.
-
-Thanks for helping make **Affino** better 🚀
+By participating, you agree to `CODE_OF_CONDUCT.md`.
