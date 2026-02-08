@@ -179,6 +179,35 @@ test.describe("datagrid quick filter foundation", () => {
   })
 })
 
+test.describe("datagrid group-by baseline", () => {
+  test("group by owner clusters rows and exposes group metrics", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await selectControlOption(page, "Group by", "Owner")
+
+    await expect(metricValue(page, "Group by")).toHaveText("owner")
+    await expect.poll(async () => parseMetricNumber(await readText(metricValue(page, "Groups")))).toBeGreaterThan(1)
+    await expect(page.locator(".datagrid-controls__status")).toContainText("Grouped by owner")
+    await expect(page.locator('.datagrid-stage__cell[data-column-key="owner"] .datagrid-stage__group-badge').first()).toBeVisible()
+  })
+
+  test("group by remains deterministic with quick filter and sorting", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await selectControlOption(page, "Group by", "Service")
+    await page.locator('.datagrid-controls input[placeholder*="quick filter"]').fill("edge-gateway")
+
+    await expect(metricValue(page, "Group by")).toHaveText("service")
+    await expect.poll(async () => parseMetricNumber(await readText(metricValue(page, "Groups")))).toBeGreaterThan(0)
+
+    await headerCell(page, "Latency (ms)").click()
+    await expect(metricValue(page, "Sort state")).toContainText("latencyMs:asc")
+    await expect(page.locator('.datagrid-stage__row .datagrid-stage__cell[data-column-key="service"]').first()).toContainText(
+      "edge-gateway",
+    )
+  })
+})
+
 test.describe("datagrid column filter mvp", () => {
   test("apply and reset text filter from header trigger", async ({ page }) => {
     await page.goto(ROUTE)
@@ -544,6 +573,266 @@ test.describe("datagrid drag & drop editing flows", () => {
   })
 })
 
+test.describe("datagrid history undo/redo regression", () => {
+  test("keyboard undo/redo restores edit, paste, cut in grouped + virtualized mode", async ({ page }) => {
+    const pageErrors: string[] = []
+    page.on("pageerror", error => {
+      pageErrors.push(error.message)
+    })
+
+    await prepareGroupedVirtualizedSession(page)
+
+    const ownerBefore = await cellText(page, "owner", 0)
+    const ownerEdited = `${ownerBefore}-history`
+    await cellLocator(page, "owner", 0).dblclick()
+    const ownerEditor = page
+      .locator('.datagrid-stage__editor-input[data-inline-editor-column-key="owner"]')
+      .first()
+    await expect(ownerEditor).toBeVisible()
+    await ownerEditor.fill(ownerEdited)
+    await page.keyboard.press("Enter")
+
+    await expect.poll(async () => await cellText(page, "owner", 0)).toBe(ownerEdited)
+    await expect(undoControl(page)).toBeEnabled()
+    await historyUndoKeyboard(page)
+    await expect.poll(async () => await cellText(page, "owner", 0)).toBe(ownerBefore)
+    await historyRedoKeyboard(page)
+    await expect.poll(async () => await cellText(page, "owner", 0)).toBe(ownerEdited)
+
+    const pasteTargetBefore = await cellText(page, "owner", 1)
+    await cellLocator(page, "owner", 0).click()
+    await page.keyboard.press("ControlOrMeta+C")
+    await cellLocator(page, "owner", 1).click()
+    await page.keyboard.press("ControlOrMeta+V")
+    await expect.poll(async () => await cellText(page, "owner", 1)).toBe(ownerEdited)
+
+    await expect(undoControl(page)).toBeEnabled()
+    await historyUndoKeyboard(page)
+    await expect.poll(async () => await cellText(page, "owner", 1)).toBe(pasteTargetBefore)
+    await historyRedoKeyboard(page)
+    await expect.poll(async () => await cellText(page, "owner", 1)).toBe(ownerEdited)
+
+    const deploymentBefore = await cellText(page, "deployment", 0)
+    await cellLocator(page, "deployment", 0).click()
+    await page.keyboard.press("ControlOrMeta+X")
+    await expect.poll(async () => await cellText(page, "deployment", 0)).toBe("")
+
+    await historyUndoKeyboard(page)
+    await expect.poll(async () => await cellText(page, "deployment", 0)).toBe(deploymentBefore)
+    await historyRedoKeyboard(page)
+    await expect.poll(async () => await cellText(page, "deployment", 0)).toBe("")
+
+    expect(pageErrors).toEqual([])
+  })
+
+  test("control undo/redo restores fill and move in grouped + virtualized mode", async ({ page }) => {
+    const pageErrors: string[] = []
+    page.on("pageerror", error => {
+      pageErrors.push(error.message)
+    })
+
+    await prepareGroupedVirtualizedSession(page)
+
+    const fillSourceDeployment = await cellText(page, "deployment", 0)
+    const fillRow1Before = await cellText(page, "deployment", 1)
+    const fillRow2Before = await cellText(page, "deployment", 2)
+
+    await cellLocator(page, "deployment", 0).click()
+    await dragFillHandle(page, cellLocator(page, "deployment", 0), cellLocator(page, "deployment", 2))
+
+    await expect.poll(async () => await cellText(page, "deployment", 1)).toBe(fillSourceDeployment)
+    await expect.poll(async () => await cellText(page, "deployment", 2)).toBe(fillSourceDeployment)
+
+    await expect(undoControl(page)).toBeEnabled()
+    await historyUndoControl(page)
+    await expect.poll(async () => await cellText(page, "deployment", 1)).toBe(fillRow1Before)
+    await expect.poll(async () => await cellText(page, "deployment", 2)).toBe(fillRow2Before)
+
+    await expect(redoControl(page)).toBeEnabled()
+    await historyRedoControl(page)
+    await expect.poll(async () => await cellText(page, "deployment", 1)).toBe(fillSourceDeployment)
+    await expect.poll(async () => await cellText(page, "deployment", 2)).toBe(fillSourceDeployment)
+
+    const sourceChannel0 = await cellText(page, "channel", 0)
+    const sourceRunbook0 = await cellText(page, "runbook", 0)
+    const sourceChannel1 = await cellText(page, "channel", 1)
+    const sourceRunbook1 = await cellText(page, "runbook", 1)
+    const targetChannel3Before = await cellText(page, "channel", 3)
+    const targetRunbook3Before = await cellText(page, "runbook", 3)
+    const targetChannel4Before = await cellText(page, "channel", 4)
+    const targetRunbook4Before = await cellText(page, "runbook", 4)
+
+    await cellLocator(page, "channel", 0).click()
+    await page.keyboard.press("Shift+ArrowRight")
+    await page.keyboard.press("Shift+ArrowDown")
+    await altDragRange(page, cellLocator(page, "channel", 0), cellLocator(page, "channel", 3))
+
+    await expect.poll(async () => await cellText(page, "channel", 3)).toBe(sourceChannel0)
+    await expect.poll(async () => await cellText(page, "runbook", 3)).toBe(sourceRunbook0)
+    await expect.poll(async () => await cellText(page, "channel", 4)).toBe(sourceChannel1)
+    await expect.poll(async () => await cellText(page, "runbook", 4)).toBe(sourceRunbook1)
+    await expect.poll(async () => await cellText(page, "channel", 0)).toBe("")
+    await expect.poll(async () => await cellText(page, "runbook", 0)).toBe("")
+
+    await historyUndoControl(page)
+    await expect.poll(async () => await cellText(page, "channel", 0)).toBe(sourceChannel0)
+    await expect.poll(async () => await cellText(page, "runbook", 0)).toBe(sourceRunbook0)
+    await expect.poll(async () => await cellText(page, "channel", 1)).toBe(sourceChannel1)
+    await expect.poll(async () => await cellText(page, "runbook", 1)).toBe(sourceRunbook1)
+    await expect.poll(async () => await cellText(page, "channel", 3)).toBe(targetChannel3Before)
+    await expect.poll(async () => await cellText(page, "runbook", 3)).toBe(targetRunbook3Before)
+    await expect.poll(async () => await cellText(page, "channel", 4)).toBe(targetChannel4Before)
+    await expect.poll(async () => await cellText(page, "runbook", 4)).toBe(targetRunbook4Before)
+
+    await historyRedoControl(page)
+    await expect.poll(async () => await cellText(page, "channel", 3)).toBe(sourceChannel0)
+    await expect.poll(async () => await cellText(page, "runbook", 3)).toBe(sourceRunbook0)
+    await expect.poll(async () => await cellText(page, "channel", 4)).toBe(sourceChannel1)
+    await expect.poll(async () => await cellText(page, "runbook", 4)).toBe(sourceRunbook1)
+    await expect.poll(async () => await cellText(page, "channel", 0)).toBe("")
+    await expect.poll(async () => await cellText(page, "runbook", 0)).toBe("")
+
+    expect(pageErrors).toEqual([])
+  })
+})
+
+test.describe("datagrid critical regression bundle", () => {
+  test("baseline critical path (sort/filter/resize/clipboard/context) stays stable", async ({ page }) => {
+    const pageErrors: string[] = []
+    page.on("pageerror", error => {
+      pageErrors.push(error.message)
+    })
+
+    await page.goto(ROUTE)
+
+    const sortValue = metricValue(page, "Sort state")
+    const filteredValue = metricValue(page, "Filtered")
+    const totalValue = metricValue(page, "Total")
+
+    await headerCell(page, "Service").click()
+    await expect(sortValue).toContainText("1:service:asc")
+
+    const totalCount = parseMetricNumber(await readText(totalValue))
+    await openHeaderFilter(page, "owner")
+    await page.locator("[data-datagrid-filter-value]").fill("ari")
+    await page.locator("[data-datagrid-filter-apply]").click()
+    await expect(page.locator(".datagrid-controls__status")).toContainText("Filter applied")
+    await expect.poll(async () => parseMetricNumber(await readText(filteredValue))).toBeLessThan(totalCount)
+
+    const ownerHeader = page.locator('.datagrid-stage__cell--header[data-column-key="owner"]').first()
+    const ownerHandle = page.locator('[data-datagrid-resize-handle][data-column-key="owner"]').first()
+    const ownerWidthBefore = await headerWidth(ownerHeader)
+    await dragResizeHandle(page, ownerHandle, 70)
+    const ownerWidthAfter = await headerWidth(ownerHeader)
+    expect(ownerWidthAfter).toBeGreaterThan(ownerWidthBefore + 20)
+
+    await cellLocator(page, "owner", 0).click()
+    await page.keyboard.press("ControlOrMeta+C")
+    await cellLocator(page, "owner", 1).click()
+    await page.keyboard.press("ControlOrMeta+V")
+    await expect(page.locator(".datagrid-controls__status")).toContainText("Pasted")
+
+    await cellLocator(page, "owner", 1).click({ button: "right" })
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveAttribute("data-zone", "cell")
+    await page.locator('[data-datagrid-menu-action="cut"]').click()
+    await expect(page.locator(".datagrid-controls__status")).toContainText("Cut")
+
+    expect(pageErrors).toEqual([])
+  })
+
+  test("pinned+virtualized critical path remains deterministic", async ({ page }) => {
+    const pageErrors: string[] = []
+    page.on("pageerror", error => {
+      pageErrors.push(error.message)
+    })
+
+    await page.goto(ROUTE)
+
+    await selectRowsPreset(page, "6400")
+    await page
+      .locator(".datagrid-controls label")
+      .filter({ has: page.locator("span", { hasText: "Pin status column" }) })
+      .locator('input[type="checkbox"]')
+      .check()
+
+    const viewport = page.locator(".datagrid-stage__viewport")
+    await runLongVerticalSession(viewport)
+    await runLongHorizontalSession(viewport)
+
+    const statusHeader = page.locator('.datagrid-stage__cell--header[data-column-key="status"]').first()
+    await statusHeader.click({ button: "right" })
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveAttribute("data-zone", "header")
+    await page.locator('[data-datagrid-menu-action="sort-asc"]').click()
+    await expect(metricValue(page, "Sort state")).toContainText("1:status:asc")
+
+    await openHeaderFilter(page, "service")
+    await page.locator("[data-datagrid-filter-value]").fill("edge-gateway")
+    await page.locator("[data-datagrid-filter-apply]").click()
+    await expect(metricValue(page, "Column filters")).toHaveText("1")
+
+    await viewport.evaluate(element => {
+      element.scrollLeft = 0
+    })
+    await cellLocator(page, "owner", 0).click()
+    await page.keyboard.press("Shift+F10")
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(1)
+    await page.keyboard.press("Escape")
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(0)
+
+    expect(pageErrors).toEqual([])
+  })
+})
+
+test.describe("datagrid accessibility pass", () => {
+  test("grid exposes active-descendant and semantic row/col indexes", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const viewport = page.locator(".datagrid-stage__viewport")
+    const ownerCell = cellLocator(page, "owner", 0)
+    await ownerCell.click()
+
+    await expect(viewport).toHaveAttribute("role", "grid")
+    await expect(viewport).toHaveAttribute("aria-multiselectable", "true")
+    await expect(viewport).toHaveAttribute("aria-colcount", /\d+/)
+    await expect(viewport).toHaveAttribute("aria-rowcount", /\d+/)
+
+    const activeDescendantId = await viewport.getAttribute("aria-activedescendant")
+    expect(activeDescendantId).toBeTruthy()
+    if (!activeDescendantId) {
+      throw new Error("Expected aria-activedescendant to be set")
+    }
+    await expect(page.locator(`#${activeDescendantId}`)).toHaveAttribute("role", "gridcell")
+    await expect(ownerCell).toHaveAttribute("aria-colindex", /\d+/)
+    await expect(ownerCell).toHaveAttribute("aria-rowindex", "2")
+  })
+
+  test("context menu is keyboard-focusable and traps arrow navigation", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await cellLocator(page, "owner", 0).click()
+    await page.keyboard.press("Shift+F10")
+
+    const menu = page.locator("[data-datagrid-copy-menu]")
+    await expect(menu).toHaveAttribute("role", "menu")
+    await expect(menu).toHaveAttribute("aria-label", /Cell actions|Column actions/)
+
+    const menuItems = page.locator("[data-datagrid-menu-action]")
+    await expect(menuItems.first()).toBeFocused()
+    await page.keyboard.press("ArrowDown")
+    await expect(menuItems.nth(1)).toBeFocused()
+  })
+
+  test("live region announces clipboard actions", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await cellLocator(page, "owner", 0).click()
+    await page.keyboard.press("ControlOrMeta+C")
+
+    const liveRegion = page.locator(".datagrid-sr-only[role='status']")
+    await expect(liveRegion).toContainText("Copied")
+  })
+})
+
 function metricValue(page: Page, label: string): Locator {
   return page
     .locator(".datagrid-metrics div")
@@ -626,6 +915,21 @@ async function altDragRangeWithAutoScroll(page: Page, fromCell: Locator, viewpor
   await page.keyboard.up("Alt")
 }
 
+async function dragFillHandle(page: Page, fromCell: Locator, toCell: Locator): Promise<void> {
+  const handle = fromCell.locator(".datagrid-stage__selection-handle--cell").first()
+  await expect(handle).toBeVisible()
+  const handleBox = await boundingBox(handle)
+  const targetBox = await boundingBox(toCell)
+  const startX = handleBox.x + handleBox.width / 2
+  const startY = handleBox.y + handleBox.height / 2
+  const endX = targetBox.x + Math.max(8, Math.min(targetBox.width - 8, targetBox.width * 0.5))
+  const endY = targetBox.y + Math.max(8, Math.min(targetBox.height - 8, targetBox.height * 0.5))
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  await page.mouse.move(endX, endY)
+  await page.mouse.up()
+}
+
 async function boundingBox(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
   const box = await locator.boundingBox()
   if (!box) {
@@ -635,15 +939,66 @@ async function boundingBox(locator: Locator): Promise<{ x: number; y: number; wi
 }
 
 async function selectRowsPreset(page: Page, rows: string): Promise<void> {
+  await selectControlOption(page, "Rows", rows)
+}
+
+async function selectControlOption(page: Page, label: string, option: string): Promise<void> {
   const control = page
     .locator(".datagrid-controls label")
-    .filter({ has: page.locator("span", { hasText: "Rows" }) })
+    .filter({ has: page.locator("span", { hasText: label }) })
 
   const trigger = control.locator("[data-affino-listbox-trigger]")
   await trigger.click()
 
-  const option = page.locator("[data-affino-listbox-option]", { hasText: rows }).first()
-  await option.click()
+  const listboxOption = page.locator("[data-affino-listbox-option]", { hasText: option }).first()
+  await listboxOption.click()
+}
+
+function undoControl(page: Page): Locator {
+  return page.getByRole("button", { name: "Undo" }).first()
+}
+
+function redoControl(page: Page): Locator {
+  return page.getByRole("button", { name: "Redo" }).first()
+}
+
+async function historyUndoKeyboard(page: Page): Promise<void> {
+  await page.keyboard.press("ControlOrMeta+Z")
+}
+
+async function historyRedoKeyboard(page: Page): Promise<void> {
+  await page.keyboard.press("ControlOrMeta+Shift+Z")
+}
+
+async function historyUndoControl(page: Page): Promise<void> {
+  await expect(undoControl(page)).toBeEnabled()
+  await undoControl(page).click()
+}
+
+async function historyRedoControl(page: Page): Promise<void> {
+  await expect(redoControl(page)).toBeEnabled()
+  await redoControl(page).click()
+}
+
+async function prepareGroupedVirtualizedSession(page: Page): Promise<void> {
+  await page.goto(ROUTE)
+  await selectRowsPreset(page, "6400")
+  await selectControlOption(page, "Group by", "Service")
+  await page
+    .locator(".datagrid-controls label")
+    .filter({ has: page.locator("span", { hasText: "Pin status column" }) })
+    .locator('input[type="checkbox"]')
+    .check()
+
+  const viewport = page.locator(".datagrid-stage__viewport")
+  await viewport.waitFor()
+  await runLongVerticalSession(viewport)
+  await runLongHorizontalSession(viewport)
+  await viewport.evaluate(element => {
+    element.scrollLeft = 0
+  })
+  await expect(metricValue(page, "Group by")).toHaveText("service")
+  await expect.poll(async () => parseRangeStart(await readText(metricValue(page, "Window")))).toBeGreaterThan(10)
 }
 
 async function runLongVerticalSession(viewport: Locator): Promise<void> {
@@ -686,4 +1041,13 @@ function parseRangeStart(raw: string): number {
 function parseColumnWindowStart(raw: string): number {
   const match = raw.match(/^(\d+)-(\d+)\s*\/\s*(\d+)$/)
   return match ? Number(match[1]) : 0
+}
+
+function parseMetricNumber(raw: string): number {
+  const normalized = raw.replace(/[^\d.-]/g, "")
+  if (!normalized) {
+    return 0
+  }
+  const value = Number(normalized)
+  return Number.isFinite(value) ? value : 0
 }

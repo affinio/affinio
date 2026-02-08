@@ -10,18 +10,22 @@ This document defines the canonical model layer for `@affino/datagrid-core`.
 
 Core API:
 
-- `getSnapshot()` -> metadata (`rowCount`, `loading`, `error`, `viewportRange`, `sortModel`, `filterModel`)
+- `getSnapshot()` -> metadata (`rowCount`, `loading`, `error`, `viewportRange`, `sortModel`, `filterModel`, `groupBy`, `groupExpansion`)
 - `getRow(index)` / `getRowsInRange(range)` -> row access via canonical `DataGridRowNode`
 - `setViewportRange(range)` -> deterministic demand window
 - `setSortModel(model)` / `setFilterModel(model)` -> model-side inputs
+- `setGroupBy(spec | null)` -> grouping projection input contract
+- `toggleGroup(groupKey)` -> expansion state command for grouped projection
 - `refresh(reason)` -> reload hook
 - `subscribe(listener)` / `dispose()` -> lifecycle
 
 `DataGridRowNode` identity/state contract:
 
+- `kind` (`leaf|group`) as canonical projection discriminator
 - `rowKey` (stable row identity for selection/focus/operations)
 - `sourceIndex` (source model index)
 - `displayIndex` (current rendered/order index)
+- `groupMeta` for projected group rows (`groupKey`, `groupField`, `groupValue`, `level`, `childrenCount`)
 - `state.selected`
 - `state.group`
 - `state.pinned` (`none|top|bottom`)
@@ -44,6 +48,33 @@ RowModel kind truthfulness:
 
 - Public `DataGridRowModelKind` currently includes only implemented kinds: `client | server`.
 - `infinite` / `viewport` kinds are intentionally not exposed until concrete implementations and contract tests are added.
+
+## GroupBy Projection Contract
+
+Canonical GroupBy direction:
+
+- GroupBy belongs to RowModel as projection logic, not to UI-only state.
+- Group rows are virtual rows in the same flattened stream consumed by virtualization.
+- Grid runtime remains flat-window based; tree shape exists in projected row nodes.
+
+Implemented baseline:
+
+- `setGroupBy(spec | null)` where `null` resets to plain grid.
+- `toggleGroup(groupKey)` with stable string identity.
+- explicit row kinds (`group` / `leaf`) in model output.
+
+Projection order (must stay deterministic):
+
+- filter -> sort -> groupBy -> flattenTree(expansionState) -> virtualization.
+
+Execution notes:
+
+- `createClientRowModel` executes this projection order locally and exposes flattened rows to viewport.
+- server/data-source-backed models propagate `sortModel`, `filterModel`, `groupBy`, `groupExpansion` through protocol state and keep viewport consumption on flattened row stream.
+- selection adapters must resolve row indexes/ids against flattened projection; `selectionState.createGridSelectionContextFromFlattenedRows` is the canonical helper for this boundary.
+- adapters derive tree-like render hints through `getDataGridRowRenderMeta(rowNode)`; viewport/virtualization stay tree-agnostic.
+
+Reference: `/Users/anton/Projects/affinio/docs/datagrid-groupby-rowmodel-projection.md`.
 
 ## Column Model
 
@@ -108,8 +139,11 @@ Core contract:
 Command invariants:
 
 - each command must include `type`, `payload`, and `rollbackPayload`
+- intent metadata is first-class: `meta.intent` + `meta.affectedRange` on transaction/command
 - rollback always uses `rollbackPayload` and runs in reverse command order
 - same command sequence gives same apply/undo/redo ordering
+- history is intent-level (transaction/batch), not per-cell event stream
+- optional `maxHistoryDepth` caps undo memory growth without changing apply semantics
 
 ## Public API Tiers
 

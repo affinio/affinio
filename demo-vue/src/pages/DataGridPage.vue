@@ -11,6 +11,10 @@ import {
   type DataGridRowNode,
   type DataGridSortState,
 } from "@affino/datagrid-core"
+import {
+  createDataGridTransactionService,
+  type DataGridTransactionAffectedRange,
+} from "@affino/datagrid-core/advanced"
 
 type Severity = "critical" | "high" | "medium" | "low"
 type Status = "stable" | "watch" | "degraded"
@@ -136,6 +140,29 @@ interface CopyContextMenuState {
   rowId: string | null
 }
 
+interface GridMutationSnapshot {
+  sourceRows: IncidentRow[]
+  cellAnchor: CellCoord | null
+  cellFocus: CellCoord | null
+  activeCell: CellCoord | null
+  copiedSelectionRange: CellSelectionRange | null
+}
+
+interface IntentTransactionDescriptor {
+  intent: "paste" | "cut" | "clear" | "fill" | "move" | "edit"
+  label: string
+  affectedRange: CellSelectionRange | null
+}
+
+type GroupByColumnKey =
+  | "none"
+  | "service"
+  | "owner"
+  | "region"
+  | "environment"
+  | "severity"
+  | "status"
+
 const ROW_HEIGHT = 38
 const OVERSCAN = 8
 const DRAG_AUTO_SCROLL_EDGE_PX = 36
@@ -144,11 +171,14 @@ const AUTO_SIZE_SAMPLE_LIMIT = 260
 const AUTO_SIZE_CHAR_WIDTH = 7.2
 const AUTO_SIZE_HORIZONTAL_PADDING = 28
 const AUTO_SIZE_MAX_WIDTH = 640
+const GRID_HINT_ID = "datagrid-a11y-hint"
+const FILTER_PANEL_TITLE_ID = "datagrid-filter-panel-title"
 
 const rowCount = ref(2400)
 const seed = ref(1)
 const query = ref("")
 const sortPreset = ref("latency-desc")
+const groupBy = ref<GroupByColumnKey>("none")
 const sortState = ref<readonly DataGridSortState[]>([
   { key: "latencyMs", direction: "desc" },
 ])
@@ -161,6 +191,15 @@ const sortPresetOptions = [
   { value: "errors-desc", label: "Errors desc" },
   { value: "service-asc", label: "Service asc" },
   { value: "custom", label: "Custom" },
+] as const
+const groupByOptions = [
+  { value: "none", label: "None" },
+  { value: "service", label: "Service" },
+  { value: "owner", label: "Owner" },
+  { value: "region", label: "Region" },
+  { value: "environment", label: "Environment" },
+  { value: "severity", label: "Severity" },
+  { value: "status", label: "Status" },
 ] as const
 
 const NUMERIC_COLUMN_KEYS = new Set<string>([
@@ -251,6 +290,105 @@ let lastDragCoord: CellCoord | null = null
 
 const sourceRows = ref<IncidentRow[]>(buildRows(rowCount.value, seed.value))
 
+function cloneCoord(coord: CellCoord | null): CellCoord | null {
+  return coord ? { ...coord } : null
+}
+
+function cloneRange(range: CellSelectionRange | null): CellSelectionRange | null {
+  return range ? { ...range } : null
+}
+
+function cloneRows(rows: readonly IncidentRow[]): IncidentRow[] {
+  return rows.map(row => ({ ...row }))
+}
+
+function captureGridMutationSnapshot(): GridMutationSnapshot {
+  return {
+    sourceRows: cloneRows(sourceRows.value),
+    cellAnchor: cloneCoord(cellAnchor.value),
+    cellFocus: cloneCoord(cellFocus.value),
+    activeCell: cloneCoord(activeCell.value),
+    copiedSelectionRange: cloneRange(copiedSelectionRange.value),
+  }
+}
+
+function applyGridMutationSnapshot(snapshot: GridMutationSnapshot) {
+  sourceRows.value = cloneRows(snapshot.sourceRows)
+  cellAnchor.value = cloneCoord(snapshot.cellAnchor)
+  cellFocus.value = cloneCoord(snapshot.cellFocus)
+  activeCell.value = cloneCoord(snapshot.activeCell)
+  copiedSelectionRange.value = cloneRange(snapshot.copiedSelectionRange)
+}
+
+function toTransactionRange(range: CellSelectionRange | null): DataGridTransactionAffectedRange | null {
+  if (!range) {
+    return null
+  }
+  return {
+    startRow: range.startRow,
+    endRow: range.endRow,
+    startColumn: range.startColumn,
+    endColumn: range.endColumn,
+  }
+}
+
+function toSingleCellRange(coord: CellCoord | null): CellSelectionRange | null {
+  if (!coord) {
+    return null
+  }
+  return {
+    startRow: coord.rowIndex,
+    endRow: coord.rowIndex,
+    startColumn: coord.columnIndex,
+    endColumn: coord.columnIndex,
+  }
+}
+
+let transactionIntentCounter = 0
+const transactionService = createDataGridTransactionService({
+  maxHistoryDepth: 120,
+  execute(command, context) {
+    if (context.direction === "apply") {
+      return
+    }
+    const snapshot = command.payload as GridMutationSnapshot
+    applyGridMutationSnapshot(snapshot)
+  },
+})
+
+async function recordIntentTransaction(
+  descriptor: IntentTransactionDescriptor,
+  beforeSnapshot: GridMutationSnapshot,
+): Promise<void> {
+  if (!api.hasTransactionSupport()) {
+    return
+  }
+  const afterSnapshot = captureGridMutationSnapshot()
+  transactionIntentCounter += 1
+  const transactionId = `intent-${descriptor.intent}-${transactionIntentCounter}`
+  const meta = {
+    intent: descriptor.intent,
+    affectedRange: toTransactionRange(descriptor.affectedRange),
+  }
+  try {
+    await api.applyTransaction({
+      id: transactionId,
+      label: descriptor.label,
+      meta,
+      commands: [
+        {
+          type: `grid-state.${descriptor.intent}`,
+          payload: afterSnapshot,
+          rollbackPayload: beforeSnapshot,
+          meta,
+        },
+      ],
+    })
+  } catch (error) {
+    console.error("[DataGrid] failed to record transaction intent", error)
+  }
+}
+
 const rowModel = createClientRowModel<IncidentRow>({ rows: [] })
 const columnModel = createDataGridColumnModel({
   columns: [
@@ -281,6 +419,21 @@ const core = createDataGridCore({
   services: {
     rowModel: { name: "rowModel", model: rowModel },
     columnModel: { name: "columnModel", model: columnModel },
+    transaction: {
+      name: "transaction",
+      getTransactionSnapshot: transactionService.getSnapshot,
+      beginTransactionBatch: transactionService.beginBatch,
+      commitTransactionBatch: transactionService.commitBatch,
+      rollbackTransactionBatch: transactionService.rollbackBatch,
+      applyTransaction: transactionService.applyTransaction,
+      canUndoTransaction: transactionService.canUndo,
+      canRedoTransaction: transactionService.canRedo,
+      undoTransaction: transactionService.undo,
+      redoTransaction: transactionService.redo,
+      dispose() {
+        transactionService.dispose()
+      },
+    },
     viewport: {
       name: "viewport",
       setViewportRange(range) {
@@ -305,6 +458,18 @@ const searchableColumnKeys = computed(() =>
 const activeColumnFilterCount = computed(() => Object.keys(appliedColumnFilters.value).length)
 const hasColumnFilters = computed(() => activeColumnFilterCount.value > 0)
 
+function withGroupingSortPriority(
+  model: readonly DataGridSortState[],
+  groupByKey: GroupByColumnKey,
+): readonly DataGridSortState[] {
+  if (groupByKey === "none") {
+    return model
+  }
+  const withoutGroupKey = model.filter(entry => entry.key !== groupByKey)
+  const groupEntry = model.find(entry => entry.key === groupByKey)
+  return [{ key: groupByKey, direction: groupEntry?.direction ?? "asc" }, ...withoutGroupKey]
+}
+
 const filteredAndSortedRows = computed<IncidentRow[]>(() => {
   const quickFilteredRows = normalizedQuickFilter.value
     ? sourceRows.value.filter(row => matchesQuery(row, normalizedQuickFilter.value, searchableColumnKeys.value))
@@ -312,7 +477,55 @@ const filteredAndSortedRows = computed<IncidentRow[]>(() => {
   const columnFilteredRows = hasColumnFilters.value
     ? quickFilteredRows.filter(row => rowMatchesColumnFilters(row, appliedColumnFilters.value))
     : quickFilteredRows
-  return sortRows(columnFilteredRows, sortState.value)
+  return sortRows(columnFilteredRows, withGroupingSortPriority(sortState.value, groupBy.value))
+})
+
+function resolveGroupValue(row: IncidentRow, columnKey: GroupByColumnKey): string {
+  if (columnKey === "none") {
+    return ""
+  }
+  const raw = getRowCellValue(row, columnKey)
+  const normalized = String(raw ?? "").trim()
+  return normalized.length > 0 ? normalized : "(empty)"
+}
+
+const groupMeta = computed(() => {
+  const starts = new Set<string>()
+  const values = new Map<string, string>()
+  const counts = new Map<string, number>()
+
+  if (groupBy.value === "none") {
+    return { starts, values, counts, groups: 0 }
+  }
+
+  let previousGroupValue: string | null = null
+  let currentStartRowId: string | null = null
+
+  for (const row of filteredAndSortedRows.value) {
+    const rowId = String(row.rowId)
+    const currentGroupValue = resolveGroupValue(row, groupBy.value)
+    if (previousGroupValue === null || currentGroupValue !== previousGroupValue) {
+      starts.add(rowId)
+      values.set(rowId, currentGroupValue)
+      counts.set(rowId, 1)
+      previousGroupValue = currentGroupValue
+      currentStartRowId = rowId
+      continue
+    }
+    if (!currentStartRowId) {
+      continue
+    }
+    counts.set(currentStartRowId, (counts.get(currentStartRowId) ?? 0) + 1)
+  }
+
+  return { starts, values, counts, groups: starts.size }
+})
+const groupCount = computed(() => groupMeta.value.groups)
+const groupBySummary = computed(() => {
+  if (groupBy.value === "none") {
+    return "none"
+  }
+  return `${groupBy.value}`
 })
 
 const selectedCount = computed(() => selectedRowIds.value.size)
@@ -514,6 +727,19 @@ const quickFilterStatus = computed(() => {
   const displayQuery = query.value.trim()
   return `Quick filter: "${displayQuery}" · ${filteredAndSortedRows.value.length}/${sourceRows.value.length}`
 })
+const gridRowCount = computed(() => filteredAndSortedRows.value.length + 1)
+const activeCellDescendantId = computed(() => {
+  const active = activeCell.value
+  if (!active) {
+    return null
+  }
+  const row = filteredAndSortedRows.value[active.rowIndex]
+  const column = orderedColumns.value[active.columnIndex]
+  if (!row || !column) {
+    return null
+  }
+  return getGridCellId(String(row.rowId), column.key)
+})
 
 const sortSummary = computed(() => {
   if (!sortState.value.length) {
@@ -537,6 +763,9 @@ const activeCellLabel = computed(() => {
   if (!column) return "none"
   return `R${activeCell.value.rowIndex + 1} · ${column.key}`
 })
+
+const canUndoHistory = computed(() => api.hasTransactionSupport() && api.canUndoTransaction())
+const canRedoHistory = computed(() => api.hasTransactionSupport() && api.canRedoTransaction())
 
 function rangesEqual(a: CellSelectionRange | null, b: CellSelectionRange | null): boolean {
   if (!a || !b) {
@@ -798,8 +1027,32 @@ function getCellStyle(columnKey: string): Record<string, string> {
   return {}
 }
 
+function sanitizeDomIdPart(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "-")
+}
+
+function getGridCellId(rowId: string, columnKey: string): string {
+  return `datagrid-cell-${sanitizeDomIdPart(rowId)}-${sanitizeDomIdPart(columnKey)}`
+}
+
+function getHeaderCellId(columnKey: string): string {
+  return `datagrid-header-${sanitizeDomIdPart(columnKey)}`
+}
+
+function getColumnAriaIndex(columnKey: string): number {
+  return Math.max(1, resolveColumnIndex(columnKey) + 1)
+}
+
+function getRowAriaIndex(row: DataGridRowNode<IncidentRow>): number {
+  return Math.max(2, resolveRowIndex(row) + 2)
+}
+
 function isStickyColumn(columnKey: string): boolean {
   return stickyLeftOffsets.value.has(columnKey) || stickyRightOffsets.value.has(columnKey)
+}
+
+function isGroupedByColumn(columnKey: string): boolean {
+  return groupBy.value !== "none" && columnKey === groupBy.value
 }
 
 function isSortableColumn(columnKey: string): boolean {
@@ -1444,6 +1697,8 @@ function cancelInlineEdit() {
 function commitInlineEdit(): boolean {
   if (!inlineEditor.value) return false
   const editor = inlineEditor.value
+  const beforeSnapshot = captureGridMutationSnapshot()
+  const editCoord = resolveCellCoordFromDataset(editor.rowId, editor.columnKey)
   const nextDraft = editor.draft.trim()
   inlineEditor.value = null
 
@@ -1460,6 +1715,16 @@ function commitInlineEdit(): boolean {
   })
 
   lastAction.value = updated ? `Saved ${editor.columnKey}` : "Edit target no longer available"
+  if (updated) {
+    void recordIntentTransaction(
+      {
+        intent: "edit",
+        label: `Edit ${editor.columnKey}`,
+        affectedRange: toSingleCellRange(editCoord),
+      },
+      beforeSnapshot,
+    )
+  }
   return updated
 }
 
@@ -2350,6 +2615,7 @@ async function pasteSelection(trigger: "keyboard" | "context-menu"): Promise<boo
     lastAction.value = "Paste skipped: target out of range"
     return false
   }
+  const beforeSnapshot = captureGridMutationSnapshot()
 
   const sourceById = new Map(sourceRows.value.map(row => [row.rowId, row]))
   const mutableById = new Map<string, IncidentRow>()
@@ -2422,6 +2688,16 @@ async function pasteSelection(trigger: "keyboard" | "context-menu"): Promise<boo
   cellAnchor.value = { rowIndex: targetRange.startRow, columnIndex: targetRange.startColumn }
   cellFocus.value = { rowIndex: targetRange.endRow, columnIndex: targetRange.endColumn }
   activeCell.value = { rowIndex: targetRange.startRow, columnIndex: targetRange.startColumn }
+  await recordIntentTransaction(
+    {
+      intent: "paste",
+      label: blocked > 0
+        ? `Paste ${applied} cells (blocked ${blocked})`
+        : `Paste ${applied} cells`,
+      affectedRange: targetRange,
+    },
+    beforeSnapshot,
+  )
   closeCopyContextMenu()
   lastAction.value = blocked > 0
     ? `Pasted ${applied} cells (${trigger}), blocked ${blocked}`
@@ -2495,19 +2771,30 @@ function clearSelectionValues(range: CellSelectionRange): { cleared: number; blo
   return { cleared, blocked }
 }
 
-function clearCurrentSelection(trigger: "context-menu" | "keyboard"): boolean {
+async function clearCurrentSelection(trigger: "context-menu" | "keyboard"): Promise<boolean> {
   const range = resolveCopyRange()
   if (!range) {
     closeCopyContextMenu()
     lastAction.value = "Clear skipped: no active selection"
     return false
   }
+  const beforeSnapshot = captureGridMutationSnapshot()
   const result = clearSelectionValues(range)
   closeCopyContextMenu()
   if (result.cleared === 0) {
     lastAction.value = `Clear blocked (${result.blocked} cells)`
     return false
   }
+  await recordIntentTransaction(
+    {
+      intent: "clear",
+      label: result.blocked > 0
+        ? `Clear ${result.cleared} cells (blocked ${result.blocked})`
+        : `Clear ${result.cleared} cells`,
+      affectedRange: range,
+    },
+    beforeSnapshot,
+  )
   lastAction.value = result.blocked > 0
     ? `Cleared ${result.cleared} cells (${trigger}), blocked ${result.blocked}`
     : `Cleared ${result.cleared} cells (${trigger})`
@@ -2525,6 +2812,7 @@ async function cutSelection(trigger: "keyboard" | "context-menu"): Promise<boole
   if (!copied) {
     return false
   }
+  const beforeSnapshot = captureGridMutationSnapshot()
 
   const result = clearSelectionValues(range)
   const cleared = result.cleared
@@ -2535,6 +2823,16 @@ async function cutSelection(trigger: "keyboard" | "context-menu"): Promise<boole
     lastAction.value = `Cut blocked (${blocked} cells)`
     return false
   }
+  await recordIntentTransaction(
+    {
+      intent: "cut",
+      label: blocked > 0
+        ? `Cut ${cleared} cells (blocked ${blocked})`
+        : `Cut ${cleared} cells`,
+      affectedRange: range,
+    },
+    beforeSnapshot,
+  )
   lastAction.value = blocked > 0
     ? `Cut ${cleared} cells (${trigger}), blocked ${blocked}`
     : `Cut ${cleared} cells (${trigger})`
@@ -2603,7 +2901,7 @@ async function onContextMenuAction(action: ContextMenuActionId) {
     return
   }
   if (action === "clear") {
-    clearCurrentSelection("context-menu")
+    await clearCurrentSelection("context-menu")
     return
   }
 
@@ -2913,6 +3211,7 @@ function applyRangeMove(): boolean {
   if (!baseRange || !targetRange || rangesEqual(baseRange, targetRange)) {
     return false
   }
+  const beforeSnapshot = captureGridMutationSnapshot()
 
   const sourceById = new Map(sourceRows.value.map(row => [row.rowId, row]))
   const mutableById = new Map<string, IncidentRow>()
@@ -3031,6 +3330,16 @@ function applyRangeMove(): boolean {
   cellAnchor.value = { rowIndex: targetRange.startRow, columnIndex: targetRange.startColumn }
   cellFocus.value = { rowIndex: targetRange.endRow, columnIndex: targetRange.endColumn }
   activeCell.value = { rowIndex: targetRange.startRow, columnIndex: targetRange.startColumn }
+  void recordIntentTransaction(
+    {
+      intent: "move",
+      label: blocked > 0
+        ? `Move ${applied} cells (blocked ${blocked})`
+        : `Move ${applied} cells`,
+      affectedRange: targetRange,
+    },
+    beforeSnapshot,
+  )
   lastAction.value = blocked > 0
     ? `Moved ${applied} cells, blocked ${blocked}`
     : `Moved ${applied} cells`
@@ -3043,6 +3352,7 @@ function applyFillPreview() {
   if (!baseRange || !previewRange || rangesEqual(baseRange, previewRange)) {
     return
   }
+  const beforeSnapshot = captureGridMutationSnapshot()
 
   const displayedRows = filteredAndSortedRows.value
   if (!displayedRows.length) {
@@ -3133,6 +3443,14 @@ function applyFillPreview() {
   cellAnchor.value = { rowIndex: previewRange.startRow, columnIndex: previewRange.startColumn }
   cellFocus.value = { rowIndex: previewRange.endRow, columnIndex: previewRange.endColumn }
   activeCell.value = { rowIndex: previewRange.endRow, columnIndex: previewRange.endColumn }
+  void recordIntentTransaction(
+    {
+      intent: "fill",
+      label: `Fill ${changedCells} cells`,
+      affectedRange: previewRange,
+    },
+    beforeSnapshot,
+  )
   lastAction.value = `Fill applied (${changedCells} cells)`
 }
 
@@ -3454,6 +3772,22 @@ function onViewportKeyDown(event: KeyboardEvent) {
   if (inlineEditor.value) {
     return
   }
+  const key = event.key.toLowerCase()
+  const primaryModifierPressed = event.metaKey || event.ctrlKey
+  if (primaryModifierPressed && !event.altKey && key === "z") {
+    event.preventDefault()
+    if (event.shiftKey) {
+      void runHistoryAction("redo", "keyboard")
+      return
+    }
+    void runHistoryAction("undo", "keyboard")
+    return
+  }
+  if (primaryModifierPressed && !event.altKey && !event.shiftKey && key === "y") {
+    event.preventDefault()
+    void runHistoryAction("redo", "keyboard")
+    return
+  }
   if (isRangeMoving.value) {
     if (event.key === "Escape") {
       event.preventDefault()
@@ -3488,17 +3822,17 @@ function onViewportKeyDown(event: KeyboardEvent) {
     openContextMenuFromCurrentCell()
     return
   }
-  if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "c") {
+  if ((event.metaKey || event.ctrlKey) && !event.altKey && key === "c") {
     event.preventDefault()
     void copySelection("keyboard")
     return
   }
-  if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "v") {
+  if ((event.metaKey || event.ctrlKey) && !event.altKey && key === "v") {
     event.preventDefault()
     void pasteSelection("keyboard")
     return
   }
-  if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "x") {
+  if ((event.metaKey || event.ctrlKey) && !event.altKey && key === "x") {
     event.preventDefault()
     void cutSelection("keyboard")
     return
@@ -3635,6 +3969,27 @@ function isRangeEndCell(row: DataGridRowNode<IncidentRow>, columnKey: string): b
   return resolveRowIndex(row) === range.endRow && resolveColumnIndex(columnKey) === range.endColumn
 }
 
+function isGroupStartRow(row: DataGridRowNode<IncidentRow>): boolean {
+  if (groupBy.value === "none") {
+    return false
+  }
+  return groupMeta.value.starts.has(String(row.rowId))
+}
+
+function shouldShowGroupBadge(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
+  if (!isGroupedByColumn(columnKey)) {
+    return false
+  }
+  return isGroupStartRow(row)
+}
+
+function resolveGroupBadgeText(row: DataGridRowNode<IncidentRow>): string {
+  const rowId = String(row.rowId)
+  const groupValue = groupMeta.value.values.get(rowId) ?? ""
+  const count = groupMeta.value.counts.get(rowId) ?? 0
+  return `${groupValue} (${count})`
+}
+
 function shouldShowFillHandle(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
   if (isFillDragging.value || inlineEditor.value) {
     return false
@@ -3722,6 +4077,42 @@ function randomizeRuntime() {
   lastAction.value = "Applied runtime shift"
 }
 
+async function runHistoryAction(direction: "undo" | "redo", trigger: "keyboard" | "control"): Promise<boolean> {
+  if (!api.hasTransactionSupport()) {
+    lastAction.value = "History unavailable"
+    return false
+  }
+  if (inlineEditor.value) {
+    commitInlineEdit()
+  }
+  closeCopyContextMenu()
+  if (direction === "undo" && !api.canUndoTransaction()) {
+    lastAction.value = "Nothing to undo"
+    return false
+  }
+  if (direction === "redo" && !api.canRedoTransaction()) {
+    lastAction.value = "Nothing to redo"
+    return false
+  }
+  try {
+    const committedId = direction === "undo"
+      ? await api.undoTransaction()
+      : await api.redoTransaction()
+    if (!committedId) {
+      lastAction.value = direction === "undo" ? "Nothing to undo" : "Nothing to redo"
+      return false
+    }
+    lastAction.value = direction === "undo"
+      ? `Undo ${committedId} (${trigger})`
+      : `Redo ${committedId} (${trigger})`
+    return true
+  } catch (error) {
+    console.error(`[DataGrid] ${direction} failed`, error)
+    lastAction.value = direction === "undo" ? "Undo failed" : "Redo failed"
+    return false
+  }
+}
+
 function resetDataset() {
   seed.value = 1
   sourceRows.value = buildRows(rowCount.value, seed.value)
@@ -3769,7 +4160,7 @@ watch(sortPreset, value => {
 })
 
 watch(sortState, value => {
-  rowModel.setSortModel(value)
+  rowModel.setSortModel(withGroupingSortPriority(value, groupBy.value))
   const presetEntry = Object.entries(SORT_PRESETS).find(([, preset]) => {
     if (preset.length !== value.length) {
       return false
@@ -3788,11 +4179,16 @@ watch(sortState, value => {
     : "Sorting cleared"
 }, { immediate: true, deep: true })
 
+watch(groupBy, value => {
+  rowModel.setSortModel(withGroupingSortPriority(sortState.value, value))
+  lastAction.value = value === "none" ? "Grouping disabled" : `Grouped by ${value}`
+})
+
 watch(appliedColumnFilters, value => {
   rowModel.setFilterModel(buildFilterSnapshot(value))
 }, { immediate: true, deep: true })
 
-watch([query, sortState, appliedColumnFilters], () => {
+watch([query, sortState, appliedColumnFilters, groupBy], () => {
   resetVisibleRowsSyncCache()
   if (inlineEditor.value) {
     commitInlineEdit()
@@ -4078,11 +4474,35 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           :options="sortPresetOptions"
         />
       </label>
+      <label>
+        <span>Group by</span>
+        <AffinoSelect
+          v-model="groupBy"
+          class="datagrid-controls__select"
+          :options="groupByOptions"
+        />
+      </label>
       <label class="datagrid-controls__toggle">
         <input v-model="pinStatusColumn" type="checkbox" />
         <span>Pin status column</span>
       </label>
       <button type="button" @click="randomizeRuntime">Runtime shift</button>
+      <button
+        type="button"
+        class="ghost"
+        :disabled="!canUndoHistory"
+        @click="void runHistoryAction('undo', 'control')"
+      >
+        Undo
+      </button>
+      <button
+        type="button"
+        class="ghost"
+        :disabled="!canRedoHistory"
+        @click="void runHistoryAction('redo', 'control')"
+      >
+        Redo
+      </button>
       <button type="button" class="ghost" @click="resetDataset">Reset</button>
       <button
         type="button"
@@ -4100,10 +4520,12 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         class="datagrid-column-filter"
         data-datagrid-filter-panel
         :data-column-key="columnFilterDraft.columnKey"
+        role="dialog"
+        :aria-labelledby="FILTER_PANEL_TITLE_ID"
       >
         <header class="datagrid-column-filter__header">
           <p>Column filter</p>
-          <strong>{{ activeFilterColumnLabel }}</strong>
+          <strong :id="FILTER_PANEL_TITLE_ID">{{ activeFilterColumnLabel }}</strong>
         </header>
         <label>
           <span>Operator</span>
@@ -4196,6 +4618,14 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         <dd>{{ activeColumnFilterCount }}</dd>
       </div>
       <div>
+        <dt>Group by</dt>
+        <dd>{{ groupBySummary }}</dd>
+      </div>
+      <div>
+        <dt>Groups</dt>
+        <dd>{{ groupCount }}</dd>
+      </div>
+      <div>
         <dt>Visible columns window</dt>
         <dd>{{ visibleColumnsWindow.start }}-{{ visibleColumnsWindow.end }} / {{ visibleColumnsWindow.total }}</dd>
       </div>
@@ -4225,12 +4655,17 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         tabindex="0"
         role="grid"
         aria-label="Datagrid viewport"
+        :aria-colcount="orderedColumns.length"
+        :aria-rowcount="gridRowCount"
+        aria-multiselectable="true"
+        :aria-activedescendant="activeCellDescendantId ?? undefined"
+        :aria-describedby="GRID_HINT_ID"
         @scroll="onViewportScroll"
         @contextmenu="onViewportContextMenu"
         @keydown="onViewportKeyDown"
         @blur="onViewportBlur"
       >
-        <div ref="headerRef" class="datagrid-stage__header" :style="{ gridTemplateColumns: templateColumns }">
+        <div ref="headerRef" class="datagrid-stage__header" role="row" :style="{ gridTemplateColumns: templateColumns }">
           <div
             v-for="column in orderedColumns"
             :key="`header-${column.key}`"
@@ -4244,7 +4679,9 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             }"
             :data-column-key="column.key"
             :style="getCellStyle(column.key)"
+            :id="getHeaderCellId(column.key)"
             role="columnheader"
+            :aria-colindex="getColumnAriaIndex(column.key)"
             :tabindex="isSortableColumn(column.key) ? 0 : -1"
             :aria-sort="getHeaderAriaSort(column.key)"
             @click="onHeaderCellClick(column.key, $event)"
@@ -4309,7 +4746,9 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           v-for="row in visibleRows"
           :key="row.rowId"
           class="datagrid-stage__row"
-          :class="{ 'is-selected': isRowSelected(String(row.rowId)) }"
+          :class="{ 'is-selected': isRowSelected(String(row.rowId)), 'datagrid-stage__row--group-start': isGroupStartRow(row) }"
+          role="row"
+          :aria-rowindex="getRowAriaIndex(row)"
           :style="{ gridTemplateColumns: templateColumns }"
         >
           <div
@@ -4331,10 +4770,18 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               'datagrid-stage__cell--active': isActiveCell(row, column.key),
               'datagrid-stage__cell--sticky': isStickyColumn(column.key),
               'datagrid-stage__cell--range-end': isRangeEndCell(row, column.key),
+              'datagrid-stage__cell--group-by': isGroupedByColumn(column.key),
+              'datagrid-stage__cell--group-start': shouldShowGroupBadge(row, column.key),
             }"
             :data-column-key="column.key"
             :data-row-id="row.rowId"
             :style="getCellStyle(column.key)"
+            :id="getGridCellId(String(row.rowId), column.key)"
+            role="gridcell"
+            :aria-colindex="getColumnAriaIndex(column.key)"
+            :aria-selected="isCellInSelection(row, column.key) ? 'true' : 'false'"
+            :aria-readonly="isEditableColumn(column.key) ? 'false' : 'true'"
+            :aria-labelledby="getHeaderCellId(column.key)"
             @mousedown="onDataCellMouseDown(row, column.key, $event)"
             @mouseenter="onDataCellMouseEnter(row, column.key, $event)"
             @dblclick="beginInlineEdit(row.data, column.key)"
@@ -4379,6 +4826,12 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             </template>
 
             <template v-else>
+              <span
+                v-if="shouldShowGroupBadge(row, column.key)"
+                class="datagrid-stage__group-badge"
+              >
+                {{ resolveGroupBadgeText(row) }}
+              </span>
               {{ formatCellValue(column.key, getRowCellValue(row.data, column.key)) }}
             </template>
 
@@ -4450,7 +4903,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         <div v-if="visibleRows.length === 0" class="datagrid-stage__empty">No rows matched current filters.</div>
         <div :style="{ height: `${spacerBottomHeight}px` }"></div>
       </div>
-      <p class="datagrid-stage__hint">Visible columns: {{ visibleColumnsWindow.keys }} · Tip: drag selection border to move range.</p>
+      <p :id="GRID_HINT_ID" class="datagrid-stage__hint">Visible columns: {{ visibleColumnsWindow.keys }} · Tip: drag selection border to move range.</p>
     </section>
 
     <div
@@ -4461,6 +4914,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       data-datagrid-copy-menu
       :data-zone="copyContextMenu.zone"
       role="menu"
+      :aria-label="copyContextMenu.zone === 'header' ? 'Column actions' : 'Cell actions'"
       tabindex="-1"
       @mousedown.stop
       @keydown.stop="onCopyMenuKeyDown"
@@ -4479,10 +4933,23 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         {{ action.label }}
       </button>
     </div>
+    <p class="datagrid-sr-only" role="status" aria-live="polite" aria-atomic="true">{{ lastAction }}</p>
   </section>
 </template>
 
 <style scoped>
+.datagrid-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .datagrid-page {
   display: flex;
   flex-direction: column;
@@ -4821,6 +5288,10 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   border-bottom: 1px solid rgba(145, 170, 210, 0.14);
 }
 
+.datagrid-stage__row--group-start .datagrid-stage__cell {
+  border-top: 1px solid rgba(125, 211, 252, 0.45);
+}
+
 .datagrid-stage__row.is-selected .datagrid-stage__cell {
   background: rgba(17, 49, 86, 0.68);
 }
@@ -5144,6 +5615,30 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 
 .datagrid-stage__cell--range-end {
   z-index: 20;
+}
+
+.datagrid-stage__cell--group-by {
+  padding-top: 0.9rem;
+}
+
+.datagrid-stage__cell--group-start {
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.12), rgba(7, 10, 19, 0.92) 34%);
+}
+
+.datagrid-stage__group-badge {
+  position: absolute;
+  top: 2px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.58rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(125, 211, 252, 0.95);
+  pointer-events: none;
 }
 
 .datagrid-stage__selection-overlay {

@@ -119,16 +119,33 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 - [x] Auto-scroll on drag to viewport edges (X/Y).
 - [x] Tests: drag across pinned boundary + large virtualized datasets.
 - [x] Final score for step: `9.0`.
-- Comment: `2026-02-08` - шаг закрыт: добавлен `Alt + drag` move-range flow с preview overlay, commit/cancel (`Escape`) и общим auto-scroll loop по краям viewport. Move выполняется транзакционно через snapshot/mutable-map с blocked accounting для неразрешенных ячеек и корректным re-sync selection/active cell. Fill-handle и edge auto-scroll остались совместимы в едином pointer runtime. E2E добавлены в `tests/e2e/datagrid.regression.spec.ts`: move editable range, move в large virtualized+pinned сценарии с автоскроллом.
+- Comment: `2026-02-08` - шаг закрыт: добавлен move-range flow с preview overlay, commit/cancel (`Escape`) и общим auto-scroll loop по краям viewport. Основной UX стартует drag по border зоны выделенного диапазона (без модификаторов), модификаторный старт оставлен как fallback. Move выполняется транзакционно через snapshot/mutable-map с blocked accounting для неразрешенных ячеек и корректным re-sync selection/active cell. Fill-handle и edge auto-scroll остались совместимы в едином pointer runtime. E2E добавлены в `tests/e2e/datagrid.regression.spec.ts`: move editable range, move в large virtualized+pinned сценарии с автоскроллом.
 
 ## 10. Polish + Hardening (`target >= 9.0`)
 
-- [ ] A11y pass for new features (roles, focus, announcements).
-- [ ] Regression bundle: e2e critical paths for sort/filter/resize/clipboard/context.
-- [ ] Perf gates: no regressions in row-model/harness benchmarks.
-- [ ] Docs: end-user interactions + integrator API usage.
-- [ ] Final score for step: `TBD`.
-- Comment: `TBD`.
+- [x] A11y pass for new features (roles, focus, announcements).
+- [x] Regression bundle: e2e critical paths for sort/filter/resize/clipboard/context.
+- [x] Perf gates: no regressions in row-model/harness benchmarks.
+- [x] Docs: end-user interactions + integrator API usage.
+- [x] Final score for step: `9.2`.
+- [x] `10.4` GroupBy architecture hardening (RowModel-first, not UI-first).
+- [x] `10.4.1` Introduce explicit row kinds for projection (`group|leaf`) in core model contract.
+- [x] `10.4.2` Add canonical GroupBy spec (`fields[]`, `expandedByDefault`) and `setGroupBy(spec|null)` target API.
+- [x] `10.4.3` Expansion contract target API (`toggleGroup(groupKey)`) with stable group identity.
+- [x] `10.4.4` Enforce deterministic projection order: `filter -> sort -> groupBy -> flatten -> virtualization`.
+- [x] `10.4.5` Keep selection/range semantics over flattened rows (group row is a row, not a container).
+- [x] `10.4.6` Publish adapter render-meta contract (`level`, `isGroup`, `isExpanded`, `hasChildren`) and keep virtualization tree-agnostic.
+- Comment: `2026-02-08` - подпункт `10.1` закрыт: в `demo-vue/src/pages/DataGridPage.vue` добавлены grid/menu A11y атрибуты (`aria-rowcount/colcount`, `aria-multiselectable`, `aria-activedescendant`, `aria-rowindex/colindex`, `aria-selected`, `aria-readonly`, labels для header/cell ids), live announcement region (`role=status`, `aria-live=polite`) и role/label для filter panel/context menu. E2E добавлены в `tests/e2e/datagrid.regression.spec.ts`: семантика active-descendant, keyboard focus в context menu, announce clipboard actions. Подпункт `10.2` закрыт: добавлен блок `datagrid critical regression bundle` в `tests/e2e/datagrid.regression.spec.ts` с двумя сквозными сценариями (baseline + pinned/virtualized) и явной проверкой отсутствия `pageerror` во время критического пути sort/filter/resize/clipboard/context. Подпункт `10.3` закрыт: добавлен runtime perf gate скрипт `scripts/check-datagrid-benchmark-report.mjs`, включен новый root script `bench:datagrid:harness:ci:gate`, `bench:regression` переведен на gated pipeline, benchmark CI job обновлен на `pnpm run bench:regression`, обновлены docs по perf/quality gates. Также добавлен архитектурный контракт GroupBy projection в `/Users/anton/Projects/affinio/docs/datagrid-groupby-rowmodel-projection.md` и ссылка в `/Users/anton/Projects/affinio/docs/datagrid-model-contracts.md`. Подпункт `10.4.1` закрыт: в core row model введены `DataGridRowKind` (`group|leaf`) и `groupMeta`, добавлены совместимые нормализаторы (`state.group -> kind=group`, default `leaf`) и type-guards `isDataGridGroupRowNode`/`isDataGridLeafRowNode` с unit coverage. Подпункт `10.4.2` закрыт: в core row model добавлен `DataGridGroupBySpec` (`fields[]`, `expandedByDefault`) и API `setGroupBy(spec|null)` с нормализацией/clone-семантикой в client/server/data-source моделях; `groupBy` включен в `DataGridRowModelSnapshot`, `DataGridApi` получил метод `setGroupBy`, а data source pull protocol расширен полями `reason=group-change` и `groupBy`. Подпункт `10.4.3` закрыт: добавлен `toggleGroup(groupKey)` в RowModel/DataGridApi, введен snapshot `groupExpansion` (`expandedByDefault`, `toggledGroupKeys`), expansion state хранится отдельно от source rows и передается в data-source pull request как `groupExpansion`; viewport model bridge теперь учитывает `groupExpansion` при invalidation. Подпункт `10.4.4` закрыт: `createClientRowModel` переведен на детерминированный projection pipeline (`filter -> sort -> groupBy -> flatten`) с выдачей flattened rows для virtualization, добавлены контрактные тесты порядка/flatten/collapse и обновлена bridge invalidation логика с учетом `groupExpansion`. Подпункт `10.4.5` закрыт: в `packages/datagrid-core/src/selection/selectionState.ts` добавлен helper `createGridSelectionContextFromFlattenedRows`, который связывает selection с текущим flattened stream (group+leaf), а в `packages/datagrid-core/src/selection/__tests__/selectionState.grouped.contract.spec.ts` зафиксированы контрактные сценарии `single group row`, `shift-range by flattened order` и `collapsed groups clamp` (без implicit child selection). Подпункт `10.4.6` закрыт: в `packages/datagrid-core/src/models/rowModel.ts` опубликован adapter-level helper `getDataGridRowRenderMeta(rowNode)` и контракт `DataGridRowRenderMeta` (`level`, `isGroup`, `isExpanded`, `hasChildren`), добавлен unit coverage в `packages/datagrid-core/src/models/__tests__/rowModel.spec.ts`; virtualization/runtime при этом остаются tree-agnostic и не получают tree-зависимостей. Подпункт docs закрыт: добавлен `/Users/anton/Projects/affinio/docs/datagrid-sheets-user-interactions-and-integrator-api.md` (end-user interactions + integrator API usage), а umbrella-пункт `10.4` отмечен как закрытый после закрытия всех подпунктов.
+
+## 11. Undo/Redo Model Capability (`target >= 9.0`)
+
+- [x] `11.1` Introduce bounded history policy (`maxHistoryDepth`) in core transaction service.
+- [x] `11.2` Wire intent-level transaction labels/ranges for clipboard/fill/move/edit operations.
+- [x] `11.3` Add API-level shortcuts for history control (`undo`/`redo`) in demo runtime wiring.
+- [x] `11.4` Add keyboard bindings (`Cmd/Ctrl+Z`, `Cmd/Ctrl+Shift+Z`) with deterministic focus behavior.
+- [x] `11.5` Add e2e regression bundle for history: paste/fill/move/cut/edit with grouped + virtualized viewport.
+- [x] Final score for step: `9.1`.
+- Comment: `2026-02-08` - подпункт `11.1` закрыт: в `packages/datagrid-core/src/core/transactionService.ts` добавлен `maxHistoryDepth` (bounded undo stack без изменения apply semantics), добавлен контрактный тест в `packages/datagrid-core/src/core/__tests__/transactionService.contract.spec.ts` (overflow history keeps latest intent-level transactions only). Подпункт `11.2` закрыт: transaction contract расширен `meta` (`intent`, `affectedRange`) для input/command/event, и demo wiring в `demo-vue/src/pages/DataGridPage.vue` теперь записывает intent-транзакции (`paste`, `cut`, `clear`, `fill`, `move`, `edit`) с label + affected range через `createDataGridTransactionService`. Подпункт `11.3` закрыт: demo runtime подключен к core transaction capability (`services.transaction` + `DataGridApi.applyTransaction/undoTransaction/redoTransaction`) вместо прямых вызовов локального runtime. Подпункт `11.4` закрыт: добавлены deterministic keyboard bindings `Cmd/Ctrl+Z`, `Cmd/Ctrl+Shift+Z` и `Ctrl+Y` в `onViewportKeyDown`, с приоритетным перехватом до навигации/контекстного меню. Подпункт `11.5` закрыт: в `tests/e2e/datagrid.regression.spec.ts` добавлен history regression bundle с grouped + virtualized setup (`Rows=6400`, `Group by=Service`, pinned column, long vertical/horizontal session) и проверками undo/redo для `edit`, `paste`, `cut`, `fill`, `move` через keyboard и control buttons.
 
 ## Close Log
 
@@ -142,3 +159,20 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 - `2026-02-08`: step `07` fully closed with score `9.0`.
 - `2026-02-08`: step `08` fully closed with score `9.0`.
 - `2026-02-08`: step `09` fully closed with score `9.0`.
+- `2026-02-08`: step `10.1` (A11y pass) closed.
+- `2026-02-08`: step `10.2` (regression bundle) closed.
+- `2026-02-08`: step `10.3` (perf gates) closed.
+- `2026-02-08`: ad-hoc extension before `10.4`: baseline `Group by` added to Vue demo (`service/owner/region/environment/severity/status`) with grouping metrics and e2e coverage.
+- `2026-02-08`: step `10.4.1` (row kinds in core contract) closed.
+- `2026-02-08`: step `10.4.2` (GroupBy spec + row model API) closed.
+- `2026-02-08`: step `10.4.3` (group expansion toggle contract) closed.
+- `2026-02-08`: step `10.4.4` (deterministic projection order) closed.
+- `2026-02-08`: step `10.4.5` (selection/range semantics over flattened rows) closed.
+- `2026-02-08`: step `10.4.6` (adapter render-meta contract, tree-agnostic virtualization boundary) closed.
+- `2026-02-08`: step `11.1` (transaction history cap via `maxHistoryDepth`) closed.
+- `2026-02-08`: step `11.2` (intent-level transaction labels/ranges for paste/cut/clear/fill/move/edit) closed.
+- `2026-02-08`: step `11.3` (API-level history wiring through `DataGridApi` + core transaction service capability) closed.
+- `2026-02-08`: step `11.4` (history keyboard bindings with deterministic interception) closed.
+- `2026-02-08`: step `11.5` (grouped+virtualized e2e history bundle for edit/paste/cut/fill/move with keyboard/control undo-redo) closed.
+- `2026-02-08`: step `10` fully closed with score `9.2` (including docs + 10.4 umbrella close).
+- `2026-02-08`: step `11` fully closed with score `9.1`.

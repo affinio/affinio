@@ -74,13 +74,14 @@ Command:
 ## Benchmark Regression
 
 CI benchmark job runs multi-seed assertions via datagrid harness:
-- `pnpm run bench:datagrid:harness:ci`
+- `pnpm run bench:regression`
 
 Artifacts:
 - `artifacts/performance/datagrid-benchmark-report.json`
 - `artifacts/performance/bench-vue-adapters.json`
 - `artifacts/performance/bench-livewire-morph.json`
 - `artifacts/performance/bench-datagrid-rowmodels.json`
+- `artifacts/quality/datagrid-benchmark-gates-report.json`
 
 ## CI Blocking Jobs
 

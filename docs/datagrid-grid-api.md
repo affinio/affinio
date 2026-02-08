@@ -45,6 +45,8 @@ Creation is fail-fast for missing required services (`rowModel` / `columnModel`)
   - `setViewportRange`
   - `setSortModel`
   - `setFilterModel`
+  - `setGroupBy`
+  - `toggleGroup`
   - `refreshRows`
 - column model:
   - snapshot + `getColumn`

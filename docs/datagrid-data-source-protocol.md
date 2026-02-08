@@ -26,9 +26,9 @@ Import path:
 
 - `range` - demanded viewport window
 - `priority` - `critical | normal | background`
-- `reason` - `mount | viewport-change | refresh | sort-change | filter-change | invalidation | push-invalidation`
+- `reason` - `mount | viewport-change | refresh | sort-change | filter-change | group-change | invalidation | push-invalidation`
 - `signal` - abort signal (abort-first cancellation contract)
-- `sortModel`, `filterModel` - canonical model state snapshot
+- `sortModel`, `filterModel`, `groupBy`, `groupExpansion` - canonical model state snapshot
 
 `DataGridDataSourcePushEvent<T>`:
 

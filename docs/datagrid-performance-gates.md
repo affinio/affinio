@@ -22,7 +22,7 @@ Single entry-point harness:
 - Local (exploratory):
   - `pnpm run bench:datagrid:harness`
 - CI (gated):
-  - `pnpm run bench:datagrid:harness:ci`
+  - `pnpm run bench:regression`
 
 Harness script:
 - `scripts/bench-datagrid-harness.mjs`
@@ -34,6 +34,9 @@ Per-benchmark outputs (JSON):
 
 Harness summary:
 - `artifacts/performance/datagrid-benchmark-report.json`
+
+Runtime report gate summary:
+- `artifacts/quality/datagrid-benchmark-gates-report.json`
 
 ## Budgets and Fail-Fast Rules
 
@@ -67,6 +70,11 @@ Perf-contract fail-fast gate:
 
 Fail-fast behavior:
 - Harness exits non-zero when any benchmark fails budget checks.
+- Runtime report gate (`scripts/check-datagrid-benchmark-report.mjs`) validates:
+  - report freshness,
+  - required suites presence (`vue-adapters`, `laravel-morph`, `row-models`),
+  - `ok=true` for harness summary and each required suite,
+  - JSON artifact integrity for each suite.
 - CI `benchmark-regression` job is blocking for merge readiness.
 
 ## CI Integration

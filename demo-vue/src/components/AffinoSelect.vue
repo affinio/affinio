@@ -235,11 +235,8 @@ function onTriggerKeydown(event: KeyboardEvent) {
   }
 }
 
-function onOptionPointerDown(event: PointerEvent) {
+function onOptionPointerDown(index: number, event: PointerEvent) {
   event.preventDefault()
-}
-
-function onOptionClick(index: number) {
   syncActiveIndex(index)
   commitIndex(index)
 }
@@ -323,8 +320,7 @@ onBeforeUnmount(() => {
         role="option"
         :aria-selected="selectedIndex === index ? 'true' : 'false'"
         :disabled="option.disabled"
-        @pointerdown="onOptionPointerDown"
-        @click="onOptionClick(index)"
+        @pointerdown="onOptionPointerDown(index, $event)"
       >
         {{ option.label }}
       </button>
