@@ -7,7 +7,9 @@ import {
   createDataGridColumnModel,
   createDataGridCore,
   type DataGridColumnSnapshot,
+  type DataGridFilterSnapshot,
   type DataGridRowNode,
+  type DataGridSortState,
 } from "@affino/datagrid-core"
 
 type Severity = "critical" | "high" | "medium" | "low"
@@ -89,6 +91,23 @@ interface SelectionOverlaySegment {
   }
 }
 
+type ColumnFilterKind = "text" | "enum" | "number"
+
+interface AppliedColumnFilter {
+  kind: ColumnFilterKind
+  operator: string
+  value: string
+  value2?: string
+}
+
+interface ColumnFilterDraft {
+  columnKey: string
+  kind: ColumnFilterKind
+  operator: string
+  value: string
+  value2: string
+}
+
 const ROW_HEIGHT = 38
 const OVERSCAN = 8
 const DRAG_AUTO_SCROLL_EDGE_PX = 36
@@ -97,16 +116,62 @@ const DRAG_AUTO_SCROLL_MAX_STEP_PX = 28
 const rowCount = ref(2400)
 const seed = ref(1)
 const query = ref("")
-const sortMode = ref("latency-desc")
+const sortPreset = ref("latency-desc")
+const sortState = ref<readonly DataGridSortState[]>([
+  { key: "latencyMs", direction: "desc" },
+])
 const pinStatusColumn = ref(false)
 const lastAction = ref("Ready")
 const rowCountOptions = [1200, 2400, 6400] as const
-const sortModeOptions = [
+const sortPresetOptions = [
   { value: "latency-desc", label: "Latency desc" },
   { value: "latency-asc", label: "Latency asc" },
   { value: "errors-desc", label: "Errors desc" },
   { value: "service-asc", label: "Service asc" },
+  { value: "custom", label: "Custom" },
 ] as const
+
+const NUMERIC_COLUMN_KEYS = new Set<string>([
+  "latencyMs",
+  "errorRate",
+  "availabilityPct",
+  "mttrMin",
+  "cpuPct",
+  "memoryPct",
+  "queueDepth",
+  "throughputRps",
+  "sloBurnRate",
+  "incidents24h",
+])
+
+const ENUM_COLUMN_KEYS = new Set<string>(["severity", "status", "environment", "region"])
+
+const TEXT_FILTER_OPERATOR_OPTIONS = [
+  { value: "contains", label: "Contains" },
+  { value: "equals", label: "Equals" },
+  { value: "starts-with", label: "Starts with" },
+] as const
+
+const ENUM_FILTER_OPERATOR_OPTIONS = [
+  { value: "is", label: "Is" },
+  { value: "is-not", label: "Is not" },
+] as const
+
+const NUMBER_FILTER_OPERATOR_OPTIONS = [
+  { value: "equals", label: "=" },
+  { value: "gt", label: ">" },
+  { value: "gte", label: ">=" },
+  { value: "lt", label: "<" },
+  { value: "lte", label: "<=" },
+  { value: "between", label: "Between" },
+] as const
+
+const SORT_PRESETS: Record<string, readonly DataGridSortState[]> = {
+  "latency-desc": [{ key: "latencyMs", direction: "desc" }],
+  "latency-asc": [{ key: "latencyMs", direction: "asc" }],
+  "errors-desc": [{ key: "errorRate", direction: "desc" }],
+  "service-asc": [{ key: "service", direction: "asc" }],
+}
 
 const viewportRef = ref<HTMLDivElement | null>(null)
 const headerRef = ref<HTMLDivElement | null>(null)
@@ -120,6 +185,9 @@ const inlineEditor = ref<InlineEditorState | null>(null)
 const cellAnchor = ref<CellCoord | null>(null)
 const cellFocus = ref<CellCoord | null>(null)
 const activeCell = ref<CellCoord | null>(null)
+const activeFilterColumnKey = ref<string | null>(null)
+const columnFilterDraft = ref<ColumnFilterDraft | null>(null)
+const appliedColumnFilters = ref<Record<string, AppliedColumnFilter>>({})
 const isDragSelecting = ref(false)
 const dragPointer = ref<{ clientX: number; clientY: number } | null>(null)
 const isFillDragging = ref(false)
@@ -185,12 +253,23 @@ const visibleRows = ref<readonly DataGridRowNode<IncidentRow>[]>([])
 
 let unsubscribeColumns: (() => void) | null = null
 
+const normalizedQuickFilter = computed(() => query.value.trim().toLowerCase())
+const searchableColumnKeys = computed(() =>
+  columnSnapshot.value.visibleColumns
+    .map(column => column.key)
+    .filter(key => key !== "select"),
+)
+const activeColumnFilterCount = computed(() => Object.keys(appliedColumnFilters.value).length)
+const hasColumnFilters = computed(() => activeColumnFilterCount.value > 0)
+
 const filteredAndSortedRows = computed<IncidentRow[]>(() => {
-  const normalizedQuery = query.value.trim().toLowerCase()
-  const filtered = normalizedQuery
-    ? sourceRows.value.filter(row => matchesQuery(row, normalizedQuery))
+  const quickFilteredRows = normalizedQuickFilter.value
+    ? sourceRows.value.filter(row => matchesQuery(row, normalizedQuickFilter.value, searchableColumnKeys.value))
     : sourceRows.value
-  return sortRows(filtered, sortMode.value)
+  const columnFilteredRows = hasColumnFilters.value
+    ? quickFilteredRows.filter(row => rowMatchesColumnFilters(row, appliedColumnFilters.value))
+    : quickFilteredRows
+  return sortRows(columnFilteredRows, sortState.value)
 })
 
 const selectedCount = computed(() => selectedRowIds.value.size)
@@ -313,6 +392,58 @@ const selectedCellsCount = computed(() => {
   const range = cellSelectionRange.value
   if (!range) return 0
   return (range.endRow - range.startRow + 1) * (range.endColumn - range.startColumn + 1)
+})
+const activeFilterColumnLabel = computed(() => {
+  if (!activeFilterColumnKey.value) {
+    return "none"
+  }
+  const column = columnSnapshot.value.visibleColumns.find(item => item.key === activeFilterColumnKey.value)
+  return column?.column.label ?? activeFilterColumnKey.value
+})
+const columnFilterOperatorOptions = computed(() => {
+  const draft = columnFilterDraft.value
+  if (!draft) {
+    return [] as readonly { value: string; label: string }[]
+  }
+  if (draft.kind === "number") {
+    return NUMBER_FILTER_OPERATOR_OPTIONS
+  }
+  if (draft.kind === "enum") {
+    return ENUM_FILTER_OPERATOR_OPTIONS
+  }
+  return TEXT_FILTER_OPERATOR_OPTIONS
+})
+const activeColumnFilterEnumOptions = computed(() => {
+  const draft = columnFilterDraft.value
+  if (!draft || draft.kind !== "enum") {
+    return [] as string[]
+  }
+  return resolveEnumFilterOptions(draft.columnKey)
+})
+const canApplyActiveColumnFilter = computed(() => {
+  const draft = columnFilterDraft.value
+  if (!draft) {
+    return false
+  }
+  return doesFilterDraftHaveRequiredValues(draft)
+})
+
+const isQuickFilterActive = computed(() => normalizedQuickFilter.value.length > 0)
+const quickFilterStatus = computed(() => {
+  if (!isQuickFilterActive.value) {
+    return "Quick filter: all rows"
+  }
+  const displayQuery = query.value.trim()
+  return `Quick filter: "${displayQuery}" · ${filteredAndSortedRows.value.length}/${sourceRows.value.length}`
+})
+
+const sortSummary = computed(() => {
+  if (!sortState.value.length) {
+    return "none"
+  }
+  return sortState.value
+    .map((entry, index) => `${index + 1}:${entry.key}:${entry.direction}`)
+    .join(" | ")
 })
 
 const cellAnchorLabel = computed(() => {
@@ -584,6 +715,373 @@ function isStickyColumn(columnKey: string): boolean {
   return stickyLeftOffsets.value.has(columnKey) || stickyRightOffsets.value.has(columnKey)
 }
 
+function isSortableColumn(columnKey: string): boolean {
+  return columnKey !== "select"
+}
+
+function getSortEntry(columnKey: string): { entry: DataGridSortState; index: number } | null {
+  const index = sortState.value.findIndex(entry => entry.key === columnKey)
+  if (index < 0) {
+    return null
+  }
+  const entry = sortState.value[index]
+  if (!entry) {
+    return null
+  }
+  return { entry, index }
+}
+
+function getHeaderSortDirection(columnKey: string): "asc" | "desc" | null {
+  return getSortEntry(columnKey)?.entry.direction ?? null
+}
+
+function getHeaderSortPriority(columnKey: string): number | null {
+  const entry = getSortEntry(columnKey)
+  if (!entry) {
+    return null
+  }
+  return entry.index + 1
+}
+
+function getHeaderAriaSort(columnKey: string): "none" | "ascending" | "descending" {
+  const direction = getHeaderSortDirection(columnKey)
+  if (direction === "asc") {
+    return "ascending"
+  }
+  if (direction === "desc") {
+    return "descending"
+  }
+  return "none"
+}
+
+function cycleDirection(current: "asc" | "desc" | null): "asc" | "desc" | null {
+  if (current === null) {
+    return "asc"
+  }
+  if (current === "asc") {
+    return "desc"
+  }
+  return null
+}
+
+function applySortFromHeader(columnKey: string, keepExisting: boolean) {
+  if (!isSortableColumn(columnKey)) {
+    return
+  }
+  const existing = getSortEntry(columnKey)
+  const nextDirection = cycleDirection(existing?.entry.direction ?? null)
+  const nextState: DataGridSortState[] = keepExisting
+    ? [...sortState.value]
+    : []
+
+  if (existing) {
+    nextState.splice(existing.index, 1)
+  }
+
+  if (nextDirection !== null) {
+    nextState.push({ key: columnKey, direction: nextDirection })
+  }
+
+  if (nextState.length === sortState.value.length) {
+    const same = nextState.every((entry, index) => {
+      const previous = sortState.value[index]
+      return previous?.key === entry.key && previous?.direction === entry.direction
+    })
+    if (same) {
+      return
+    }
+  }
+
+  sortState.value = nextState
+}
+
+function onHeaderCellClick(columnKey: string, event: MouseEvent) {
+  if (!isSortableColumn(columnKey)) {
+    return
+  }
+  applySortFromHeader(columnKey, event.shiftKey)
+}
+
+function onHeaderCellKeyDown(columnKey: string, event: KeyboardEvent) {
+  if (!isSortableColumn(columnKey)) {
+    return
+  }
+  if (event.key !== "Enter" && event.key !== " ") {
+    return
+  }
+  event.preventDefault()
+  applySortFromHeader(columnKey, event.shiftKey)
+}
+
+function resolveColumnFilterKind(columnKey: string): ColumnFilterKind {
+  if (ENUM_COLUMN_KEYS.has(columnKey)) {
+    return "enum"
+  }
+  if (NUMERIC_COLUMN_KEYS.has(columnKey)) {
+    return "number"
+  }
+  return "text"
+}
+
+function defaultFilterOperator(kind: ColumnFilterKind): string {
+  if (kind === "number") return "equals"
+  if (kind === "enum") return "is"
+  return "contains"
+}
+
+function resolveEnumFilterOptions(columnKey: string): string[] {
+  const editorOptions = getEditorOptions(columnKey)
+  if (editorOptions && editorOptions.length) {
+    return [...editorOptions]
+  }
+  const values = new Set<string>()
+  for (const row of sourceRows.value) {
+    const value = getRowCellValue(row, columnKey)
+    if (typeof value === "undefined" || value === null) {
+      continue
+    }
+    values.add(String(value))
+  }
+  return [...values].sort((left, right) => left.localeCompare(right))
+}
+
+function isColumnFilterActive(columnKey: string): boolean {
+  return Boolean(appliedColumnFilters.value[columnKey])
+}
+
+function openColumnFilter(columnKey: string) {
+  if (columnKey === "select") {
+    return
+  }
+  const kind = resolveColumnFilterKind(columnKey)
+  const current = appliedColumnFilters.value[columnKey]
+  const enumOptions = kind === "enum" ? resolveEnumFilterOptions(columnKey) : []
+  const draftValue = current?.value ?? (enumOptions[0] ?? "")
+  const draftValue2 = current?.value2 ?? ""
+  columnFilterDraft.value = {
+    columnKey,
+    kind,
+    operator: current?.operator ?? defaultFilterOperator(kind),
+    value: draftValue,
+    value2: draftValue2,
+  }
+  activeFilterColumnKey.value = columnKey
+}
+
+function onHeaderFilterTriggerClick(columnKey: string) {
+  if (activeFilterColumnKey.value === columnKey) {
+    closeColumnFilterPanel()
+    return
+  }
+  openColumnFilter(columnKey)
+}
+
+function closeColumnFilterPanel() {
+  activeFilterColumnKey.value = null
+  columnFilterDraft.value = null
+}
+
+function onFilterOperatorChange(value: string | number) {
+  const draft = columnFilterDraft.value
+  if (!draft) {
+    return
+  }
+  const nextOperator = String(value)
+  columnFilterDraft.value = {
+    ...draft,
+    operator: nextOperator,
+    value2: doesOperatorNeedSecondValue(draft.kind, nextOperator) ? draft.value2 : "",
+  }
+}
+
+function onFilterEnumValueChange(value: string | number) {
+  const draft = columnFilterDraft.value
+  if (!draft) {
+    return
+  }
+  columnFilterDraft.value = {
+    ...draft,
+    value: String(value),
+  }
+}
+
+function onFilterValueInput(event: Event) {
+  const draft = columnFilterDraft.value
+  if (!draft) {
+    return
+  }
+  columnFilterDraft.value = {
+    ...draft,
+    value: (event.target as HTMLInputElement).value,
+  }
+}
+
+function onFilterSecondValueInput(event: Event) {
+  const draft = columnFilterDraft.value
+  if (!draft) {
+    return
+  }
+  columnFilterDraft.value = {
+    ...draft,
+    value2: (event.target as HTMLInputElement).value,
+  }
+}
+
+function doesOperatorNeedSecondValue(kind: ColumnFilterKind, operator: string): boolean {
+  return kind === "number" && operator === "between"
+}
+
+function doesFilterDraftHaveRequiredValues(draft: ColumnFilterDraft): boolean {
+  if (!draft.value.trim()) {
+    return false
+  }
+  if (doesOperatorNeedSecondValue(draft.kind, draft.operator) && !draft.value2.trim()) {
+    return false
+  }
+  return true
+}
+
+function applyActiveColumnFilter() {
+  const draft = columnFilterDraft.value
+  if (!draft) {
+    return
+  }
+  const next = { ...appliedColumnFilters.value }
+  if (!doesFilterDraftHaveRequiredValues(draft)) {
+    delete next[draft.columnKey]
+    appliedColumnFilters.value = next
+    lastAction.value = `Cleared filter for ${draft.columnKey}`
+    closeColumnFilterPanel()
+    return
+  }
+  next[draft.columnKey] = {
+    kind: draft.kind,
+    operator: draft.operator,
+    value: draft.value.trim(),
+    value2: draft.value2.trim() || undefined,
+  }
+  appliedColumnFilters.value = next
+  lastAction.value = `Filter applied: ${draft.columnKey}`
+  closeColumnFilterPanel()
+}
+
+function resetActiveColumnFilter() {
+  const draft = columnFilterDraft.value
+  if (!draft) {
+    return
+  }
+  const next = { ...appliedColumnFilters.value }
+  delete next[draft.columnKey]
+  appliedColumnFilters.value = next
+  lastAction.value = `Filter reset: ${draft.columnKey}`
+  closeColumnFilterPanel()
+}
+
+function clearAllColumnFilters() {
+  if (!Object.keys(appliedColumnFilters.value).length) {
+    closeColumnFilterPanel()
+    return
+  }
+  appliedColumnFilters.value = {}
+  lastAction.value = "All column filters cleared"
+  closeColumnFilterPanel()
+}
+
+function buildFilterSnapshot(filters: Record<string, AppliedColumnFilter>): DataGridFilterSnapshot | null {
+  const keys = Object.keys(filters)
+  if (!keys.length) {
+    return null
+  }
+  return {
+    columnFilters: {},
+    advancedFilters: Object.fromEntries(
+      keys.map(key => {
+        const filter = filters[key]
+        const type = filter?.kind === "number" ? "number" : "text"
+        return [
+          key,
+          {
+            type,
+            clauses: [
+              {
+                operator: filter?.operator ?? "equals",
+                value: filter?.value ?? "",
+                value2: filter?.value2,
+              },
+            ],
+          },
+        ]
+      }),
+    ),
+  }
+}
+
+function matchTextFilter(value: unknown, operator: string, rawExpected: string): boolean {
+  const haystack = String(value ?? "").toLowerCase()
+  const expected = rawExpected.toLowerCase()
+  if (operator === "equals") {
+    return haystack === expected
+  }
+  if (operator === "starts-with") {
+    return haystack.startsWith(expected)
+  }
+  return haystack.includes(expected)
+}
+
+function matchEnumFilter(value: unknown, operator: string, rawExpected: string): boolean {
+  const current = String(value ?? "").toLowerCase()
+  const expected = rawExpected.toLowerCase()
+  if (operator === "is-not") {
+    return current !== expected
+  }
+  return current === expected
+}
+
+function matchNumberFilter(value: unknown, operator: string, rawExpected: string, rawExpected2?: string): boolean {
+  const current = Number(value)
+  const expected = Number(rawExpected)
+  if (!Number.isFinite(current) || !Number.isFinite(expected)) {
+    return false
+  }
+
+  if (operator === "gt") return current > expected
+  if (operator === "gte") return current >= expected
+  if (operator === "lt") return current < expected
+  if (operator === "lte") return current <= expected
+  if (operator === "between") {
+    const second = Number(rawExpected2)
+    if (!Number.isFinite(second)) {
+      return false
+    }
+    const lower = Math.min(expected, second)
+    const upper = Math.max(expected, second)
+    return current >= lower && current <= upper
+  }
+  return current === expected
+}
+
+function rowMatchesColumnFilters(row: IncidentRow, filters: Record<string, AppliedColumnFilter>): boolean {
+  for (const [columnKey, filter] of Object.entries(filters)) {
+    const value = getRowCellValue(row, columnKey)
+    if (filter.kind === "number") {
+      if (!matchNumberFilter(value, filter.operator, filter.value, filter.value2)) {
+        return false
+      }
+      continue
+    }
+    if (filter.kind === "enum") {
+      if (!matchEnumFilter(value, filter.operator, filter.value)) {
+        return false
+      }
+      continue
+    }
+    if (!matchTextFilter(value, filter.operator, filter.value)) {
+      return false
+    }
+  }
+  return true
+}
+
 function resolveColumnWidth(column: DataGridColumnSnapshot): number {
   if (column.key === "select") {
     return Math.max(48, column.width ?? 58)
@@ -650,6 +1148,14 @@ function onSelectAllChange(event: Event) {
 
 function onRowSelectChange(rowId: string, event: Event) {
   toggleRowSelection(rowId, (event.target as HTMLInputElement).checked)
+}
+
+function clearQuickFilter() {
+  if (!query.value) {
+    return
+  }
+  query.value = ""
+  lastAction.value = "Quick filter cleared"
 }
 
 function beginInlineEdit(
@@ -1795,13 +2301,48 @@ watch(pinStatusColumn, value => {
   lastAction.value = value ? "Pinned status column" : "Unpinned status column"
 })
 
-watch([query, sortMode], () => {
+watch(sortPreset, value => {
+  if (value === "custom") {
+    return
+  }
+  const preset = SORT_PRESETS[value]
+  if (!preset) {
+    return
+  }
+  sortState.value = preset.map(entry => ({ ...entry }))
+})
+
+watch(sortState, value => {
+  rowModel.setSortModel(value)
+  const presetEntry = Object.entries(SORT_PRESETS).find(([, preset]) => {
+    if (preset.length !== value.length) {
+      return false
+    }
+    return preset.every((entry, index) => {
+      const current = value[index]
+      return current?.key === entry.key && current?.direction === entry.direction
+    })
+  })
+  const nextPreset = presetEntry?.[0] ?? "custom"
+  if (sortPreset.value !== nextPreset) {
+    sortPreset.value = nextPreset
+  }
+  lastAction.value = value.length
+    ? `Sorted: ${value.map((entry, index) => `${index + 1}.${entry.key} ${entry.direction}`).join(", ")}`
+    : "Sorting cleared"
+}, { immediate: true, deep: true })
+
+watch(appliedColumnFilters, value => {
+  rowModel.setFilterModel(buildFilterSnapshot(value))
+}, { immediate: true, deep: true })
+
+watch([query, sortState, appliedColumnFilters], () => {
   resetVisibleRowsSyncCache()
   if (inlineEditor.value) {
     commitInlineEdit()
   }
   clearCellSelection()
-})
+}, { deep: true })
 
 watch(sourceRows, rows => {
   const rowIdSet = new Set(rows.map(row => row.rowId))
@@ -1870,33 +2411,76 @@ function orderColumns(columns: readonly DataGridColumnSnapshot[]): DataGridColum
   return [...left, ...center, ...right]
 }
 
-function sortRows(rows: IncidentRow[], mode: string): IncidentRow[] {
-  const next = [...rows]
-  switch (mode) {
-    case "latency-asc":
-      return next.sort((a, b) => a.latencyMs - b.latencyMs)
-    case "errors-desc":
-      return next.sort((a, b) => b.errorRate - a.errorRate)
-    case "service-asc":
-      return next.sort((a, b) => a.service.localeCompare(b.service))
-    case "latency-desc":
-    default:
-      return next.sort((a, b) => b.latencyMs - a.latencyMs)
+function compareSortableValues(left: unknown, right: unknown): number {
+  if (left == null && right == null) {
+    return 0
   }
+  if (left == null) {
+    return 1
+  }
+  if (right == null) {
+    return -1
+  }
+  if (typeof left === "number" && typeof right === "number") {
+    if (left === right) return 0
+    return left < right ? -1 : 1
+  }
+  const leftValue = String(left).toLowerCase()
+  const rightValue = String(right).toLowerCase()
+  return leftValue.localeCompare(rightValue)
 }
 
-function matchesQuery(row: IncidentRow, normalizedQuery: string): boolean {
-  return (
-    row.service.toLowerCase().includes(normalizedQuery) ||
-    row.owner.toLowerCase().includes(normalizedQuery) ||
-    row.region.toLowerCase().includes(normalizedQuery) ||
-    row.environment.toLowerCase().includes(normalizedQuery) ||
-    row.deployment.toLowerCase().includes(normalizedQuery) ||
-    row.severity.toLowerCase().includes(normalizedQuery) ||
-    row.status.toLowerCase().includes(normalizedQuery) ||
-    row.channel.toLowerCase().includes(normalizedQuery) ||
-    row.runbook.toLowerCase().includes(normalizedQuery)
-  )
+function sortRows(rows: IncidentRow[], model: readonly DataGridSortState[]): IncidentRow[] {
+  if (!model.length) {
+    return rows
+  }
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((left, right) => {
+      for (const sortEntry of model) {
+        const next = compareSortableValues(
+          getRowCellValue(left.row, sortEntry.key),
+          getRowCellValue(right.row, sortEntry.key),
+        )
+        if (next === 0) {
+          continue
+        }
+        return sortEntry.direction === "asc" ? next : -next
+      }
+      return left.index - right.index
+    })
+    .map(entry => entry.row)
+}
+
+function matchesQuery(row: IncidentRow, normalizedQuery: string, columnKeys: readonly string[]): boolean {
+  if (!normalizedQuery) {
+    return true
+  }
+
+  const keys = columnKeys.length
+    ? columnKeys
+    : [
+      "service",
+      "owner",
+      "region",
+      "environment",
+      "deployment",
+      "severity",
+      "status",
+      "channel",
+      "runbook",
+    ]
+
+  for (const key of keys) {
+    const value = getRowCellValue(row, key)
+    if (typeof value === "undefined" || value === null) {
+      continue
+    }
+    if (String(value).toLowerCase().includes(normalizedQuery)) {
+      return true
+    }
+  }
+  return false
 }
 
 function resolveStatus(latencyMs: number, errorRate: number): Status {
@@ -2012,14 +2596,14 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       </label>
       <label>
         <span>Search</span>
-        <input v-model.trim="query" type="text" placeholder="service / owner / region" />
+        <input v-model.trim="query" type="text" placeholder="quick filter: service / owner / region" />
       </label>
       <label>
         <span>Sort</span>
         <AffinoSelect
-          v-model="sortMode"
+          v-model="sortPreset"
           class="datagrid-controls__select"
-          :options="sortModeOptions"
+          :options="sortPresetOptions"
         />
       </label>
       <label class="datagrid-controls__toggle">
@@ -2028,6 +2612,89 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       </label>
       <button type="button" @click="randomizeRuntime">Runtime shift</button>
       <button type="button" class="ghost" @click="resetDataset">Reset</button>
+      <button
+        type="button"
+        class="ghost datagrid-controls__clear-filter"
+        :disabled="!isQuickFilterActive"
+        @click="clearQuickFilter"
+      >
+        Clear filter
+      </button>
+      <p class="datagrid-controls__filter-indicator" :data-active="isQuickFilterActive ? 'true' : 'false'">
+        {{ quickFilterStatus }}
+      </p>
+      <section
+        v-if="columnFilterDraft"
+        class="datagrid-column-filter"
+        data-datagrid-filter-panel
+        :data-column-key="columnFilterDraft.columnKey"
+      >
+        <header class="datagrid-column-filter__header">
+          <p>Column filter</p>
+          <strong>{{ activeFilterColumnLabel }}</strong>
+        </header>
+        <label>
+          <span>Operator</span>
+          <AffinoSelect
+            class="datagrid-column-filter__select"
+            data-datagrid-filter-operator
+            :model-value="columnFilterDraft.operator"
+            :options="columnFilterOperatorOptions"
+            @update:modelValue="onFilterOperatorChange"
+          />
+        </label>
+        <label v-if="columnFilterDraft.kind === 'enum'">
+          <span>Value</span>
+          <AffinoSelect
+            class="datagrid-column-filter__select"
+            data-datagrid-filter-value-select
+            :model-value="columnFilterDraft.value"
+            :options="activeColumnFilterEnumOptions"
+            @update:modelValue="onFilterEnumValueChange"
+          />
+        </label>
+        <label v-else>
+          <span>Value</span>
+          <input
+            data-datagrid-filter-value
+            :type="columnFilterDraft.kind === 'number' ? 'number' : 'text'"
+            :step="columnFilterDraft.kind === 'number' ? '0.01' : undefined"
+            :value="columnFilterDraft.value"
+            @input="onFilterValueInput"
+          />
+        </label>
+        <label v-if="doesOperatorNeedSecondValue(columnFilterDraft.kind, columnFilterDraft.operator)">
+          <span>And</span>
+          <input
+            data-datagrid-filter-value-2
+            type="number"
+            step="0.01"
+            :value="columnFilterDraft.value2"
+            @input="onFilterSecondValueInput"
+          />
+        </label>
+        <div class="datagrid-column-filter__actions">
+          <button
+            type="button"
+            data-datagrid-filter-apply
+            :disabled="!canApplyActiveColumnFilter"
+            @click="applyActiveColumnFilter"
+          >
+            Apply
+          </button>
+          <button type="button" class="ghost" data-datagrid-filter-reset @click="resetActiveColumnFilter">Reset</button>
+          <button
+            type="button"
+            class="ghost"
+            data-datagrid-filter-clear-all
+            :disabled="!hasColumnFilters"
+            @click="clearAllColumnFilters"
+          >
+            Clear all
+          </button>
+          <button type="button" class="ghost" data-datagrid-filter-close @click="closeColumnFilterPanel">Close</button>
+        </div>
+      </section>
       <p class="datagrid-controls__status">{{ lastAction }} · Double-click any editable cell for inline edit.</p>
     </section>
 
@@ -2047,6 +2714,14 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <div>
         <dt>Selected</dt>
         <dd>{{ selectedCount }}</dd>
+      </div>
+      <div>
+        <dt>Sort state</dt>
+        <dd>{{ sortSummary }}</dd>
+      </div>
+      <div>
+        <dt>Column filters</dt>
+        <dd>{{ activeColumnFilterCount }}</dd>
       </div>
       <div>
         <dt>Visible columns window</dt>
@@ -2086,8 +2761,16 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             :class="{
               'datagrid-stage__cell--sticky': isStickyColumn(column.key),
               'datagrid-stage__cell--select': column.key === 'select',
+              'datagrid-stage__cell--sortable': isSortableColumn(column.key),
+              'datagrid-stage__cell--filtered': isColumnFilterActive(column.key),
+              'datagrid-stage__cell--filter-open': activeFilterColumnKey === column.key,
             }"
             :style="getCellStyle(column.key)"
+            role="columnheader"
+            :tabindex="isSortableColumn(column.key) ? 0 : -1"
+            :aria-sort="getHeaderAriaSort(column.key)"
+            @click="onHeaderCellClick(column.key, $event)"
+            @keydown="onHeaderCellKeyDown(column.key, $event)"
           >
             <template v-if="column.key === 'select'">
               <input
@@ -2100,7 +2783,33 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               />
             </template>
             <template v-else>
-              {{ column.column.label ?? column.key }}
+              <span class="datagrid-stage__header-label">{{ column.column.label ?? column.key }}</span>
+              <span
+                v-if="getHeaderSortDirection(column.key)"
+                class="datagrid-stage__sort-indicator"
+                :data-direction="getHeaderSortDirection(column.key)"
+              >
+                {{ getHeaderSortDirection(column.key) === "asc" ? "▲" : "▼" }}
+                <span
+                  v-if="(getHeaderSortPriority(column.key) ?? 0) > 1"
+                  class="datagrid-stage__sort-priority"
+                >
+                  {{ getHeaderSortPriority(column.key) }}
+                </span>
+              </span>
+              <button
+                type="button"
+                class="datagrid-stage__filter-trigger"
+                :class="{ 'is-active': isColumnFilterActive(column.key) }"
+                :data-column-key="column.key"
+                data-datagrid-filter-trigger
+                :aria-label="`Filter ${column.column.label ?? column.key}`"
+                :aria-expanded="activeFilterColumnKey === column.key ? 'true' : 'false'"
+                @click.stop="onHeaderFilterTriggerClick(column.key)"
+                @keydown.stop
+              >
+                F
+              </button>
             </template>
           </div>
         </div>
@@ -2338,6 +3047,11 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   background: transparent;
 }
 
+.datagrid-controls__clear-filter:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .datagrid-controls__toggle {
   display: inline-flex;
   align-items: center;
@@ -2352,9 +3066,112 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 }
 
 .datagrid-controls__status {
-  margin: 0 0 0 auto;
+  margin: 0;
   font-size: 0.8rem;
   color: var(--text-soft);
+}
+
+.datagrid-column-filter {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.55rem;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  border-radius: 0.8rem;
+  background: rgba(8, 14, 24, 0.94);
+  padding: 0.7rem;
+}
+
+.datagrid-column-filter__header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.datagrid-column-filter__header p {
+  margin: 0;
+  font-size: 0.73rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.datagrid-column-filter__header strong {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-primary);
+}
+
+.datagrid-column-filter label {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.datagrid-column-filter label span {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.datagrid-column-filter input {
+  min-width: 0;
+  width: 100%;
+}
+
+.datagrid-column-filter__select :deep(.affino-select__trigger) {
+  min-height: 2.1rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+}
+
+.datagrid-column-filter__select :deep(.affino-select__surface) {
+  border-radius: 0.55rem;
+  border: 1px solid var(--glass-border);
+  background: rgba(8, 13, 24, 0.98);
+}
+
+.datagrid-column-filter__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.datagrid-column-filter__actions button {
+  border-radius: 0.55rem;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.datagrid-column-filter__actions button.ghost {
+  background: transparent;
+}
+
+.datagrid-column-filter__actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.datagrid-controls__filter-indicator {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.datagrid-controls__filter-indicator[data-active="true"] {
+  color: rgba(125, 211, 252, 0.95);
 }
 
 .datagrid-metrics {
@@ -2492,6 +3309,76 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   letter-spacing: 0.12em;
   color: var(--text-primary);
   background: rgba(11, 17, 31, 0.98);
+}
+
+.datagrid-stage__cell--header.datagrid-stage__cell--sortable {
+  cursor: pointer;
+}
+
+.datagrid-stage__cell--header.datagrid-stage__cell--sortable:hover {
+  background: rgba(18, 28, 47, 0.99);
+}
+
+.datagrid-stage__header-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.datagrid-stage__sort-indicator {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.62rem;
+  color: rgba(125, 211, 252, 0.95);
+}
+
+.datagrid-stage__sort-priority {
+  min-width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.45);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  line-height: 1;
+}
+
+.datagrid-stage__cell--header.datagrid-stage__cell--filtered {
+  box-shadow: inset 0 -2px 0 rgba(125, 211, 252, 0.8);
+}
+
+.datagrid-stage__cell--header.datagrid-stage__cell--filter-open {
+  background: rgba(19, 32, 54, 0.99);
+}
+
+.datagrid-stage__filter-trigger {
+  flex: 0 0 auto;
+  margin-left: 0.35rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 0.25rem;
+  border: 1px solid rgba(145, 170, 210, 0.45);
+  background: rgba(8, 13, 23, 0.92);
+  color: var(--text-soft);
+  font-size: 0.58rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.datagrid-stage__filter-trigger:hover {
+  border-color: rgba(125, 211, 252, 0.8);
+  color: rgba(186, 230, 253, 0.98);
+}
+
+.datagrid-stage__filter-trigger.is-active {
+  border-color: rgba(125, 211, 252, 0.85);
+  background: rgba(8, 47, 73, 0.9);
+  color: rgba(186, 230, 253, 1);
 }
 
 .datagrid-stage__cell--numeric {

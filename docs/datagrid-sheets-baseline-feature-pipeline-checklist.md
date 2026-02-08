@@ -1,0 +1,138 @@
+# DataGrid Sheets Baseline Feature Pipeline Checklist
+
+Baseline date: `2026-02-08`  
+Scope: `/Users/anton/Projects/affinio/demo-vue` + `/Users/anton/Projects/affinio/packages/datagrid-core` + `/Users/anton/Projects/affinio/packages/datagrid-vue`  
+Goal: покрыть базовый функционал уровня AG Grid/Google Sheets (без pivot/formulas), с детерминированным поведением под virtualized/pinned grid.
+
+## In Scope
+
+- Multi-cell selection (already present, доводим до production parity).
+- Column sorting.
+- Excel-like filtering (quick filter + column filter + filter menu).
+- Column resize без деградации virtualized/pinned runtime.
+- Clipboard: copy/paste/cut (keyboard + context menu).
+- Drag/drop interactions для редактирования диапазонов (fill/move where applicable).
+- Context menu for cell/range operations.
+
+## Out of Scope (for this pipeline)
+
+- Pivoting, grouping trees enterprise-grade, formulas engine, charting.
+- Server-side aggregation engine.
+
+## Execution Rules
+
+- Закрываем строго one-by-one, в порядке шагов.
+- Каждый шаг закрывается только при наличии: implementation + tests + docs note.
+- После закрытия шага: ставим `[x]`, добавляем `Comment`, останавливаемся.
+- Минимальная оценка на шаг: `>= 9.0` (по UX + stability + performance).
+
+## Definition of Done (global)
+
+- Поведение не ломается при: horizontal/vertical virtualization, pinned columns, long sessions.
+- Keyboard-first сценарии полностью рабочие.
+- Нет regressions по текущему Excel-style selection/fill/edit.
+- Контракты покрыты e2e + component/integration tests.
+
+## Pipeline (simple -> complex)
+
+## 01. Sort Foundation (`target >= 9.0`)
+
+- [x] Stable single-column sorting (asc/desc/none) from header.
+- [x] Multi-column sorting with `Shift` (priority order visible in UI).
+- [x] Sort state sync with current data model API.
+- [x] Tests: keyboard + click + pinned headers.
+- [x] Final score for step: `9.1`.
+- Comment: `2026-02-08` - шаг закрыт: в `demo-vue/src/pages/DataGridPage.vue` реализован header-driven sort state (`asc -> desc -> none`) с multi-sort через `Shift`, визуальными индикаторами направления и приоритета в header, а также метрикой `Sort state` для диагностики. Добавлена синхронизация с row-model API через `rowModel.setSortModel(sortState)` и preset bridge (`latency/errors/service/custom`). Тесты добавлены в `tests/e2e/datagrid.regression.spec.ts` (`click cycle`, `shift multi-sort`, `keyboard on pinned header`).
+
+## 02. Quick Filter Foundation (`target >= 9.0`)
+
+- [x] Global quick filter over visible dataset.
+- [x] Deterministic interaction with sorting and selection.
+- [x] Empty-state + active-filter indicator UX.
+- [x] Tests: quick filter + sort composition + virtualization windows.
+- [x] Final score for step: `9.1`.
+- Comment: `2026-02-08` - шаг закрыт: quick filter переведен на visible-column keys (`searchableColumnKeys`) с детерминированной композицией с sort state и существующей selection model. В контролах добавлены active indicator (`Quick filter: ...`) и явный `Clear filter`, empty-state recovery сохранен. Тесты добавлены в `tests/e2e/datagrid.regression.spec.ts`: indicator/clear flow, filter+sort composition under virtualization, empty-state recovery.
+
+## 03. Column Filter MVP (`target >= 9.0`)
+
+- [x] Per-column filter model (text/enum/number baseline operators).
+- [x] Filter UI entrypoint from header (menu trigger).
+- [x] Apply/reset/clear-all UX.
+- [x] Tests: filter combinations + pinned + scroll stability.
+- [x] Final score for step: `9.0`.
+- Comment: `2026-02-08` - шаг закрыт: добавлен column filter model (`text|enum|number`) с baseline-операторами и синхронизацией в row model через `rowModel.setFilterModel(buildFilterSnapshot(...))`. В header каждой колонки (кроме select) добавлен filter trigger, реализован panel UX (`apply/reset/clear-all/close`) и индикация активных filtered headers. В метрики добавлен `Column filters`. Тесты добавлены в `tests/e2e/datagrid.regression.spec.ts`: apply/reset flow, комбинация фильтров + стабильность при horizontal scroll + clear-all.
+
+## 04. Column Resize (Virtualization-safe) (`target >= 9.0`)
+
+- [ ] Drag resize handles in header (mouse + pointer).
+- [ ] Double-click auto-size (fit content heuristics baseline).
+- [ ] Zero-desync with horizontal virtualization and pinned offsets.
+- [ ] Tests: long horizontal scroll while resizing + sticky headers.
+- [ ] Perf gate: no visible frame drops in benchmark harness scenario.
+- [ ] Final score for step: `TBD`.
+- Comment: `TBD`.
+
+## 05. Clipboard Copy (`target >= 9.0`)
+
+- [ ] Copy active cell / range in TSV format.
+- [ ] Keyboard shortcuts: `Cmd/Ctrl+C`.
+- [ ] Context menu action: `Copy`.
+- [ ] Visual feedback for copied range.
+- [ ] Tests: copy under pinned + virtualized viewport.
+- [ ] Final score for step: `TBD`.
+- Comment: `TBD`.
+
+## 06. Clipboard Paste (`target >= 9.0`)
+
+- [ ] Paste single value and rectangular ranges from clipboard.
+- [ ] Keyboard shortcuts: `Cmd/Ctrl+V`.
+- [ ] Context menu action: `Paste`.
+- [ ] Validation + partial apply behavior (blocked cells, non-editable cols).
+- [ ] Tests: paste matrix into scrolled/virtualized/pinned grid.
+- [ ] Final score for step: `TBD`.
+- Comment: `TBD`.
+
+## 07. Clipboard Cut (`target >= 9.0`)
+
+- [ ] Cut as copy+clear for editable cells.
+- [ ] Keyboard shortcuts: `Cmd/Ctrl+X`.
+- [ ] Context menu action: `Cut`.
+- [ ] Undo-safe transactional behavior (no partial corruption).
+- [ ] Tests: cut single/range + mixed editable/non-editable cells.
+- [ ] Final score for step: `TBD`.
+- Comment: `TBD`.
+
+## 08. Context Menu System (`target >= 9.0`)
+
+- [ ] Right-click context menu for cell/range/header zones.
+- [ ] Action routing: copy/paste/cut, clear, sort, filter, resize shortcuts.
+- [ ] Keyboard access (`Shift+F10`/context-menu key).
+- [ ] Overlay/pinning layering contract (menu always on top, no focus traps).
+- [ ] Tests: mouse + keyboard invocation across pinned/non-pinned areas.
+- [ ] Final score for step: `TBD`.
+- Comment: `TBD`.
+
+## 09. Drag & Drop Editing Flows (`target >= 9.0`)
+
+- [ ] Range drag-move (where allowed) with preview and commit/cancel.
+- [ ] Fill-handle integration with copy-series baseline behavior.
+- [ ] Auto-scroll on drag to viewport edges (X/Y).
+- [ ] Tests: drag across pinned boundary + large virtualized datasets.
+- [ ] Final score for step: `TBD`.
+- Comment: `TBD`.
+
+## 10. Polish + Hardening (`target >= 9.0`)
+
+- [ ] A11y pass for new features (roles, focus, announcements).
+- [ ] Regression bundle: e2e critical paths for sort/filter/resize/clipboard/context.
+- [ ] Perf gates: no regressions in row-model/harness benchmarks.
+- [ ] Docs: end-user interactions + integrator API usage.
+- [ ] Final score for step: `TBD`.
+- Comment: `TBD`.
+
+## Close Log
+
+- `2026-02-08`: checklist created.
+- `2026-02-08`: step `01` fully closed with score `9.1`.
+- `2026-02-08`: step `02` fully closed with score `9.1`.
+- `2026-02-08`: step `03` fully closed with score `9.0`.

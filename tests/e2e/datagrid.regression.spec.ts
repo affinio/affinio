@@ -66,12 +66,197 @@ test.describe("datagrid long-session regressions", () => {
   })
 })
 
+test.describe("datagrid sort foundation", () => {
+  test("header click cycles sort state asc -> desc -> none", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const sortValue = metricValue(page, "Sort state")
+    const latencyHeader = headerCell(page, "Latency (ms)")
+
+    const initialSort = await readText(sortValue)
+    if (initialSort !== "none") {
+      await latencyHeader.click()
+      await expect(sortValue).toHaveText("none")
+    }
+
+    await latencyHeader.click()
+    await expect(sortValue).toContainText("1:latencyMs:asc")
+
+    await latencyHeader.click()
+    await expect(sortValue).toContainText("1:latencyMs:desc")
+
+    await latencyHeader.click()
+    await expect(sortValue).toHaveText("none")
+  })
+
+  test("shift click builds deterministic multi-sort priorities", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const sortValue = metricValue(page, "Sort state")
+    const serviceHeader = headerCell(page, "Service")
+    const ownerHeader = headerCell(page, "Owner")
+
+    await serviceHeader.click()
+    await ownerHeader.click({ modifiers: ["Shift"] })
+
+    await expect(sortValue).toContainText("1:service:asc")
+    await expect(sortValue).toContainText("2:owner:asc")
+  })
+
+  test("keyboard sorting works on pinned header", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const sortValue = metricValue(page, "Sort state")
+    const serviceHeader = headerCell(page, "Service")
+
+    await serviceHeader.focus()
+    await page.keyboard.press("Enter")
+    await expect(sortValue).toContainText("1:service:asc")
+
+    await page.keyboard.press("Enter")
+    await expect(sortValue).toContainText("1:service:desc")
+  })
+})
+
+test.describe("datagrid quick filter foundation", () => {
+  test("quick filter indicator and clear flow are deterministic", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const totalValue = metricValue(page, "Total")
+    const filteredValue = metricValue(page, "Filtered")
+    const total = await readText(totalValue)
+    const input = page.locator('.datagrid-controls input[placeholder*="quick filter"]')
+    const indicator = page.locator(".datagrid-controls__filter-indicator")
+    const clearButton = page.locator(".datagrid-controls__clear-filter")
+
+    await expect(indicator).toContainText("Quick filter: all rows")
+    await input.fill("edge-gateway-1")
+
+    await expect(indicator).toHaveAttribute("data-active", "true")
+    await expect(filteredValue).not.toHaveText(total)
+
+    await clearButton.click()
+    await expect(indicator).toHaveAttribute("data-active", "false")
+    await expect(filteredValue).toHaveText(total)
+  })
+
+  test("quick filter composes with sort and virtualization window", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await selectRowsPreset(page, "6400")
+
+    const sortValue = metricValue(page, "Sort state")
+    const filteredValue = metricValue(page, "Filtered")
+    const input = page.locator('.datagrid-controls input[placeholder*="quick filter"]')
+    const viewport = page.locator(".datagrid-stage__viewport")
+    const windowValue = metricValue(page, "Window")
+
+    await headerCell(page, "Service").click()
+    await expect(sortValue).toContainText("1:service:asc")
+
+    await input.fill("edge-gateway")
+    await expect(sortValue).toContainText("1:service:asc")
+    await expect(filteredValue).not.toHaveText("6400")
+    await expect(page.locator(".datagrid-stage__row").first().locator(".datagrid-stage__cell").nth(1)).toContainText(
+      "edge-gateway",
+    )
+
+    await runLongVerticalSession(viewport)
+    await expect.poll(async () => parseRangeStart(await readText(windowValue))).toBeGreaterThan(10)
+  })
+
+  test("quick filter empty state appears and recovers on clear", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const input = page.locator('.datagrid-controls input[placeholder*="quick filter"]')
+    const clearButton = page.locator(".datagrid-controls__clear-filter")
+
+    await input.fill("zzzz-no-match-datagrid")
+    await expect(page.locator(".datagrid-stage__empty")).toHaveCount(1)
+
+    await clearButton.click()
+    await expect(page.locator(".datagrid-stage__empty")).toHaveCount(0)
+  })
+})
+
+test.describe("datagrid column filter mvp", () => {
+  test("apply and reset text filter from header trigger", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const totalValue = metricValue(page, "Total")
+    const filteredValue = metricValue(page, "Filtered")
+    const columnFilterValue = metricValue(page, "Column filters")
+    const total = await readText(totalValue)
+
+    await openHeaderFilter(page, "service")
+    await page.locator("[data-datagrid-filter-value]").fill("edge-gateway-1")
+    await page.locator("[data-datagrid-filter-apply]").click()
+
+    await expect(columnFilterValue).toHaveText("1")
+    await expect(filteredValue).not.toHaveText(total)
+    await expect(headerFilterTrigger(page, "service")).toHaveClass(/is-active/)
+
+    await openHeaderFilter(page, "service")
+    await page.locator("[data-datagrid-filter-reset]").click()
+
+    await expect(columnFilterValue).toHaveText("0")
+    await expect(filteredValue).toHaveText(total)
+  })
+
+  test("filter combinations stay stable with horizontal scroll and clear-all", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const viewport = page.locator(".datagrid-stage__viewport")
+    const columnFilterValue = metricValue(page, "Column filters")
+    const columnWindowValue = metricValue(page, "Visible columns window")
+
+    await openHeaderFilter(page, "service")
+    await page.locator("[data-datagrid-filter-value]").fill("edge-gateway")
+    await page.locator("[data-datagrid-filter-apply]").click()
+
+    await openHeaderFilter(page, "owner")
+    await page.locator("[data-datagrid-filter-value]").fill("ari")
+    await page.locator("[data-datagrid-filter-apply]").click()
+
+    await expect(columnFilterValue).toHaveText("2")
+    await expect(page.locator(".datagrid-stage__row").first().locator(".datagrid-stage__cell").nth(1)).toContainText(
+      "edge-gateway",
+    )
+
+    await runLongHorizontalSession(viewport)
+    await expect.poll(async () => parseColumnWindowStart(await readText(columnWindowValue))).toBeGreaterThan(1)
+    await expect(columnFilterValue).toHaveText("2")
+
+    await openHeaderFilter(page, "service")
+    await page.locator("[data-datagrid-filter-clear-all]").click()
+    await expect(columnFilterValue).toHaveText("0")
+  })
+})
+
 function metricValue(page: Page, label: string): Locator {
   return page
     .locator(".datagrid-metrics div")
     .filter({ has: page.locator("dt", { hasText: label }) })
     .locator("dd")
     .first()
+}
+
+function headerCell(page: Page, label: string): Locator {
+  return page
+    .locator(".datagrid-stage__cell--header")
+    .filter({ hasText: label })
+    .first()
+}
+
+function headerFilterTrigger(page: Page, columnKey: string): Locator {
+  return page
+    .locator(`[data-datagrid-filter-trigger][data-column-key="${columnKey}"]`)
+    .first()
+}
+
+async function openHeaderFilter(page: Page, columnKey: string): Promise<void> {
+  await headerFilterTrigger(page, columnKey).click()
+  await expect(page.locator("[data-datagrid-filter-panel]")).toHaveAttribute("data-column-key", columnKey)
 }
 
 async function selectRowsPreset(page: Page, rows: string): Promise<void> {
