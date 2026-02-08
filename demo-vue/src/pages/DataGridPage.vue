@@ -80,6 +80,8 @@ interface SelectionOverlaySegment {
 
 const ROW_HEIGHT = 38
 const OVERSCAN = 8
+const DRAG_AUTO_SCROLL_EDGE_PX = 36
+const DRAG_AUTO_SCROLL_MAX_STEP_PX = 28
 
 const rowCount = ref(2400)
 const seed = ref(1)
@@ -101,6 +103,9 @@ const cellAnchor = ref<CellCoord | null>(null)
 const cellFocus = ref<CellCoord | null>(null)
 const activeCell = ref<CellCoord | null>(null)
 const isDragSelecting = ref(false)
+const dragPointer = ref<{ clientX: number; clientY: number } | null>(null)
+
+let dragAutoScrollFrame: number | null = null
 
 const sourceRows = ref<IncidentRow[]>(buildRows(rowCount.value, seed.value))
 
@@ -720,7 +725,7 @@ function resolveCurrentCellCoord(): CellCoord | null {
   return { rowIndex: 0, columnIndex: firstColumnIndex }
 }
 
-function applyCellSelection(nextCoord: CellCoord, extend: boolean, fallbackAnchor?: CellCoord) {
+function applyCellSelection(nextCoord: CellCoord, extend: boolean, fallbackAnchor?: CellCoord, ensureVisible = true) {
   const normalized = normalizeCellCoord(nextCoord)
   if (!normalized) {
     return
@@ -734,7 +739,9 @@ function applyCellSelection(nextCoord: CellCoord, extend: boolean, fallbackAncho
     cellFocus.value = normalized
   }
   activeCell.value = normalized
-  ensureCellVisible(normalized)
+  if (ensureVisible) {
+    ensureCellVisible(normalized)
+  }
 }
 
 function ensureCellVisible(coord: CellCoord) {
@@ -765,6 +772,164 @@ function ensureCellVisible(coord: CellCoord) {
   scrollLeft.value = viewport.scrollLeft
 }
 
+function resolveColumnIndexByAbsoluteX(absoluteX: number): number {
+  const metrics = orderedColumnMetrics.value
+  const lastMetric = metrics[metrics.length - 1]
+  if (!lastMetric) {
+    return -1
+  }
+  const clampedX = Math.max(0, Math.min(absoluteX, Math.max(0, lastMetric.end - 1)))
+  for (const metric of metrics) {
+    if (clampedX < metric.end) {
+      return metric.columnIndex
+    }
+  }
+  return lastMetric.columnIndex
+}
+
+function resolveCellCoordFromPointer(clientX: number, clientY: number): CellCoord | null {
+  const viewport = viewportRef.value
+  if (!viewport || filteredAndSortedRows.value.length === 0) {
+    return null
+  }
+
+  const rect = viewport.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) {
+    return null
+  }
+
+  const metrics = orderedColumnMetrics.value
+  const lastMetric = metrics[metrics.length - 1]
+  if (!lastMetric) {
+    return null
+  }
+  const totalWidth = lastMetric.end
+  if (totalWidth <= 0) {
+    return null
+  }
+
+  let leftPinnedWidth = 0
+  let rightPinnedWidth = 0
+  for (const metric of metrics) {
+    const column = orderedColumns.value[metric.columnIndex]
+    if (column?.pin === "left") {
+      leftPinnedWidth = metric.end
+    } else if (column?.pin === "right") {
+      rightPinnedWidth += metric.width
+    }
+  }
+
+  const pointerXInViewport = clientX - rect.left
+  const pointerYInViewport = clientY - rect.top
+  const clampedY = Math.max(0, Math.min(rect.height - 1, pointerYInViewport))
+  const rowRawIndex = Math.floor((viewport.scrollTop + clampedY - headerHeight.value) / ROW_HEIGHT)
+
+  let absoluteX: number
+  if (pointerXInViewport <= leftPinnedWidth) {
+    absoluteX = pointerXInViewport
+  } else if (rightPinnedWidth > 0 && pointerXInViewport >= rect.width - rightPinnedWidth) {
+    absoluteX = totalWidth - rightPinnedWidth + (pointerXInViewport - (rect.width - rightPinnedWidth))
+  } else {
+    absoluteX = viewport.scrollLeft + pointerXInViewport
+  }
+
+  const columnRawIndex = resolveColumnIndexByAbsoluteX(absoluteX)
+  if (columnRawIndex < 0) {
+    return null
+  }
+  const columnIndex = resolveNearestNavigableColumnIndex(columnRawIndex)
+  if (columnIndex < 0) {
+    return null
+  }
+
+  return normalizeCellCoord({
+    rowIndex: rowRawIndex,
+    columnIndex,
+  })
+}
+
+function resolveAxisAutoScrollDelta(pointer: number, min: number, max: number): number {
+  if (max <= min) {
+    return 0
+  }
+  if (pointer < min + DRAG_AUTO_SCROLL_EDGE_PX) {
+    const intensity = Math.min(2, (min + DRAG_AUTO_SCROLL_EDGE_PX - pointer) / DRAG_AUTO_SCROLL_EDGE_PX)
+    return -Math.ceil(DRAG_AUTO_SCROLL_MAX_STEP_PX * intensity)
+  }
+  if (pointer > max - DRAG_AUTO_SCROLL_EDGE_PX) {
+    const intensity = Math.min(2, (pointer - (max - DRAG_AUTO_SCROLL_EDGE_PX)) / DRAG_AUTO_SCROLL_EDGE_PX)
+    return Math.ceil(DRAG_AUTO_SCROLL_MAX_STEP_PX * intensity)
+  }
+  return 0
+}
+
+function applyDragSelectionFromPointer() {
+  if (!isDragSelecting.value) {
+    return
+  }
+  const pointer = dragPointer.value
+  if (!pointer) {
+    return
+  }
+  const coord = resolveCellCoordFromPointer(pointer.clientX, pointer.clientY)
+  if (!coord) {
+    return
+  }
+  applyCellSelection(coord, true, undefined, false)
+}
+
+function runDragAutoScrollFrame() {
+  if (!isDragSelecting.value) {
+    dragAutoScrollFrame = null
+    return
+  }
+
+  const viewport = viewportRef.value
+  const pointer = dragPointer.value
+  if (viewport && pointer) {
+    const rect = viewport.getBoundingClientRect()
+    const topBoundary = rect.top + headerHeight.value
+    const deltaY = resolveAxisAutoScrollDelta(pointer.clientY, topBoundary, rect.bottom)
+    const deltaX = resolveAxisAutoScrollDelta(pointer.clientX, rect.left, rect.right)
+
+    if (deltaX !== 0 || deltaY !== 0) {
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+      const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth)
+      const nextTop = Math.max(0, Math.min(maxScrollTop, viewport.scrollTop + deltaY))
+      const nextLeft = Math.max(0, Math.min(maxScrollLeft, viewport.scrollLeft + deltaX))
+
+      if (nextTop !== viewport.scrollTop) {
+        viewport.scrollTop = nextTop
+      }
+      if (nextLeft !== viewport.scrollLeft) {
+        viewport.scrollLeft = nextLeft
+      }
+
+      scrollTop.value = viewport.scrollTop
+      scrollLeft.value = viewport.scrollLeft
+    }
+
+    applyDragSelectionFromPointer()
+  }
+
+  dragAutoScrollFrame = window.requestAnimationFrame(runDragAutoScrollFrame)
+}
+
+function startDragAutoScroll() {
+  if (dragAutoScrollFrame !== null) {
+    return
+  }
+  dragAutoScrollFrame = window.requestAnimationFrame(runDragAutoScrollFrame)
+}
+
+function onGlobalMouseMove(event: MouseEvent) {
+  if (!isDragSelecting.value) {
+    return
+  }
+  dragPointer.value = { clientX: event.clientX, clientY: event.clientY }
+  applyDragSelectionFromPointer()
+}
+
 function onDataCellMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) {
   if (event.button !== 0 || columnKey === "select") {
     return
@@ -776,13 +941,15 @@ function onDataCellMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: strin
   event.preventDefault()
   viewportRef.value?.focus()
   isDragSelecting.value = true
+  dragPointer.value = { clientX: event.clientX, clientY: event.clientY }
   applyCellSelection(coord, event.shiftKey, coord)
+  startDragAutoScroll()
   lastAction.value = event.shiftKey
     ? `Extended selection to R${coord.rowIndex + 1} · ${columnKey}`
     : `Anchor set: R${coord.rowIndex + 1} · ${columnKey}`
 }
 
-function onDataCellMouseEnter(row: DataGridRowNode<IncidentRow>, columnKey: string) {
+function onDataCellMouseEnter(row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) {
   if (!isDragSelecting.value || columnKey === "select") {
     return
   }
@@ -790,11 +957,17 @@ function onDataCellMouseEnter(row: DataGridRowNode<IncidentRow>, columnKey: stri
   if (!coord) {
     return
   }
-  applyCellSelection(coord, true)
+  dragPointer.value = { clientX: event.clientX, clientY: event.clientY }
+  applyCellSelection(coord, true, undefined, false)
 }
 
 function stopDragSelection() {
   isDragSelecting.value = false
+  dragPointer.value = null
+  if (dragAutoScrollFrame !== null) {
+    window.cancelAnimationFrame(dragAutoScrollFrame)
+    dragAutoScrollFrame = null
+  }
 }
 
 function onViewportBlur() {
@@ -1024,6 +1197,7 @@ onMounted(() => {
   syncVisibleRows()
   window.addEventListener("resize", syncViewportHeight)
   window.addEventListener("mouseup", stopDragSelection)
+  window.addEventListener("mousemove", onGlobalMouseMove)
 })
 
 onBeforeUnmount(() => {
@@ -1032,6 +1206,7 @@ onBeforeUnmount(() => {
   unsubscribeColumns = null
   window.removeEventListener("resize", syncViewportHeight)
   window.removeEventListener("mouseup", stopDragSelection)
+  window.removeEventListener("mousemove", onGlobalMouseMove)
   void core.dispose()
 })
 
@@ -1314,7 +1489,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             }"
             :style="getCellStyle(column.key)"
             @mousedown="onDataCellMouseDown(row, column.key, $event)"
-            @mouseenter="onDataCellMouseEnter(row, column.key)"
+            @mouseenter="onDataCellMouseEnter(row, column.key, $event)"
             @dblclick="beginInlineEdit(row.data, column.key)"
           >
             <template v-if="column.key === 'select'">
