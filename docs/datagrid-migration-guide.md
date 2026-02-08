@@ -26,7 +26,7 @@ Migration path: `.tmp/ui-table` -> `@affino/datagrid-core` + `@affino/datagrid-v
 - `UiTableViewportSimple.vue` -> `DataGridViewport.vue`
 - `UiTableOverlayLayer.vue` -> `DataGridOverlayLayer.vue`
 
-Compatibility shims still exist, but new integration should use `DataGrid*` names.
+Compatibility shims still exist in `packages/datagrid-vue/src/components/legacy.ts`, but new integration should use `DataGrid*` names.
 Deprecation window for `UiTable*` shims: supported through `2026-08-31`, scheduled removal on `2026-09-01`.
 
 ## Pinning Migration (Required)
