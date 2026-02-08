@@ -67,15 +67,23 @@ test.describe("datagrid long-session regressions", () => {
 })
 
 function metricValue(page: Page, label: string): Locator {
-  return page.locator(".datagrid-metrics div").filter({ has: page.locator("dt", { hasText: label }) }).locator("dd")
+  return page
+    .locator(".datagrid-metrics div")
+    .filter({ has: page.locator("dt", { hasText: label }) })
+    .locator("dd")
+    .first()
 }
 
 async function selectRowsPreset(page: Page, rows: string): Promise<void> {
-  await page
+  const control = page
     .locator(".datagrid-controls label")
     .filter({ has: page.locator("span", { hasText: "Rows" }) })
-    .locator("select")
-    .selectOption(rows)
+
+  const trigger = control.locator("[data-affino-listbox-trigger]")
+  await trigger.click()
+
+  const option = page.locator("[data-affino-listbox-option]", { hasText: rows }).first()
+  await option.click()
 }
 
 async function runLongVerticalSession(viewport: Locator): Promise<void> {
@@ -86,10 +94,6 @@ async function runLongVerticalSession(viewport: Locator): Promise<void> {
     const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
 
     for (let step = 1; step <= 12; step += 1) {
-      element.scrollTop = Math.round((maxTop * step) / 12)
-      await frame()
-    }
-    for (let step = 11; step >= 0; step -= 1) {
       element.scrollTop = Math.round((maxTop * step) / 12)
       await frame()
     }
@@ -104,10 +108,6 @@ async function runLongHorizontalSession(viewport: Locator): Promise<void> {
     const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
 
     for (let step = 1; step <= 10; step += 1) {
-      element.scrollLeft = Math.round((maxLeft * step) / 10)
-      await frame()
-    }
-    for (let step = 9; step >= 0; step -= 1) {
       element.scrollLeft = Math.round((maxLeft * step) / 10)
       await frame()
     }

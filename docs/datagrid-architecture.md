@@ -47,7 +47,7 @@ Scope: `@affino/datagrid-core`, `@affino/datagrid-vue`
 
 - Runtime: `/Users/anton/Projects/affinio/packages/datagrid-core/src/runtime/dataGridRuntime.ts`
 - Viewport: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`
-- Horizontal clamp: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportHorizontalClamp.ts`
+- Horizontal clamp: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportHorizontalClamp.ts`
 - Coordinate conversion: `/Users/anton/Projects/affinio/packages/datagrid-core/src/selection/coordinateSpace.ts`
 
 ## Vue Adapter Modules to Keep Thin

@@ -36,7 +36,7 @@ import { createDataGridViewportController } from "@affino/datagrid-core/advanced
 const store = useDataGridSettingsStore()
 const settingsAdapter = createDataGridSettingsAdapter(store)
 
-// pass settingsAdapter into your grid config where UiTableSettingsAdapter is expected
+// pass settingsAdapter into your grid config where DataGridSettingsAdapter is expected
 
 const viewport = createDataGridViewportController({ resolvePinMode })
 const integration = viewport.getIntegrationSnapshot()
@@ -52,7 +52,7 @@ const overlayTransform = buildDataGridOverlayTransformFromSnapshot({
 ```
 
 Adapter interface is defined in:
-`/Users/anton/Projects/affinio/packages/datagrid-core/src/tableSettingsAdapter.ts`
+`/Users/anton/Projects/affinio/packages/datagrid-core/src/dataGridSettingsAdapter.ts`
 
 ## What the Adapter Persists
 

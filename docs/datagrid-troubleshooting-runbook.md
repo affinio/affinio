@@ -33,7 +33,7 @@ Relevant tests:
 ## Symptom: Horizontal virtualization not deterministic
 
 Checks:
-- Confirm clamp logic is served only by `tableViewportHorizontalClamp.ts`.
+- Confirm clamp logic is served only by `dataGridViewportHorizontalClamp.ts`.
 - Confirm prepare/update path does not mutate input metadata.
 
 Relevant tests:

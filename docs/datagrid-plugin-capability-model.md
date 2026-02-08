@@ -13,13 +13,13 @@ This document defines the capability boundary for runtime plugins in `@affino/da
 
 ## Contracts
 
-Plugin setup context (`UiTablePluginSetupContext`) exposes:
+Plugin setup context (`DataGridPluginSetupContext`) exposes:
 
 - `hasCapability(name)` - side-effect free availability check.
 - `requestCapability(name)` - returns function or `null`.
 - `invokeCapability(name, ...args)` - executes capability or throws on denied access.
 
-Plugin declaration (`UiTablePlugin`) adds:
+Plugin declaration (`DataGridPlugin`) adds:
 
 - `capabilities?: string[]` - explicit allowlist per plugin.
 
@@ -42,6 +42,5 @@ Runtime emits internal denial diagnostics:
 
 ## Contract Tests
 
-- `/Users/anton/Projects/affinio/packages/datagrid-core/src/runtime/__tests__/tableRuntime.events.contract.spec.ts`
+- `/Users/anton/Projects/affinio/packages/datagrid-core/src/runtime/__tests__/dataGridRuntime.events.contract.spec.ts`
 - `/Users/anton/Projects/affinio/packages/datagrid-core/src/adapters/__tests__/adapterRuntimeProtocol.contract.spec.ts`
-

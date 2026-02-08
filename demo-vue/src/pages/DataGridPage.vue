@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import AffinoSelect from "@/components/AffinoSelect.vue"
 import {
   createClientRowModel,
   createDataGridApi,
@@ -99,6 +100,13 @@ const query = ref("")
 const sortMode = ref("latency-desc")
 const pinStatusColumn = ref(false)
 const lastAction = ref("Ready")
+const rowCountOptions = [1200, 2400, 6400] as const
+const sortModeOptions = [
+  { value: "latency-desc", label: "Latency desc" },
+  { value: "latency-asc", label: "Latency asc" },
+  { value: "errors-desc", label: "Errors desc" },
+  { value: "service-asc", label: "Service asc" },
+] as const
 
 const viewportRef = ref<HTMLDivElement | null>(null)
 const headerRef = ref<HTMLDivElement | null>(null)
@@ -631,8 +639,8 @@ function onEditorInput(event: Event) {
   updateEditorDraft((event.target as HTMLInputElement).value)
 }
 
-function onEditorSelectChange(event: Event) {
-  updateEditorDraft((event.target as HTMLSelectElement).value)
+function onEditorAffinoSelectChange(value: string | number) {
+  updateEditorDraft(String(value))
   commitInlineEdit()
 }
 
@@ -673,7 +681,11 @@ async function focusInlineEditorElement(
   const viewport = viewportRef.value
   if (!viewport) return
   const selector = `[data-inline-editor-row-id="${rowId}"][data-inline-editor-column-key="${columnKey}"]`
-  const editor = viewport.querySelector(selector) as HTMLInputElement | HTMLSelectElement | null
+  const editorHost = viewport.querySelector(selector) as HTMLElement | null
+  if (!editorHost) return
+  const editor = editorHost.matches("input,textarea,select,button,[tabindex]")
+    ? editorHost
+    : (editorHost.querySelector("input,textarea,select,button,[tabindex]") as HTMLElement | null)
   if (!editor) return
   editor.focus()
   if (editor instanceof HTMLInputElement) {
@@ -681,15 +693,10 @@ async function focusInlineEditorElement(
     return
   }
   if (mode === "select" && openPicker) {
-    const selectWithPicker = editor as HTMLSelectElement & { showPicker?: () => void }
     try {
-      if (typeof selectWithPicker.showPicker === "function") {
-        selectWithPicker.showPicker()
-      } else {
-        selectWithPicker.click()
-      }
+      editor.click()
     } catch {
-      selectWithPicker.click()
+      // Ignore click-open failures for synthetic editors.
     }
   }
 }
@@ -1997,11 +2004,11 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
     <section class="datagrid-controls" aria-label="Dataset controls">
       <label>
         <span>Rows</span>
-        <select v-model.number="rowCount">
-          <option :value="1200">1200</option>
-          <option :value="2400">2400</option>
-          <option :value="6400">6400</option>
-        </select>
+        <AffinoSelect
+          v-model="rowCount"
+          class="datagrid-controls__select"
+          :options="rowCountOptions"
+        />
       </label>
       <label>
         <span>Search</span>
@@ -2009,12 +2016,11 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       </label>
       <label>
         <span>Sort</span>
-        <select v-model="sortMode">
-          <option value="latency-desc">Latency desc</option>
-          <option value="latency-asc">Latency asc</option>
-          <option value="errors-desc">Errors desc</option>
-          <option value="service-asc">Service asc</option>
-        </select>
+        <AffinoSelect
+          v-model="sortMode"
+          class="datagrid-controls__select"
+          :options="sortModeOptions"
+        />
       </label>
       <label class="datagrid-controls__toggle">
         <input v-model="pinStatusColumn" type="checkbox" />
@@ -2142,23 +2148,22 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             </template>
 
             <template v-else-if="isSelectEditorCell(row.data.rowId, column.key) && getEditorOptions(column.key)">
-              <select
-                class="datagrid-stage__editor"
+              <AffinoSelect
+                class="datagrid-stage__editor datagrid-stage__editor-select"
                 :data-inline-editor-row-id="row.data.rowId"
                 :data-inline-editor-column-key="column.key"
-                :value="inlineEditor?.draft ?? ''"
-                @change="onEditorSelectChange"
+                :model-value="inlineEditor?.draft ?? ''"
+                :options="getEditorOptions(column.key) ?? []"
+                @update:modelValue="updateEditorDraft(String($event))"
+                @change="onEditorAffinoSelectChange"
                 @keydown="onEditorKeyDown($event, row.data.rowId, column.key)"
                 @blur="commitInlineEdit"
-                autofocus
-              >
-                <option v-for="option in getEditorOptions(column.key)" :key="option" :value="option">{{ option }}</option>
-              </select>
+              />
             </template>
 
             <template v-else-if="isEditingCell(row.data.rowId, column.key)">
               <input
-                class="datagrid-stage__editor"
+                class="datagrid-stage__editor datagrid-stage__editor-input"
                 :data-inline-editor-row-id="row.data.rowId"
                 :data-inline-editor-column-key="column.key"
                 :type="['latencyMs', 'errorRate', 'availabilityPct', 'mttrMin', 'cpuPct', 'memoryPct', 'queueDepth', 'throughputRps', 'sloBurnRate', 'incidents24h'].includes(column.key) ? 'number' : 'text'"
@@ -2289,7 +2294,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 
 .datagrid-controls input,
 .datagrid-controls select,
-.datagrid-controls button {
+.datagrid-controls > button {
   border-radius: 0.55rem;
   border: 1px solid var(--glass-border);
   background: rgba(255, 255, 255, 0.06);
@@ -2298,19 +2303,38 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   font-size: 0.85rem;
 }
 
+.datagrid-controls__select {
+  min-width: 120px;
+}
+
+.datagrid-controls__select :deep(.affino-select__trigger) {
+  border-radius: 0.55rem;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.datagrid-controls__select :deep(.affino-select__surface) {
+  border-radius: 0.55rem;
+  border: 1px solid var(--glass-border);
+  background: rgba(8, 13, 24, 0.98);
+}
+
 .datagrid-controls input {
   min-width: 210px;
 }
 
-.datagrid-controls button {
+.datagrid-controls > button {
   cursor: pointer;
 }
 
-.datagrid-controls button:hover {
+.datagrid-controls > button:hover {
   border-color: var(--accent-strong);
 }
 
-.datagrid-controls button.ghost {
+.datagrid-controls > button.ghost {
   background: transparent;
 }
 
@@ -2499,6 +2523,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 .datagrid-stage__cell--editing {
   padding: 2px 4px;
   z-index: 24;
+  overflow: visible;
 }
 
 .datagrid-stage__cell--range {
@@ -2522,6 +2547,12 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   height: 100%;
   min-height: 0;
   margin: 0;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 25;
+}
+
+.datagrid-stage__editor-input {
   border-radius: 0.35rem;
   border: 1px solid rgba(145, 170, 210, 0.35);
   background: rgba(9, 14, 25, 0.96);
@@ -2529,9 +2560,41 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   padding: 0 0.5rem;
   font-size: 0.76rem;
   line-height: 1.15;
-  box-sizing: border-box;
-  position: relative;
-  z-index: 25;
+}
+
+.datagrid-stage__editor-select :deep(.affino-select__trigger) {
+  height: 100%;
+  min-height: 0;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(145, 170, 210, 0.35);
+  background: rgba(9, 14, 25, 0.96);
+  color: var(--text-primary);
+  padding: 0 0.5rem;
+  font-size: 0.76rem;
+  line-height: 1.15;
+}
+
+.datagrid-stage__editor-select :deep(.affino-select__surface) {
+  min-width: max(100%, 132px);
+  max-height: 220px;
+  z-index: 64;
+}
+
+.datagrid-stage__editor-select :deep(.affino-select__option) {
+  font-size: 0.74rem;
+  min-height: 1.8rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.datagrid-stage__editor:focus {
+  outline: none;
+  border-color: rgba(125, 211, 252, 0.75);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25);
+}
+
+.datagrid-stage__editor-select:focus-within {
+  border-color: rgba(125, 211, 252, 0.75);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25);
 }
 
 .datagrid-stage__enum-trigger {
@@ -2558,26 +2621,6 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 .datagrid-stage__enum-trigger:hover {
   border-color: rgba(125, 211, 252, 0.8);
   background: rgba(17, 31, 53, 0.98);
-}
-
-.datagrid-stage__editor:focus {
-  outline: none;
-  border-color: rgba(125, 211, 252, 0.75);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25);
-}
-
-select.datagrid-stage__editor {
-  appearance: none;
-  padding-right: 1.25rem;
-  background-image: linear-gradient(45deg, transparent 50%, rgba(186, 230, 253, 0.9) 50%),
-    linear-gradient(135deg, rgba(186, 230, 253, 0.9) 50%, transparent 50%);
-  background-position:
-    calc(100% - 10px) 50%,
-    calc(100% - 6px) 50%;
-  background-size:
-    4px 4px,
-    4px 4px;
-  background-repeat: no-repeat;
 }
 
 .datagrid-stage__cell--sticky {

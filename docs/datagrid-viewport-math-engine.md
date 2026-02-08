@@ -6,7 +6,7 @@ Updated: `2026-02-07`
 
 ## Pure Math Module
 
-File: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportMath.ts`
+File: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportMath.ts`
 
 Implemented deterministic helpers:
 
@@ -25,7 +25,7 @@ These functions:
 
 ## IO Boundary
 
-File: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportScrollIo.ts`
+File: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportScrollIo.ts`
 
 Added `applyProgrammaticScrollWrites(...)` so programmatic scroll writes are performed in the scroll IO service, not in controller orchestration.
 
@@ -38,7 +38,7 @@ This keeps:
 
 Added:
 
-- `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/tableViewportMath.contract.spec.ts`
+- `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/dataGridViewportMath.contract.spec.ts`
 
 Updated:
 

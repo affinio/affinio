@@ -30,6 +30,8 @@
       "@affino/grid-selection-vue/*": ["../packages/grid-selection-vue/src/*"],
       "@affino/listbox-core": ["../packages/listbox-core/src/index.ts"],
       "@affino/listbox-core/*": ["../packages/listbox-core/src/*"],
+      "@affino/listbox-vue": ["../packages/listbox-vue/src/index.ts"],
+      "@affino/listbox-vue/*": ["../packages/listbox-vue/src/*"],
       "@affino/menu-core": ["../packages/menu-core/src/index.ts"],
       "@affino/menu-core/*": ["../packages/menu-core/src/*"],
       "@affino/menu-react": ["../packages/menu-react/src/index.ts"],

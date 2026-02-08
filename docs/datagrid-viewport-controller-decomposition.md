@@ -6,17 +6,17 @@ Viewport runtime is now split into explicit service boundaries; controller keeps
 
 ## Service Boundaries
 
-- `scroll-io`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportScrollIo.ts`
+- `scroll-io`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportScrollIo.ts`
   - native scroll sampling
   - rAF sync scheduling
   - resize observer wiring
-- `virtual-range`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportVirtualization.ts`
+- `virtual-range`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportVirtualization.ts`
   - vertical virtualization plan/apply
   - overscan and row pool policy
-- `model-bridge`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportModelBridgeService.ts`
+- `model-bridge`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportModelBridgeService.ts`
   - row/column model subscriptions
   - cached materialization for render planning
-- `render-sync`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportRenderSyncService.ts`
+- `render-sync`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportRenderSyncService.ts`
   - sync target management
   - pinned offsets synchronization
   - overlay/host transform application
@@ -31,7 +31,7 @@ Viewport runtime is now split into explicit service boundaries; controller keeps
   - pending DOM scroll writes
   - pinned/overlay alignment
 
-`tableViewportController` now composes these services and coordinates update phases.
+`dataGridViewportController` now composes these services and coordinates update phases.
 
 ## Regression Coverage
 

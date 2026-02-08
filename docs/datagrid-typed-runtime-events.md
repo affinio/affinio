@@ -26,7 +26,7 @@ Plugin bus is now typed and supports strict payloads.
   - `DataGridRuntimePluginEventMap<TCustomPluginEvents>`
   - includes host event bridge + runtime plugin lifecycle + custom plugin events
 
-`TableRuntime` now exposes:
+`DataGridRuntime` now exposes:
 
 - `emitPlugin(event, ...args)`
 - `onPlugin(event, handler)`

@@ -4,7 +4,7 @@ Updated: `2026-02-07`
 
 ## Goal
 
-`tableViewportController` consumes a single `DataGridRowModel` input and no longer relies on direct server fetch calls in virtualization hot path.
+`dataGridViewportController` consumes a single `DataGridRowModel` input and no longer relies on direct server fetch calls in virtualization hot path.
 
 ## Boundary Contract
 

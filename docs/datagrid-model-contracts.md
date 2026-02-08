@@ -72,7 +72,7 @@ Snapshot guarantees:
 
 Viewport boundary:
 
-- `tableViewportController` consumes `columnModel` as the only column source.
+- `dataGridViewportController` consumes `columnModel` as the only column source.
 - Adapter (`useTableViewport`) owns normalization from incoming column props into `DataGridColumnModel`:
   legacy pin/sticky fields -> canonical `pin`, and UI-specific fields -> `column.meta`.
 

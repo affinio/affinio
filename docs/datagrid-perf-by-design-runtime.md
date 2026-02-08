@@ -7,7 +7,7 @@ This document captures mandatory runtime performance contracts for `@affino/data
 ## Hot Path Contracts
 
 Scope:
-- `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportVirtualization.ts`
+- `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportVirtualization.ts`
 
 Required invariants:
 - row pool is reused (`RowPoolItem[]`) instead of recreated per update.
@@ -43,4 +43,3 @@ Row-model benchmark must pass both p95 and p99 limits:
 Harness source:
 - `/Users/anton/Projects/affinio/scripts/bench-datagrid-harness.mjs`
 - `/Users/anton/Projects/affinio/scripts/bench-datagrid-rowmodels.mjs`
-

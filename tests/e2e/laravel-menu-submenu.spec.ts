@@ -140,6 +140,7 @@ test.describe("laravel menu submenu", () => {
     await page.goto("http://127.0.0.1:4180/menus")
 
     const trigger = page.getByRole("button", { name: "Inline portal" })
+    await trigger.scrollIntoViewIfNeeded()
     await trigger.click()
 
     const root = page.locator("[data-affino-menu-root]").filter({ has: trigger }).first()
@@ -150,8 +151,10 @@ test.describe("laravel menu submenu", () => {
 
     await expect(root).toHaveAttribute("data-affino-menu-portal", "inline")
 
-    const panel = page.locator(`[data-affino-menu-panel][data-affino-menu-root-id='${rootId}']`).first()
-    await expect(panel).toHaveAttribute("data-state", "open")
+    await expect.poll(async () => await root.getAttribute("data-affino-menu-state")).toBe("open")
+
+    const panel = root.locator("[data-affino-menu-panel]").first()
+    await expect(panel).toBeVisible()
 
     const isManaged = await panel.getAttribute("data-affino-menu-portal-managed")
     expect(isManaged).not.toBe("true")
