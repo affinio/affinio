@@ -7,8 +7,21 @@ Updated: `2026-02-07`
 - `event`
 - `rowModel`
 - `columnModel`
+- `edit`
+- `transaction`
 - `selection`
 - `viewport`
+
+Typed service contracts:
+
+- `DataGridCoreRowModelService` (`model?: DataGridRowModel`)
+- `DataGridCoreColumnModelService` (`model?: DataGridColumnModel`)
+- `DataGridCoreEditService` (`model?: DataGridEditModel`)
+- `DataGridCoreTransactionService` (`applyTransaction`, `begin/commit/rollback batch`, `undo/redo`, snapshot hooks)
+- `DataGridCoreSelectionService` (headless selection capability methods over `DataGridSelectionSnapshot`)
+- `DataGridCoreViewportService` (viewport range capability methods)
+
+`getService(name)` is typed by service key (`DataGridCoreServiceByName`), which is used by `GridApi`.
 
 ## Lifecycle Contract
 
@@ -33,7 +46,9 @@ Canonical order:
 1. `event`
 2. `rowModel`
 3. `columnModel`
-4. `selection`
-5. `viewport`
+4. `edit`
+5. `transaction`
+6. `selection`
+7. `viewport`
 
 Custom `startupOrder` can prioritize a subset; missing services are appended deterministically according to canonical order.

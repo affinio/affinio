@@ -1,0 +1,45 @@
+# DataGrid Viewport Controller Decomposition
+
+Updated: `2026-02-07`
+
+Viewport runtime is now split into explicit service boundaries; controller keeps orchestration only.
+
+## Service Boundaries
+
+- `scroll-io`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportScrollIo.ts`
+  - native scroll sampling
+  - rAF sync scheduling
+  - resize observer wiring
+- `virtual-range`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportVirtualization.ts`
+  - vertical virtualization plan/apply
+  - overscan and row pool policy
+- `model-bridge`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportModelBridgeService.ts`
+  - row/column model subscriptions
+  - cached materialization for render planning
+- `render-sync`: `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/tableViewportRenderSyncService.ts`
+  - sync target management
+  - pinned offsets synchronization
+  - overlay/host transform application
+
+## Ownership Boundary
+
+- `what-to-render`:
+  - model bridge snapshots + virtualization ranges
+  - horizontal/vertical prepared plans
+- `how-to-render`:
+  - scroll sync transforms
+  - pending DOM scroll writes
+  - pinned/overlay alignment
+
+`tableViewportController` now composes these services and coordinates update phases.
+
+## Regression Coverage
+
+Added boundary and stress tests:
+
+- `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/modelBridge.contract.spec.ts`
+- `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/renderSync.contract.spec.ts`
+
+Existing stress contracts remain active for full viewport flow:
+
+- `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/horizontalVirtualization.stress.contract.spec.ts`

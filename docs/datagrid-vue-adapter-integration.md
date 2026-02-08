@@ -1,26 +1,54 @@
 # DataGrid Vue Adapter Integration Guide
 
-Baseline date: `2026-02-07`
+Baseline date: `2026-02-08`
 Package: `@affino/datagrid-vue`
 
 ## Current Stable Contract
 
-As of this baseline, the stable public adapter API is settings persistence:
+As of this baseline, the stable public adapter API covers settings persistence and deterministic overlay transforms:
 
 - `createPiniaTableSettingsAdapter`
 - `useTableSettingsStore`
+- `buildSelectionOverlayTransform`
+- `buildSelectionOverlayTransformFromSnapshot`
+
+Cross-platform runtime protocol (from core):
+
+- `createDataGridAdapterRuntime`
+- `resolveDataGridAdapterEventName`
+- `DataGridAdapterRuntime`
+
+Import path for protocol/runtime/viewport power-user APIs:
+- `@affino/datagrid-core/advanced`
 
 Source: `/Users/anton/Projects/affinio/packages/datagrid-vue/src/public.ts`
 
-## Quick Start (Settings Adapter)
+## Quick Start (Settings + Overlay Determinism)
 
 ```ts
-import { createPiniaTableSettingsAdapter, useTableSettingsStore } from "@affino/datagrid-vue"
+import {
+  createPiniaTableSettingsAdapter,
+  useTableSettingsStore,
+  buildSelectionOverlayTransformFromSnapshot,
+} from "@affino/datagrid-vue"
+import { createDataGridViewportController } from "@affino/datagrid-core/advanced"
 
 const store = useTableSettingsStore()
 const settingsAdapter = createPiniaTableSettingsAdapter(store)
 
 // pass settingsAdapter into your grid config where UiTableSettingsAdapter is expected
+
+const viewport = createDataGridViewportController({ resolvePinMode })
+const integration = viewport.getIntegrationSnapshot()
+
+const overlayTransform = buildSelectionOverlayTransformFromSnapshot({
+  viewportWidth: integration.viewportWidth,
+  viewportHeight: integration.viewportHeight,
+  scrollLeft: integration.scrollLeft,
+  scrollTop: integration.scrollTop,
+  pinnedOffsetLeft: integration.overlaySync.pinnedOffsetLeft,
+  pinnedOffsetRight: integration.overlaySync.pinnedOffsetRight,
+})
 ```
 
 Adapter interface is defined in:
@@ -39,10 +67,15 @@ Store implementation:
 
 ## Integration Rules
 
-- Use package-root imports for stable integration.
+- Use tiered imports:
+  - stable: package-root imports
+  - power-user runtime/viewport: `@affino/datagrid-core/advanced`
 - Treat `src/*` imports as internal unless explicitly versioned later.
 - Keep pin input canonical (`pin`) by the time data reaches runtime.
+- Read runtime geometry from `viewport.getIntegrationSnapshot()` instead of direct DOM probing.
+- Build overlay transforms through `buildSelectionOverlayTransform*` helpers.
 - Keep adapter lifecycle explicit for controller bridges: `init`, `sync`, `teardown`, `diagnostics`.
+- Expose plugin integrations through `pluginContext.getCapabilityMap()` (no direct host-expose passthrough).
 
 Lifecycle modules:
 - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/adapters/adapterLifecycle.ts`
@@ -65,3 +98,9 @@ Lifecycle modules:
 
 For overlay/pinned/virtualization incidents see:
 `/Users/anton/Projects/affinio/docs/datagrid-troubleshooting-runbook.md`
+
+Deterministic setup reference:
+`/Users/anton/Projects/affinio/docs/datagrid-deterministic-integration-setup.md`
+
+Cross-platform adapter protocol reference:
+`/Users/anton/Projects/affinio/docs/datagrid-cross-platform-adapter-protocol.md`

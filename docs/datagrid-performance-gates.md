@@ -30,6 +30,7 @@ Harness script:
 Per-benchmark outputs (JSON):
 - `artifacts/performance/bench-vue-adapters.json`
 - `artifacts/performance/bench-livewire-morph.json`
+- `artifacts/performance/bench-datagrid-rowmodels.json`
 
 Harness summary:
 - `artifacts/performance/datagrid-benchmark-report.json`
@@ -47,9 +48,22 @@ CI harness (`DATAGRID_BENCH_MODE=ci`) applies:
 - Laravel morph:
   - `PERF_BUDGET_MAX_HYDRATE_RATE_PCT=25`
   - `PERF_BUDGET_MAX_OPEN_CLOSE_MS=2`
+- Row models (client/server/window-shift proxy):
+  - `PERF_BUDGET_TOTAL_MS=9000`
+  - `PERF_BUDGET_MAX_CLIENT_RANGE_P95_MS=5`
+  - `PERF_BUDGET_MAX_CLIENT_RANGE_P99_MS=8`
+  - `PERF_BUDGET_MAX_SERVER_RANGE_P95_MS=35`
+  - `PERF_BUDGET_MAX_SERVER_RANGE_P99_MS=55`
+  - `PERF_BUDGET_MAX_WINDOW_SHIFT_P95_MS=10`
+  - `PERF_BUDGET_MAX_WINDOW_SHIFT_P99_MS=16`
 - Shared:
   - `PERF_BUDGET_MAX_VARIANCE_PCT=25`
   - `PERF_BUDGET_MAX_HEAP_DELTA_MB=80`
+
+Perf-contract fail-fast gate:
+- `pnpm run quality:perf:datagrid`
+- Script: `scripts/check-datagrid-perf-contracts.mjs`
+- Report: `artifacts/quality/datagrid-perf-contracts-report.json`
 
 Fail-fast behavior:
 - Harness exits non-zero when any benchmark fails budget checks.
@@ -61,7 +75,7 @@ Workflow:
 - `.github/workflows/ci.yml`
 
 Jobs:
-- `quality-gates`: coverage + critical-path interaction checks.
+- `quality-gates`: architecture acceptance + contracts + coverage + critical-path interaction checks.
 - `benchmark-regression`: datagrid harness + uploaded performance artifacts.
 
 ## Latest Result Status
@@ -72,3 +86,6 @@ Source of truth:
 Status in this local environment:
 - Benchmarks were not executed locally because `node/npm` are unavailable.
 - Threshold enforcement is configured and active in CI.
+
+Runtime perf-by-design contract reference:
+- `docs/datagrid-perf-by-design-runtime.md`

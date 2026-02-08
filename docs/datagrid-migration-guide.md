@@ -1,6 +1,6 @@
 # DataGrid Migration Guide
 
-Baseline date: `2026-02-07`
+Baseline date: `2026-02-08`
 Migration path: `.tmp/ui-table` -> `@affino/datagrid-core` + `@affino/datagrid-vue`
 
 ## Migration Scope
@@ -16,6 +16,7 @@ Migration path: `.tmp/ui-table` -> `@affino/datagrid-core` + `@affino/datagrid-v
 | Legacy | New target |
 | --- | --- |
 | `.tmp/ui-table/core/*` | `@affino/datagrid-core` (root public API for stable usage) |
+| `.tmp/ui-table/core/viewport/*` and runtime internals | `@affino/datagrid-core/advanced` |
 | `.tmp/ui-table/vue/*` | `@affino/datagrid-vue` |
 | `UiTable*` naming | `DataGrid*` naming (shims kept for migration period) |
 
@@ -44,13 +45,17 @@ Migration rule:
 1. Move imports from `.tmp/ui-table/*` to package-root imports.
 2. Switch component usage to `DataGrid*` names.
 3. Normalize pinning input to canonical `pin` before runtime.
-4. Remove direct dependency on legacy internal path aliases.
-5. Re-run quality/perf gates before release.
+4. Replace ad-hoc overlay/scroll math with deterministic public contracts:
+   - `createDataGridViewportController(...).getIntegrationSnapshot()` from `@affino/datagrid-core/advanced`
+   - `buildSelectionOverlayTransform(...)` or `buildSelectionOverlayTransformFromSnapshot(...)`
+5. Remove direct dependency on legacy internal path aliases.
+6. Re-run quality/perf gates before release.
 
 ## Verification Checklist
 
 - Public imports only (no direct `src/*` internals for production integration).
 - No runtime dependency on legacy pin fields.
+- Integration reads pinned/overlay state via snapshot contract (`getIntegrationSnapshot`) instead of private refs.
 - Overlay and selection geometry remain aligned during horizontal scroll.
 - X-virtualization deterministic under resize/teleport-like scroll jumps.
 
@@ -60,6 +65,16 @@ Migration rule:
 - `pnpm run test:matrix:integration`
 - `pnpm run quality:gates:datagrid`
 - `pnpm run bench:datagrid:harness:ci`
+
+## Codemod Assist
+
+For protocol-safe import migration and deprecated viewport API rename:
+
+- dry run: `pnpm run codemod:datagrid:public-protocol -- <path>`
+- write mode: `pnpm run codemod:datagrid:public-protocol -- --write <path>`
+
+Codemod script:
+- `/Users/anton/Projects/affinio/scripts/codemods/datagrid-public-protocol-codemod.mjs`
 
 ## Rollback Strategy
 

@@ -23,11 +23,11 @@ Goal: close remaining architectural debt after 9.5 execution pipeline.
 
 ## 02. DataGrid Component Decomposition (`target >= 9.0`)
 
-- [ ] Разбить `DataGrid.vue` на feature blocks (header orchestration, row-selection, find/replace bridge, viewport bridge).
-- [ ] Убрать неявные cross-feature side-effects из watcher-комбинаторики.
-- [ ] Ввести тонкие facade hooks вместо прямой сборки всего runtime в одном SFC.
-- [ ] Финальная оценка пункта: `>= 9.0`.
-- Комментарий по закрытию: _pending_.
+- [x] Разбить `DataGrid.vue` на feature blocks (header orchestration, row-selection, find/replace bridge, viewport bridge).
+- [x] Убрать неявные cross-feature side-effects из watcher-комбинаторики.
+- [x] Ввести тонкие facade hooks вместо прямой сборки всего runtime в одном SFC.
+- [x] Финальная оценка пункта: `9.1`.
+- Комментарий по закрытию: `2026-02-07` - введены feature-facades: `src/features/useDataGridHeaderOrchestration.ts`, `src/features/useDataGridRowSelectionFacade.ts`, `src/features/useDataGridFindReplaceFacade.ts`, `src/features/useDataGridViewportBridge.ts`, и `DataGrid.vue` переключен на них. Из SFC вынесены неявные cross-feature side-effects: selection reset watcher, checkbox-indeterminate watcher и viewport scroll RAF queue/cancel state (теперь локализованы в фасадах). Добавлены facade tests: `src/features/__tests__/useDataGridRowSelectionFacade.spec.ts`, `src/features/__tests__/useDataGridViewportBridge.spec.ts`, `src/features/__tests__/useDataGridHeaderOrchestration.spec.ts`. Документация: `/Users/anton/Projects/affinio/docs/datagrid-component-decomposition.md`.
 
 ## 03. Selection Engine Facade (`target >= 9.0`)
 
@@ -57,3 +57,4 @@ Goal: close remaining architectural debt after 9.5 execution pipeline.
 
 - `2026-02-07`: создан v2 debt checklist.
 - `2026-02-07`: закрыт пункт `01` (import boundary detox + local missing module recovery).
+- `2026-02-07`: закрыт пункт `02` (DataGrid component decomposition + facade hooks).
