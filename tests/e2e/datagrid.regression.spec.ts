@@ -287,6 +287,108 @@ test.describe("datagrid column resize foundation", () => {
   })
 })
 
+test.describe("datagrid clipboard copy foundation", () => {
+  test("keyboard copy exports selected range and shows visual feedback", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const copiedMetric = metricValue(page, "Copied cells")
+    const actionStatus = page.locator(".datagrid-controls__status")
+    const firstServiceCell = page.locator('.datagrid-stage__row .datagrid-stage__cell[data-column-key="service"]').first()
+
+    await firstServiceCell.click()
+    await page.keyboard.press("Shift+ArrowRight")
+    await page.keyboard.press("Shift+ArrowDown")
+    await page.keyboard.press("ControlOrMeta+C")
+
+    await expect(copiedMetric).toHaveText("4")
+    await expect(actionStatus).toContainText("Copied 2x2 cells (keyboard)")
+    await expect(page.locator(".datagrid-stage__cell--copied")).toHaveCount(4)
+  })
+
+  test("context menu copy works with pinned column in virtualized scroll session", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await selectRowsPreset(page, "6400")
+    await page
+      .locator(".datagrid-controls label")
+      .filter({ has: page.locator("span", { hasText: "Pin status column" }) })
+      .locator('input[type="checkbox"]')
+      .check()
+
+    const viewport = page.locator(".datagrid-stage__viewport")
+    await runLongVerticalSession(viewport)
+    await runLongHorizontalSession(viewport)
+
+    const copiedMetric = metricValue(page, "Copied cells")
+    const actionStatus = page.locator(".datagrid-controls__status")
+    const statusCell = page.locator('.datagrid-stage__row .datagrid-stage__cell[data-column-key="status"]').first()
+
+    await statusCell.click({ button: "right" })
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(1)
+    await page.locator("[data-datagrid-copy-action]").click()
+
+    await expect(copiedMetric).toHaveText("1")
+    await expect(actionStatus).toContainText("Copied 1x1 cells (context-menu)")
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(0)
+  })
+})
+
+test.describe("datagrid clipboard paste foundation", () => {
+  test("keyboard paste applies matrix in virtualized+pinned session", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await selectRowsPreset(page, "6400")
+    await page
+      .locator(".datagrid-controls label")
+      .filter({ has: page.locator("span", { hasText: "Pin status column" }) })
+      .locator('input[type="checkbox"]')
+      .check()
+
+    const sourceOwnerA = await cellText(page, "owner", 0)
+    const sourceRegionA = await cellText(page, "region", 0)
+    const sourceOwnerB = await cellText(page, "owner", 1)
+    const sourceRegionB = await cellText(page, "region", 1)
+
+    await cellLocator(page, "owner", 0).click()
+    await page.keyboard.press("Shift+ArrowRight")
+    await page.keyboard.press("Shift+ArrowDown")
+    await page.keyboard.press("ControlOrMeta+C")
+
+    const viewport = page.locator(".datagrid-stage__viewport")
+    await runLongVerticalSession(viewport)
+    await runLongHorizontalSession(viewport)
+    await viewport.evaluate(element => {
+      element.scrollLeft = 0
+    })
+
+    await cellLocator(page, "owner", 0).click()
+    await page.keyboard.press("ControlOrMeta+V")
+
+    await expect(page.locator(".datagrid-controls__status")).toContainText("Pasted 4 cells (keyboard)")
+    await expect(cellLocator(page, "owner", 0)).toHaveText(sourceOwnerA)
+    await expect(cellLocator(page, "region", 0)).toHaveText(sourceRegionA)
+    await expect(cellLocator(page, "owner", 1)).toHaveText(sourceOwnerB)
+    await expect(cellLocator(page, "region", 1)).toHaveText(sourceRegionB)
+  })
+
+  test("context menu paste supports partial apply with blocked cells", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await cellLocator(page, "owner", 0).click()
+    await page.keyboard.press("Shift+ArrowRight")
+    await page.keyboard.press("ControlOrMeta+C")
+
+    const serviceBefore = await cellText(page, "service", 2)
+    await cellLocator(page, "service", 2).click({ button: "right" })
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(1)
+    await page.locator("[data-datagrid-paste-action]").click()
+
+    await expect(page.locator(".datagrid-controls__status")).toContainText("blocked")
+    await expect(cellLocator(page, "service", 2)).toHaveText(serviceBefore)
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(0)
+  })
+})
+
 function metricValue(page: Page, label: string): Locator {
   return page
     .locator(".datagrid-metrics div")
@@ -311,6 +413,14 @@ function headerFilterTrigger(page: Page, columnKey: string): Locator {
 async function openHeaderFilter(page: Page, columnKey: string): Promise<void> {
   await headerFilterTrigger(page, columnKey).click()
   await expect(page.locator("[data-datagrid-filter-panel]")).toHaveAttribute("data-column-key", columnKey)
+}
+
+function cellLocator(page: Page, columnKey: string, rowIndex: number): Locator {
+  return page.locator(`.datagrid-stage__row .datagrid-stage__cell[data-column-key="${columnKey}"]`).nth(rowIndex)
+}
+
+async function cellText(page: Page, columnKey: string, rowIndex: number): Promise<string> {
+  return readText(cellLocator(page, columnKey, rowIndex))
 }
 
 async function headerWidth(header: Locator): Promise<number> {

@@ -74,23 +74,23 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 
 ## 05. Clipboard Copy (`target >= 9.0`)
 
-- [ ] Copy active cell / range in TSV format.
-- [ ] Keyboard shortcuts: `Cmd/Ctrl+C`.
-- [ ] Context menu action: `Copy`.
-- [ ] Visual feedback for copied range.
-- [ ] Tests: copy under pinned + virtualized viewport.
-- [ ] Final score for step: `TBD`.
-- Comment: `TBD`.
+- [x] Copy active cell / range in TSV format.
+- [x] Keyboard shortcuts: `Cmd/Ctrl+C`.
+- [x] Context menu action: `Copy`.
+- [x] Visual feedback for copied range.
+- [x] Tests: copy under pinned + virtualized viewport.
+- [x] Final score for step: `9.0`.
+- Comment: `2026-02-08` - шаг закрыт: реализован copy pipeline для active/range selection с TSV payload builder и clipboard write (`Ctrl/Cmd+C`), плюс context-menu action `Copy` на viewport. Добавлен визуальный flash copied-range (`datagrid-stage__cell--copied`) и метрика `Copied cells` для диагностики. Тесты добавлены в `tests/e2e/datagrid.regression.spec.ts`: keyboard copy range + context copy в pinned/virtualized scroll сценарии.
 
 ## 06. Clipboard Paste (`target >= 9.0`)
 
-- [ ] Paste single value and rectangular ranges from clipboard.
-- [ ] Keyboard shortcuts: `Cmd/Ctrl+V`.
-- [ ] Context menu action: `Paste`.
-- [ ] Validation + partial apply behavior (blocked cells, non-editable cols).
-- [ ] Tests: paste matrix into scrolled/virtualized/pinned grid.
-- [ ] Final score for step: `TBD`.
-- Comment: `TBD`.
+- [x] Paste single value and rectangular ranges from clipboard.
+- [x] Keyboard shortcuts: `Cmd/Ctrl+V`.
+- [x] Context menu action: `Paste`.
+- [x] Validation + partial apply behavior (blocked cells, non-editable cols).
+- [x] Tests: paste matrix into scrolled/virtualized/pinned grid.
+- [x] Final score for step: `9.0`.
+- Comment: `2026-02-08` - шаг закрыт: добавлен paste pipeline с TSV parsing и matrix apply в selection/active-cell anchor, keyboard shortcut `Cmd/Ctrl+V` и context-menu action `Paste`. Реализована validation + partial apply: не-редактируемые/невалидные значения считаются `blocked`, применяется только валидная часть, статус отражает applied/blocked. Тесты добавлены в `tests/e2e/datagrid.regression.spec.ts`: keyboard matrix paste в virtualized+pinned сценарии и context-menu partial apply с blocked cells.
 
 ## 07. Clipboard Cut (`target >= 9.0`)
 
@@ -137,3 +137,5 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 - `2026-02-08`: step `02` fully closed with score `9.1`.
 - `2026-02-08`: step `03` fully closed with score `9.0`.
 - `2026-02-08`: step `04` fully closed with score `9.0`.
+- `2026-02-08`: step `05` fully closed with score `9.0`.
+- `2026-02-08`: step `06` fully closed with score `9.0`.

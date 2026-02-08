@@ -115,6 +115,12 @@ interface ColumnResizeState {
   lastWidth: number
 }
 
+interface CopyContextMenuState {
+  visible: boolean
+  x: number
+  y: number
+}
+
 const ROW_HEIGHT = 38
 const OVERSCAN = 8
 const DRAG_AUTO_SCROLL_EDGE_PX = 36
@@ -200,6 +206,10 @@ const activeFilterColumnKey = ref<string | null>(null)
 const columnFilterDraft = ref<ColumnFilterDraft | null>(null)
 const appliedColumnFilters = ref<Record<string, AppliedColumnFilter>>({})
 const activeColumnResize = ref<ColumnResizeState | null>(null)
+const copiedSelectionRange = ref<CellSelectionRange | null>(null)
+const lastCopiedPayload = ref("")
+const copyContextMenu = ref<CopyContextMenuState>({ visible: false, x: 0, y: 0 })
+const copyMenuRef = ref<HTMLDivElement | null>(null)
 const isDragSelecting = ref(false)
 const dragPointer = ref<{ clientX: number; clientY: number } | null>(null)
 const isFillDragging = ref(false)
@@ -212,6 +222,7 @@ let syncVisibleRowsFrame: number | null = null
 let syncVisibleRowsPending = false
 let viewportMeasureFrame: number | null = null
 let viewportMeasurePending = false
+let copiedSelectionResetTimer: number | null = null
 let cachedVirtualRange = { start: 0, end: -1 }
 let lastSyncedRowsRef: readonly IncidentRow[] | null = null
 let lastSyncedRangeStart = Number.NaN
@@ -440,6 +451,17 @@ const canApplyActiveColumnFilter = computed(() => {
   return doesFilterDraftHaveRequiredValues(draft)
 })
 const isColumnResizing = computed(() => activeColumnResize.value !== null)
+const copiedCellsCount = computed(() => {
+  const range = copiedSelectionRange.value
+  if (!range) {
+    return 0
+  }
+  return (range.endRow - range.startRow + 1) * (range.endColumn - range.startColumn + 1)
+})
+const copyContextMenuStyle = computed(() => ({
+  left: `${copyContextMenu.value.x}px`,
+  top: `${copyContextMenu.value.y}px`,
+}))
 
 const isQuickFilterActive = computed(() => normalizedQuickFilter.value.length > 0)
 const quickFilterStatus = computed(() => {
@@ -1527,6 +1549,16 @@ function applyEditedValue(row: IncidentRow, columnKey: EditableColumnKey, draft:
   if (columnKey === "incidents24h") row.incidents24h = Math.max(0, Math.round(numericValue))
 }
 
+function canApplyPastedValue(columnKey: EditableColumnKey, draft: string): boolean {
+  if (columnKey === "owner" || columnKey === "deployment" || columnKey === "channel" || columnKey === "runbook") {
+    return draft.trim().length > 0
+  }
+  if (columnKey === "region" || columnKey === "environment" || columnKey === "severity" || columnKey === "status") {
+    return Boolean(getEditorOptions(columnKey)?.includes(draft))
+  }
+  return Number.isFinite(Number(draft))
+}
+
 function isRowSelected(rowId: string): boolean {
   return selectedRowIds.value.has(rowId)
 }
@@ -1735,6 +1767,294 @@ function applyCellSelection(nextCoord: CellCoord, extend: boolean, fallbackAncho
   if (ensureVisible) {
     ensureCellVisible(normalized)
   }
+}
+
+function isCoordInsideRange(coord: CellCoord, range: CellSelectionRange): boolean {
+  return (
+    coord.rowIndex >= range.startRow &&
+    coord.rowIndex <= range.endRow &&
+    coord.columnIndex >= range.startColumn &&
+    coord.columnIndex <= range.endColumn
+  )
+}
+
+function closeCopyContextMenu() {
+  copyContextMenu.value = { visible: false, x: 0, y: 0 }
+}
+
+function openCopyContextMenu(clientX: number, clientY: number) {
+  closeColumnFilterPanel()
+  copyContextMenu.value = { visible: true, x: Math.max(8, clientX), y: Math.max(8, clientY) }
+}
+
+function clearCopiedSelectionFlash() {
+  copiedSelectionRange.value = null
+  if (copiedSelectionResetTimer !== null) {
+    window.clearTimeout(copiedSelectionResetTimer)
+    copiedSelectionResetTimer = null
+  }
+}
+
+function flashCopiedSelection(range: CellSelectionRange) {
+  copiedSelectionRange.value = { ...range }
+  if (copiedSelectionResetTimer !== null) {
+    window.clearTimeout(copiedSelectionResetTimer)
+  }
+  copiedSelectionResetTimer = window.setTimeout(() => {
+    copiedSelectionRange.value = null
+    copiedSelectionResetTimer = null
+  }, 1200)
+}
+
+function resolveCopyRange(): CellSelectionRange | null {
+  const selected = cellSelectionRange.value
+  if (selected) {
+    return selected
+  }
+  const current = resolveCurrentCellCoord()
+  if (!current) {
+    return null
+  }
+  return {
+    startRow: current.rowIndex,
+    endRow: current.rowIndex,
+    startColumn: current.columnIndex,
+    endColumn: current.columnIndex,
+  }
+}
+
+function normalizeClipboardValue(value: unknown): string {
+  if (typeof value === "undefined" || value === null) {
+    return ""
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value)
+  }
+  return String(value)
+}
+
+function buildCopyPayload(range: CellSelectionRange): string {
+  const rows: string[] = []
+  for (let rowIndex = range.startRow; rowIndex <= range.endRow; rowIndex += 1) {
+    const row = filteredAndSortedRows.value[rowIndex]
+    if (!row) {
+      continue
+    }
+    const cells: string[] = []
+    for (let columnIndex = range.startColumn; columnIndex <= range.endColumn; columnIndex += 1) {
+      const column = orderedColumns.value[columnIndex]
+      if (!column || column.key === "select") {
+        continue
+      }
+      cells.push(normalizeClipboardValue(getRowCellValue(row, column.key)))
+    }
+    rows.push(cells.join("\t"))
+  }
+  return rows.join("\n")
+}
+
+async function writeToClipboard(payload: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    await navigator.clipboard.writeText(payload)
+    return
+  }
+  throw new Error("Clipboard API unavailable")
+}
+
+async function copySelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
+  const range = resolveCopyRange()
+  if (!range) {
+    lastAction.value = "Copy skipped: no active selection"
+    return false
+  }
+  const payload = buildCopyPayload(range)
+  if (!payload) {
+    lastAction.value = "Copy skipped: empty selection"
+    return false
+  }
+  try {
+    await writeToClipboard(payload)
+  } catch {
+    // Fallback for environments without clipboard permissions.
+  }
+  lastCopiedPayload.value = payload
+  flashCopiedSelection(range)
+  closeCopyContextMenu()
+  const rows = range.endRow - range.startRow + 1
+  const columns = range.endColumn - range.startColumn + 1
+  lastAction.value = `Copied ${rows}x${columns} cells (${trigger})`
+  return true
+}
+
+async function onCopyContextMenuAction() {
+  await copySelection("context-menu")
+}
+
+function parseClipboardMatrix(payload: string): string[][] {
+  const normalized = payload.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+  const rows = normalized
+    .split("\n")
+    .filter(row => row.length > 0)
+    .map(row => row.split("\t"))
+  return rows.length ? rows : [[]]
+}
+
+function resolvePasteStartCoord(): CellCoord | null {
+  const selected = cellSelectionRange.value
+  if (selected) {
+    return normalizeCellCoord({ rowIndex: selected.startRow, columnIndex: selected.startColumn })
+  }
+  const current = resolveCurrentCellCoord()
+  if (!current) {
+    return null
+  }
+  return normalizeCellCoord(current)
+}
+
+function resolvePasteTargets(matrix: string[][], start: CellCoord): CellSelectionRange | null {
+  const rowCount = Math.max(1, matrix.length)
+  const columnCount = Math.max(1, matrix[0]?.length ?? 1)
+  const selected = cellSelectionRange.value
+  if (
+    selected &&
+    rowCount === 1 &&
+    columnCount === 1 &&
+    (selected.endRow !== selected.startRow || selected.endColumn !== selected.startColumn)
+  ) {
+    return selected
+  }
+  return normalizeSelectionRange({
+    startRow: start.rowIndex,
+    endRow: start.rowIndex + rowCount - 1,
+    startColumn: start.columnIndex,
+    endColumn: start.columnIndex + columnCount - 1,
+  })
+}
+
+async function readClipboardPayload(): Promise<string> {
+  if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.readText === "function") {
+    try {
+      return await navigator.clipboard.readText()
+    } catch {
+      // Fallback to in-memory payload.
+    }
+  }
+  return lastCopiedPayload.value
+}
+
+async function pasteSelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
+  const start = resolvePasteStartCoord()
+  if (!start) {
+    closeCopyContextMenu()
+    lastAction.value = "Paste skipped: no active target"
+    return false
+  }
+  const payload = await readClipboardPayload()
+  if (!payload.trim()) {
+    closeCopyContextMenu()
+    lastAction.value = "Paste skipped: clipboard empty"
+    return false
+  }
+  const matrix = parseClipboardMatrix(payload)
+  const targetRange = resolvePasteTargets(matrix, start)
+  if (!targetRange) {
+    closeCopyContextMenu()
+    lastAction.value = "Paste skipped: target out of range"
+    return false
+  }
+
+  const sourceById = new Map(sourceRows.value.map(row => [row.rowId, row]))
+  const mutableById = new Map<string, IncidentRow>()
+  const statusNeedsRecompute = new Set<string>()
+
+  const getMutableRow = (rowId: string): IncidentRow | null => {
+    const existing = mutableById.get(rowId)
+    if (existing) {
+      return existing
+    }
+    const source = sourceById.get(rowId)
+    if (!source) {
+      return null
+    }
+    const clone = { ...source }
+    mutableById.set(rowId, clone)
+    return clone
+  }
+
+  let applied = 0
+  let blocked = 0
+  const matrixHeight = matrix.length
+  const matrixWidth = Math.max(1, matrix[0]?.length ?? 1)
+
+  for (let rowOffset = 0; rowOffset <= targetRange.endRow - targetRange.startRow; rowOffset += 1) {
+    const targetRowIndex = targetRange.startRow + rowOffset
+    const targetRow = filteredAndSortedRows.value[targetRowIndex]
+    if (!targetRow) {
+      blocked += matrixWidth
+      continue
+    }
+    for (let columnOffset = 0; columnOffset <= targetRange.endColumn - targetRange.startColumn; columnOffset += 1) {
+      const targetColumnIndex = targetRange.startColumn + columnOffset
+      const targetColumn = orderedColumns.value[targetColumnIndex]
+      if (!targetColumn || !isEditableColumn(targetColumn.key)) {
+        blocked += 1
+        continue
+      }
+      const sourceValue = matrix[rowOffset % matrixHeight]?.[columnOffset % matrixWidth] ?? ""
+      if (!canApplyPastedValue(targetColumn.key, sourceValue)) {
+        blocked += 1
+        continue
+      }
+      const mutable = getMutableRow(String(targetRow.rowId))
+      if (!mutable) {
+        blocked += 1
+        continue
+      }
+      applyEditedValue(mutable, targetColumn.key, sourceValue)
+      if (targetColumn.key === "latencyMs" || targetColumn.key === "errorRate") {
+        statusNeedsRecompute.add(mutable.rowId)
+      }
+      applied += 1
+    }
+  }
+
+  if (applied === 0) {
+    closeCopyContextMenu()
+    lastAction.value = `Paste blocked (${blocked} cells)`
+    return false
+  }
+
+  for (const rowId of statusNeedsRecompute) {
+    const row = mutableById.get(rowId)
+    if (!row) continue
+    row.status = resolveStatus(row.latencyMs, row.errorRate)
+  }
+
+  sourceRows.value = sourceRows.value.map(row => mutableById.get(row.rowId) ?? row)
+  cellAnchor.value = { rowIndex: targetRange.startRow, columnIndex: targetRange.startColumn }
+  cellFocus.value = { rowIndex: targetRange.endRow, columnIndex: targetRange.endColumn }
+  activeCell.value = { rowIndex: targetRange.startRow, columnIndex: targetRange.startColumn }
+  closeCopyContextMenu()
+  lastAction.value = blocked > 0
+    ? `Pasted ${applied} cells (${trigger}), blocked ${blocked}`
+    : `Pasted ${applied} cells (${trigger})`
+  return true
+}
+
+async function onPasteContextMenuAction() {
+  await pasteSelection("context-menu")
+}
+
+function resolveCellCoordFromDataset(rowId: string, columnKey: string): CellCoord | null {
+  const rowIndex = filteredAndSortedRows.value.findIndex(row => String(row.rowId) === rowId)
+  if (rowIndex < 0) {
+    return null
+  }
+  const columnIndex = resolveColumnIndex(columnKey)
+  if (columnIndex < 0) {
+    return null
+  }
+  return normalizeCellCoord({ rowIndex, columnIndex })
 }
 
 function ensureCellVisible(coord: CellCoord) {
@@ -2121,6 +2441,17 @@ function onGlobalMouseMove(event: MouseEvent) {
   applyDragSelectionFromPointer()
 }
 
+function onGlobalMouseDown(event: MouseEvent) {
+  if (!copyContextMenu.value.visible) {
+    return
+  }
+  const target = event.target as Node | null
+  if (target && copyMenuRef.value?.contains(target)) {
+    return
+  }
+  closeCopyContextMenu()
+}
+
 function onGlobalMouseUp() {
   if (activeColumnResize.value) {
     stopColumnResize()
@@ -2149,6 +2480,7 @@ function onDataCellMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: strin
     return
   }
   event.preventDefault()
+  closeCopyContextMenu()
   viewportRef.value?.focus()
   if (isFillDragging.value) {
     stopFillSelection(false)
@@ -2161,6 +2493,35 @@ function onDataCellMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: strin
   lastAction.value = event.shiftKey
     ? `Extended selection to R${coord.rowIndex + 1} · ${columnKey}`
     : `Anchor set: R${coord.rowIndex + 1} · ${columnKey}`
+}
+
+function onViewportContextMenu(event: MouseEvent) {
+  if (isDragSelecting.value || isFillDragging.value || isColumnResizing.value) {
+    event.preventDefault()
+    return
+  }
+  const targetNode = event.target as HTMLElement | null
+  if (!targetNode) {
+    return
+  }
+  const cell = targetNode.closest(".datagrid-stage__cell[data-row-id][data-column-key]") as HTMLElement | null
+  if (cell) {
+    const rowId = cell.dataset.rowId ?? ""
+    const columnKey = cell.dataset.columnKey ?? ""
+    if (columnKey && columnKey !== "select") {
+      const coord = resolveCellCoordFromDataset(rowId, columnKey)
+      if (coord) {
+        const currentRange = cellSelectionRange.value
+        if (!currentRange || !isCoordInsideRange(coord, currentRange)) {
+          applyCellSelection(coord, false, coord, false)
+        } else if (!cellCoordsEqual(activeCell.value, coord)) {
+          activeCell.value = coord
+        }
+      }
+    }
+  }
+  event.preventDefault()
+  openCopyContextMenu(event.clientX, event.clientY)
 }
 
 function onDataCellMouseEnter(row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) {
@@ -2195,6 +2556,7 @@ function onViewportBlur(event: FocusEvent) {
   stopDragSelection()
   stopFillSelection(false)
   stopColumnResize()
+  closeCopyContextMenu()
   if (inlineEditor.value) {
     commitInlineEdit()
   }
@@ -2227,6 +2589,21 @@ function resolveTabTarget(current: CellCoord, backwards: boolean): CellCoord | n
 
 function onViewportKeyDown(event: KeyboardEvent) {
   if (inlineEditor.value) {
+    return
+  }
+  if (event.key === "Escape" && copyContextMenu.value.visible) {
+    event.preventDefault()
+    closeCopyContextMenu()
+    return
+  }
+  if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "c") {
+    event.preventDefault()
+    void copySelection("keyboard")
+    return
+  }
+  if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "v") {
+    event.preventDefault()
+    void pasteSelection("keyboard")
     return
   }
   const current = resolveCurrentCellCoord()
@@ -2287,6 +2664,7 @@ function onViewportKeyDown(event: KeyboardEvent) {
       break
     case "Escape":
       event.preventDefault()
+      closeCopyContextMenu()
       clearCellSelection()
       lastAction.value = "Cleared cell selection"
       return
@@ -2304,6 +2682,24 @@ function onViewportKeyDown(event: KeyboardEvent) {
 
 function isCellInSelection(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
   const range = cellSelectionRange.value
+  if (!range || columnKey === "select") {
+    return false
+  }
+  const rowIndex = resolveRowIndex(row)
+  const columnIndex = resolveColumnIndex(columnKey)
+  if (columnIndex < 0) {
+    return false
+  }
+  return (
+    rowIndex >= range.startRow &&
+    rowIndex <= range.endRow &&
+    columnIndex >= range.startColumn &&
+    columnIndex <= range.endColumn
+  )
+}
+
+function isCellInCopiedRange(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
+  const range = copiedSelectionRange.value
   if (!range || columnKey === "select") {
     return false
   }
@@ -2373,6 +2769,9 @@ function isCellInFillPreview(row: DataGridRowNode<IncidentRow>, columnKey: strin
 function onViewportScroll(event: Event) {
   const target = event.currentTarget as HTMLElement | null
   if (!target) return
+  if (copyContextMenu.value.visible) {
+    closeCopyContextMenu()
+  }
   const nextTop = target.scrollTop
   const nextLeft = target.scrollLeft
   if (nextTop !== scrollTop.value) {
@@ -2507,6 +2906,7 @@ onMounted(() => {
   syncViewportHeight()
   syncVisibleRows()
   window.addEventListener("resize", scheduleViewportMeasure)
+  window.addEventListener("mousedown", onGlobalMouseDown)
   window.addEventListener("mouseup", onGlobalMouseUp)
   window.addEventListener("mousemove", onGlobalMouseMove)
 })
@@ -2515,6 +2915,7 @@ onBeforeUnmount(() => {
   stopFillSelection(false)
   stopDragSelection()
   stopColumnResize()
+  clearCopiedSelectionFlash()
   if (syncVisibleRowsFrame !== null) {
     window.cancelAnimationFrame(syncVisibleRowsFrame)
     syncVisibleRowsFrame = null
@@ -2528,6 +2929,7 @@ onBeforeUnmount(() => {
   unsubscribeColumns?.()
   unsubscribeColumns = null
   window.removeEventListener("resize", scheduleViewportMeasure)
+  window.removeEventListener("mousedown", onGlobalMouseDown)
   window.removeEventListener("mouseup", onGlobalMouseUp)
   window.removeEventListener("mousemove", onGlobalMouseMove)
   void core.dispose()
@@ -2872,6 +3274,10 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         <dd>{{ selectedCellsCount }}</dd>
       </div>
       <div>
+        <dt>Copied cells</dt>
+        <dd>{{ copiedCellsCount }}</dd>
+      </div>
+      <div>
         <dt>Selection anchor</dt>
         <dd>{{ cellAnchorLabel }}</dd>
       </div>
@@ -2890,6 +3296,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         role="grid"
         aria-label="Datagrid viewport"
         @scroll="onViewportScroll"
+        @contextmenu="onViewportContextMenu"
         @keydown="onViewportKeyDown"
         @blur="onViewportBlur"
       >
@@ -2987,6 +3394,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               'datagrid-stage__cell--enum': isEnumColumn(column.key),
               'datagrid-stage__cell--select': column.key === 'select',
               'datagrid-stage__cell--range': isCellInSelection(row, column.key),
+              'datagrid-stage__cell--copied': isCellInCopiedRange(row, column.key),
               'datagrid-stage__cell--fill-preview': isCellInFillPreview(row, column.key),
               'datagrid-stage__cell--anchor': isAnchorCell(row, column.key),
               'datagrid-stage__cell--active': isActiveCell(row, column.key),
@@ -3081,6 +3489,18 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       </div>
       <p class="datagrid-stage__hint">Visible columns: {{ visibleColumnsWindow.keys }}</p>
     </section>
+
+    <div
+      v-if="copyContextMenu.visible"
+      ref="copyMenuRef"
+      class="datagrid-copy-menu"
+      :style="copyContextMenuStyle"
+      data-datagrid-copy-menu
+      @mousedown.stop
+    >
+      <button type="button" data-datagrid-paste-action @click="onPasteContextMenuAction">Paste</button>
+      <button type="button" data-datagrid-copy-action @click="onCopyContextMenuAction">Copy</button>
+    </div>
   </section>
 </template>
 
@@ -3598,6 +4018,11 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   background: rgba(56, 189, 248, 0.14);
 }
 
+.datagrid-stage__cell--copied {
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.85);
+  background: rgba(56, 189, 248, 0.1);
+}
+
 .datagrid-stage__cell--fill-preview {
   background: rgba(125, 211, 252, 0.14);
 }
@@ -3782,6 +4207,35 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   letter-spacing: 0.03em;
   color: var(--text-muted);
   background: rgba(7, 10, 19, 0.86);
+}
+
+.datagrid-copy-menu {
+  position: fixed;
+  z-index: 140;
+  min-width: 120px;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  background: rgba(9, 14, 26, 0.97);
+  box-shadow: 0 10px 28px rgba(3, 7, 18, 0.58);
+  padding: 0.3rem;
+}
+
+.datagrid-copy-menu button {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  line-height: 1.2;
+  text-align: left;
+  padding: 0.42rem 0.55rem;
+  cursor: pointer;
+}
+
+.datagrid-copy-menu button:hover {
+  border-color: rgba(125, 211, 252, 0.4);
+  background: rgba(16, 27, 46, 0.96);
 }
 
 @media (max-width: 900px) {
