@@ -27,6 +27,7 @@ Migration path: `.tmp/ui-table` -> `@affino/datagrid-core` + `@affino/datagrid-v
 - `UiTableOverlayLayer.vue` -> `DataGridOverlayLayer.vue`
 
 Compatibility shims still exist, but new integration should use `DataGrid*` names.
+Deprecation window for `UiTable*` shims: supported through `2026-08-31`, scheduled removal on `2026-09-01`.
 
 ## Pinning Migration (Required)
 
@@ -47,7 +48,7 @@ Migration rule:
 3. Normalize pinning input to canonical `pin` before runtime.
 4. Replace ad-hoc overlay/scroll math with deterministic public contracts:
    - `createDataGridViewportController(...).getIntegrationSnapshot()` from `@affino/datagrid-core/advanced`
-   - `buildSelectionOverlayTransform(...)` or `buildSelectionOverlayTransformFromSnapshot(...)`
+   - `buildDataGridOverlayTransform(...)` or `buildDataGridOverlayTransformFromSnapshot(...)`
 5. Remove direct dependency on legacy internal path aliases.
 6. Re-run quality/perf gates before release.
 
@@ -78,5 +79,5 @@ Codemod script:
 
 ## Rollback Strategy
 
-- Keep compatibility shims (`UiTable*`) during one transition release cycle.
+- Keep compatibility shims (`UiTable*`) only through `2026-08-31`.
 - Gate removal of legacy shims only after integration consumers fully switch to `DataGrid*` imports.

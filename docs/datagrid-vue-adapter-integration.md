@@ -7,10 +7,10 @@ Package: `@affino/datagrid-vue`
 
 As of this baseline, the stable public adapter API covers settings persistence and deterministic overlay transforms:
 
-- `createPiniaTableSettingsAdapter`
-- `useTableSettingsStore`
-- `buildSelectionOverlayTransform`
-- `buildSelectionOverlayTransformFromSnapshot`
+- `createDataGridSettingsAdapter`
+- `useDataGridSettingsStore`
+- `buildDataGridOverlayTransform`
+- `buildDataGridOverlayTransformFromSnapshot`
 
 Cross-platform runtime protocol (from core):
 
@@ -27,21 +27,21 @@ Source: `/Users/anton/Projects/affinio/packages/datagrid-vue/src/public.ts`
 
 ```ts
 import {
-  createPiniaTableSettingsAdapter,
-  useTableSettingsStore,
-  buildSelectionOverlayTransformFromSnapshot,
+  createDataGridSettingsAdapter,
+  useDataGridSettingsStore,
+  buildDataGridOverlayTransformFromSnapshot,
 } from "@affino/datagrid-vue"
 import { createDataGridViewportController } from "@affino/datagrid-core/advanced"
 
-const store = useTableSettingsStore()
-const settingsAdapter = createPiniaTableSettingsAdapter(store)
+const store = useDataGridSettingsStore()
+const settingsAdapter = createDataGridSettingsAdapter(store)
 
 // pass settingsAdapter into your grid config where UiTableSettingsAdapter is expected
 
 const viewport = createDataGridViewportController({ resolvePinMode })
 const integration = viewport.getIntegrationSnapshot()
 
-const overlayTransform = buildSelectionOverlayTransformFromSnapshot({
+const overlayTransform = buildDataGridOverlayTransformFromSnapshot({
   viewportWidth: integration.viewportWidth,
   viewportHeight: integration.viewportHeight,
   scrollLeft: integration.scrollLeft,
@@ -73,7 +73,7 @@ Store implementation:
 - Treat `src/*` imports as internal unless explicitly versioned later.
 - Keep pin input canonical (`pin`) by the time data reaches runtime.
 - Read runtime geometry from `viewport.getIntegrationSnapshot()` instead of direct DOM probing.
-- Build overlay transforms through `buildSelectionOverlayTransform*` helpers.
+- Build overlay transforms through `buildDataGridOverlayTransform*` helpers.
 - Keep adapter lifecycle explicit for controller bridges: `init`, `sync`, `teardown`, `diagnostics`.
 - Expose plugin integrations through `pluginContext.getCapabilityMap()` (no direct host-expose passthrough).
 

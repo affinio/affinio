@@ -30,9 +30,9 @@ Read integration data only from `state`:
 ## 2. Vue Overlay Transform from Public Helper
 
 ```ts
-import { buildSelectionOverlayTransformFromSnapshot } from "@affino/datagrid-vue"
+import { buildDataGridOverlayTransformFromSnapshot } from "@affino/datagrid-vue"
 
-const transform = buildSelectionOverlayTransformFromSnapshot({
+const transform = buildDataGridOverlayTransformFromSnapshot({
   viewportWidth: state.viewportWidth,
   viewportHeight: state.viewportHeight,
   scrollLeft: state.scrollLeft,
