@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import {
   createClientRowModel,
   createDataGridApi,
@@ -56,10 +56,13 @@ type EditableColumnKey =
   | "runbook"
   | "status"
 
+type InlineEditorMode = "text" | "select"
+
 interface InlineEditorState {
   rowId: string
   columnKey: EditableColumnKey
   draft: string
+  mode: InlineEditorMode
 }
 
 interface CellCoord {
@@ -77,7 +80,6 @@ interface CellSelectionRange {
 interface SelectionOverlaySegment {
   key: string
   mode: "scroll"
-  showHandle: boolean
   style: {
     top: string
     left: string
@@ -118,6 +120,15 @@ const fillBaseRange = ref<CellSelectionRange | null>(null)
 const fillPreviewRange = ref<CellSelectionRange | null>(null)
 
 let dragAutoScrollFrame: number | null = null
+let syncVisibleRowsFrame: number | null = null
+let syncVisibleRowsPending = false
+let viewportMeasureFrame: number | null = null
+let viewportMeasurePending = false
+let cachedVirtualRange = { start: 0, end: -1 }
+let lastSyncedRowsRef: readonly IncidentRow[] | null = null
+let lastSyncedRangeStart = Number.NaN
+let lastSyncedRangeEnd = Number.NaN
+let lastDragCoord: CellCoord | null = null
 
 const sourceRows = ref<IncidentRow[]>(buildRows(rowCount.value, seed.value))
 
@@ -234,12 +245,20 @@ const stickyRightOffsets = computed(() => {
 const virtualRange = computed(() => {
   const total = filteredAndSortedRows.value.length
   if (total === 0) {
-    return { start: 0, end: -1 }
+    if (cachedVirtualRange.start === 0 && cachedVirtualRange.end === -1) {
+      return cachedVirtualRange
+    }
+    cachedVirtualRange = { start: 0, end: -1 }
+    return cachedVirtualRange
   }
   const visible = Math.max(1, Math.ceil(viewportHeight.value / ROW_HEIGHT) + OVERSCAN * 2)
   const start = Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - OVERSCAN)
   const end = Math.min(total - 1, start + visible - 1)
-  return { start, end }
+  if (cachedVirtualRange.start === start && cachedVirtualRange.end === end) {
+    return cachedVirtualRange
+  }
+  cachedVirtualRange = { start, end }
+  return cachedVirtualRange
 })
 
 const spacerTopHeight = computed(() => Math.max(0, virtualRange.value.start * ROW_HEIGHT))
@@ -314,7 +333,21 @@ function rangesEqual(a: CellSelectionRange | null, b: CellSelectionRange | null)
   )
 }
 
-function buildScrollOverlaySegments(range: CellSelectionRange, keyPrefix: string, showHandle: boolean): SelectionOverlaySegment[] {
+function cellCoordsEqual(a: CellCoord | null, b: CellCoord | null): boolean {
+  if (!a || !b) {
+    return false
+  }
+  return a.rowIndex === b.rowIndex && a.columnIndex === b.columnIndex
+}
+
+function snapOverlayValue(value: number): number {
+  const dpr = typeof window !== "undefined" && Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0
+    ? window.devicePixelRatio
+    : 1
+  return Math.round(value * dpr) / dpr
+}
+
+function buildScrollOverlaySegments(range: CellSelectionRange, keyPrefix: string): SelectionOverlaySegment[] {
   if (!range) {
     return []
   }
@@ -355,18 +388,19 @@ function buildScrollOverlaySegments(range: CellSelectionRange, keyPrefix: string
       if (!startMetric || !endMetric) {
         return null
       }
-      const left = startMetric.start
-      const width = endMetric.end - startMetric.start
+      const left = snapOverlayValue(startMetric.start)
+      const width = snapOverlayValue(endMetric.end - startMetric.start)
+      const snappedTop = snapOverlayValue(top)
+      const snappedHeight = snapOverlayValue(height)
 
       return {
         key: `${keyPrefix}-${segment.mode}-${segment.start}-${segment.end}`,
         mode: "scroll",
-        showHandle: showHandle && segment.end === range.endColumn,
         style: {
-          top: `${Math.max(0, top)}px`,
+          top: `${Math.max(0, snappedTop)}px`,
           left: `${Math.max(0, left)}px`,
           width: `${Math.max(1, width)}px`,
-          height: `${Math.max(1, height)}px`,
+          height: `${Math.max(1, snappedHeight)}px`,
         },
       } satisfies SelectionOverlaySegment
     })
@@ -378,7 +412,7 @@ const cellSelectionOverlaySegments = computed(() => {
   if (!range) {
     return [] as SelectionOverlaySegment[]
   }
-  return buildScrollOverlaySegments(range, "selection", !isFillDragging.value)
+  return buildScrollOverlaySegments(range, "selection")
 })
 
 const fillPreviewOverlaySegments = computed(() => {
@@ -387,7 +421,7 @@ const fillPreviewOverlaySegments = computed(() => {
   if (!preview || !base || rangesEqual(preview, base)) {
     return [] as SelectionOverlaySegment[]
   }
-  return buildScrollOverlaySegments(preview, "fill-preview", false)
+  return buildScrollOverlaySegments(preview, "fill-preview")
 })
 
 const visibleColumnsWindow = computed(() => {
@@ -450,23 +484,80 @@ function syncViewportHeight() {
   }
 }
 
+function flushViewportMeasure() {
+  viewportMeasureFrame = null
+  viewportMeasurePending = false
+  syncViewportHeight()
+}
+
+function scheduleViewportMeasure() {
+  if (viewportMeasurePending) {
+    return
+  }
+  viewportMeasurePending = true
+  if (typeof window === "undefined") {
+    flushViewportMeasure()
+    return
+  }
+  viewportMeasureFrame = window.requestAnimationFrame(flushViewportMeasure)
+}
+
 function syncVisibleRows() {
   const rows = filteredAndSortedRows.value
-  rowModel.setRows(rows)
+  const range = virtualRange.value
+  const hasSameRowsRef = lastSyncedRowsRef === rows
+  const hasSameRange = lastSyncedRangeStart === range.start && lastSyncedRangeEnd === range.end
+  if (hasSameRowsRef && hasSameRange) {
+    return
+  }
 
-  if (virtualRange.value.end < virtualRange.value.start) {
+  if (!hasSameRowsRef) {
+    rowModel.setRows(rows)
+  }
+
+  if (range.end < range.start) {
     visibleRows.value = []
+    lastSyncedRowsRef = rows
+    lastSyncedRangeStart = range.start
+    lastSyncedRangeEnd = range.end
     return
   }
 
   api.setViewportRange({
-    start: virtualRange.value.start,
-    end: virtualRange.value.end,
+    start: range.start,
+    end: range.end,
   })
   visibleRows.value = api.getRowsInRange<IncidentRow>({
-    start: virtualRange.value.start,
-    end: virtualRange.value.end,
+    start: range.start,
+    end: range.end,
   })
+  lastSyncedRowsRef = rows
+  lastSyncedRangeStart = range.start
+  lastSyncedRangeEnd = range.end
+}
+
+function flushVisibleRowsSync() {
+  syncVisibleRowsFrame = null
+  syncVisibleRowsPending = false
+  syncVisibleRows()
+}
+
+function scheduleVisibleRowsSync() {
+  if (syncVisibleRowsPending) {
+    return
+  }
+  syncVisibleRowsPending = true
+  if (typeof window === "undefined") {
+    flushVisibleRowsSync()
+    return
+  }
+  syncVisibleRowsFrame = window.requestAnimationFrame(flushVisibleRowsSync)
+}
+
+function resetVisibleRowsSyncCache() {
+  lastSyncedRowsRef = null
+  lastSyncedRangeStart = Number.NaN
+  lastSyncedRangeEnd = Number.NaN
 }
 
 function getCellStyle(columnKey: string): Record<string, string> {
@@ -523,6 +614,10 @@ function getEditorOptions(columnKey: string): readonly string[] | null {
   return null
 }
 
+function isEnumColumn(columnKey: string): columnKey is Extract<EditableColumnKey, "severity" | "status" | "environment" | "region"> {
+  return columnKey === "severity" || columnKey === "status" || columnKey === "environment" || columnKey === "region"
+}
+
 function isEditingCell(rowId: string, columnKey: string): boolean {
   return inlineEditor.value?.rowId === rowId && inlineEditor.value?.columnKey === columnKey
 }
@@ -549,26 +644,69 @@ function onRowSelectChange(rowId: string, event: Event) {
   toggleRowSelection(rowId, (event.target as HTMLInputElement).checked)
 }
 
-function beginInlineEdit(row: IncidentRow, columnKey: string) {
+function beginInlineEdit(
+  row: IncidentRow,
+  columnKey: string,
+  mode: InlineEditorMode = "text",
+  openPicker = false,
+) {
   if (!isEditableColumn(columnKey)) return
   inlineEditor.value = {
     rowId: row.rowId,
     columnKey,
     draft: String(getRowCellValue(row, columnKey) ?? ""),
+    mode,
   }
-  lastAction.value = `Editing ${columnKey} for ${row.service}`
+  lastAction.value = mode === "select"
+    ? `Selecting ${columnKey} for ${row.service}`
+    : `Editing ${columnKey} for ${row.service}`
+  void focusInlineEditorElement(row.rowId, columnKey, mode, openPicker)
+}
+
+async function focusInlineEditorElement(
+  rowId: string,
+  columnKey: EditableColumnKey,
+  mode: InlineEditorMode,
+  openPicker: boolean,
+) {
+  await nextTick()
+  const viewport = viewportRef.value
+  if (!viewport) return
+  const selector = `[data-inline-editor-row-id="${rowId}"][data-inline-editor-column-key="${columnKey}"]`
+  const editor = viewport.querySelector(selector) as HTMLInputElement | HTMLSelectElement | null
+  if (!editor) return
+  editor.focus()
+  if (editor instanceof HTMLInputElement) {
+    editor.select()
+    return
+  }
+  if (mode === "select" && openPicker) {
+    const selectWithPicker = editor as HTMLSelectElement & { showPicker?: () => void }
+    try {
+      if (typeof selectWithPicker.showPicker === "function") {
+        selectWithPicker.showPicker()
+      } else {
+        selectWithPicker.click()
+      }
+    } catch {
+      selectWithPicker.click()
+    }
+  }
 }
 
 function cancelInlineEdit() {
+  if (!inlineEditor.value) return
   inlineEditor.value = null
+  lastAction.value = "Edit canceled"
 }
 
-function commitInlineEdit() {
-  if (!inlineEditor.value) return
+function commitInlineEdit(): boolean {
+  if (!inlineEditor.value) return false
   const editor = inlineEditor.value
   const nextDraft = editor.draft.trim()
   inlineEditor.value = null
 
+  let updated = false
   sourceRows.value = sourceRows.value.map(row => {
     if (row.rowId !== editor.rowId) return row
     const nextRow = { ...row } as IncidentRow
@@ -576,10 +714,123 @@ function commitInlineEdit() {
     if (editor.columnKey === "latencyMs" || editor.columnKey === "errorRate") {
       nextRow.status = resolveStatus(nextRow.latencyMs, nextRow.errorRate)
     }
+    updated = true
     return nextRow
   })
 
-  lastAction.value = `Saved ${editor.columnKey}`
+  lastAction.value = updated ? `Saved ${editor.columnKey}` : "Edit target no longer available"
+  return updated
+}
+
+function resolveNextEditableTarget(
+  rowId: string,
+  columnKey: string,
+  direction: 1 | -1,
+): { rowId: string; columnKey: EditableColumnKey; rowIndex: number; columnIndex: number } | null {
+  const rows = filteredAndSortedRows.value
+  const rowIndex = rows.findIndex(row => row.rowId === rowId)
+  if (rowIndex < 0) return null
+
+  const editableIndexes = orderedColumns.value
+    .map((column, index) => ({ column, index }))
+    .filter(entry => isEditableColumn(entry.column.key))
+    .map(entry => entry.index)
+  if (!editableIndexes.length) {
+    return null
+  }
+
+  const currentColumnIndex = resolveColumnIndex(columnKey)
+  const currentEditablePosition = editableIndexes.indexOf(currentColumnIndex)
+  if (currentEditablePosition < 0) {
+    return null
+  }
+
+  let nextRowIndex = rowIndex
+  let nextEditablePosition = currentEditablePosition + direction
+  if (nextEditablePosition >= editableIndexes.length) {
+    nextEditablePosition = 0
+    nextRowIndex += 1
+  } else if (nextEditablePosition < 0) {
+    nextEditablePosition = editableIndexes.length - 1
+    nextRowIndex -= 1
+  }
+
+  if (nextRowIndex < 0 || nextRowIndex >= rows.length) {
+    return null
+  }
+  const nextColumnIndex = editableIndexes[nextEditablePosition]
+  if (nextColumnIndex === undefined) {
+    return null
+  }
+  const nextColumn = orderedColumns.value[nextColumnIndex]
+  const nextRow = rows[nextRowIndex]
+  if (!nextColumn || !nextRow || !isEditableColumn(nextColumn.key)) {
+    return null
+  }
+  return {
+    rowId: nextRow.rowId,
+    columnKey: nextColumn.key,
+    rowIndex: nextRowIndex,
+    columnIndex: nextColumnIndex,
+  }
+}
+
+function focusInlineEditorTarget(target: { rowId: string; columnKey: EditableColumnKey; rowIndex: number; columnIndex: number }) {
+  const row = filteredAndSortedRows.value.find(entry => entry.rowId === target.rowId)
+  if (!row) {
+    return
+  }
+  applyCellSelection({ rowIndex: target.rowIndex, columnIndex: target.columnIndex }, false)
+  beginInlineEdit(row, target.columnKey, isEnumColumn(target.columnKey) ? "select" : "text")
+}
+
+function onEditorKeyDown(event: KeyboardEvent, rowId: string, columnKey: string) {
+  if (!isEditableColumn(columnKey)) {
+    return
+  }
+  if (event.key === "Escape") {
+    event.preventDefault()
+    cancelInlineEdit()
+    return
+  }
+  if (event.key === "Enter") {
+    event.preventDefault()
+    commitInlineEdit()
+    return
+  }
+  if (event.key === "Tab") {
+    event.preventDefault()
+    const direction: 1 | -1 = event.shiftKey ? -1 : 1
+    const target = resolveNextEditableTarget(rowId, columnKey, direction)
+    commitInlineEdit()
+    if (target) {
+      focusInlineEditorTarget(target)
+    }
+  }
+}
+
+function isSelectEditorCell(rowId: string, columnKey: string): boolean {
+  return isEditingCell(rowId, columnKey) && inlineEditor.value?.mode === "select" && isEnumColumn(columnKey)
+}
+
+function shouldShowEnumTrigger(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
+  if (!isEnumColumn(columnKey) || inlineEditor.value || isDragSelecting.value || isFillDragging.value) {
+    return false
+  }
+  return isActiveCell(row, columnKey)
+}
+
+function onEnumTriggerMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) {
+  if (!isEnumColumn(columnKey)) {
+    return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+  const coord = resolveCellCoord(row, columnKey)
+  if (coord) {
+    applyCellSelection(coord, false)
+  }
+  beginInlineEdit(row.data, columnKey, "select", true)
 }
 
 function applyEditedValue(row: IncidentRow, columnKey: EditableColumnKey, draft: string) {
@@ -670,6 +921,7 @@ function clearCellSelection() {
   fillPointer.value = null
   fillBaseRange.value = null
   fillPreviewRange.value = null
+  lastDragCoord = null
   stopAutoScrollFrameIfIdle()
 }
 
@@ -817,15 +1069,25 @@ function applyCellSelection(nextCoord: CellCoord, extend: boolean, fallbackAncho
   if (!normalized) {
     return
   }
+  let nextAnchor: CellCoord
+  let nextFocus: CellCoord
   if (extend) {
     const anchor = cellAnchor.value ?? fallbackAnchor ?? activeCell.value ?? normalized
-    cellAnchor.value = normalizeCellCoord(anchor) ?? normalized
-    cellFocus.value = normalized
+    nextAnchor = normalizeCellCoord(anchor) ?? normalized
+    nextFocus = normalized
   } else {
-    cellAnchor.value = normalized
-    cellFocus.value = normalized
+    nextAnchor = normalized
+    nextFocus = normalized
   }
-  activeCell.value = normalized
+  if (!cellCoordsEqual(cellAnchor.value, nextAnchor)) {
+    cellAnchor.value = nextAnchor
+  }
+  if (!cellCoordsEqual(cellFocus.value, nextFocus)) {
+    cellFocus.value = nextFocus
+  }
+  if (!cellCoordsEqual(activeCell.value, normalized)) {
+    activeCell.value = normalized
+  }
   if (ensureVisible) {
     ensureCellVisible(normalized)
   }
@@ -962,6 +1224,10 @@ function applyDragSelectionFromPointer() {
   if (!coord) {
     return
   }
+  if (cellCoordsEqual(lastDragCoord, coord)) {
+    return
+  }
+  lastDragCoord = coord
   applyCellSelection(coord, true, undefined, false)
 }
 
@@ -980,6 +1246,9 @@ function applyFillPreviewFromPointer() {
   }
   const preview = buildExtendedRange(baseRange, coord)
   if (!preview) {
+    return
+  }
+  if (rangesEqual(fillPreviewRange.value, preview)) {
     return
   }
   fillPreviewRange.value = preview
@@ -1187,14 +1456,20 @@ function stopFillSelection(applyPreview: boolean) {
 
 function onGlobalMouseMove(event: MouseEvent) {
   if (isFillDragging.value) {
-    fillPointer.value = { clientX: event.clientX, clientY: event.clientY }
+    const pointer = fillPointer.value
+    if (!pointer || pointer.clientX !== event.clientX || pointer.clientY !== event.clientY) {
+      fillPointer.value = { clientX: event.clientX, clientY: event.clientY }
+    }
     applyFillPreviewFromPointer()
     return
   }
   if (!isDragSelecting.value) {
     return
   }
-  dragPointer.value = { clientX: event.clientX, clientY: event.clientY }
+  const pointer = dragPointer.value
+  if (!pointer || pointer.clientX !== event.clientX || pointer.clientY !== event.clientY) {
+    dragPointer.value = { clientX: event.clientX, clientY: event.clientY }
+  }
   applyDragSelectionFromPointer()
 }
 
@@ -1211,6 +1486,13 @@ function onDataCellMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: strin
   if (event.button !== 0 || columnKey === "select") {
     return
   }
+  const targetNode = event.target as HTMLElement | null
+  if (targetNode?.closest(".datagrid-stage__editor") || targetNode?.closest(".datagrid-stage__enum-trigger")) {
+    return
+  }
+  if (inlineEditor.value) {
+    commitInlineEdit()
+  }
   const coord = resolveCellCoord(row, columnKey)
   if (!coord) {
     return
@@ -1221,6 +1503,7 @@ function onDataCellMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: strin
     stopFillSelection(false)
   }
   isDragSelecting.value = true
+  lastDragCoord = coord
   dragPointer.value = { clientX: event.clientX, clientY: event.clientY }
   applyCellSelection(coord, event.shiftKey, coord)
   startInteractionAutoScroll()
@@ -1230,13 +1513,17 @@ function onDataCellMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: strin
 }
 
 function onDataCellMouseEnter(row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) {
-  if (!isDragSelecting.value || columnKey === "select") {
+  if (inlineEditor.value || !isDragSelecting.value || columnKey === "select") {
     return
   }
   const coord = resolveCellCoord(row, columnKey)
   if (!coord) {
     return
   }
+  if (cellCoordsEqual(lastDragCoord, coord)) {
+    return
+  }
+  lastDragCoord = coord
   dragPointer.value = { clientX: event.clientX, clientY: event.clientY }
   applyCellSelection(coord, true, undefined, false)
 }
@@ -1244,12 +1531,21 @@ function onDataCellMouseEnter(row: DataGridRowNode<IncidentRow>, columnKey: stri
 function stopDragSelection() {
   isDragSelecting.value = false
   dragPointer.value = null
+  lastDragCoord = null
   stopAutoScrollFrameIfIdle()
 }
 
-function onViewportBlur() {
+function onViewportBlur(event: FocusEvent) {
+  const viewport = viewportRef.value
+  const nextFocused = event.relatedTarget as Node | null
+  if (viewport && nextFocused && viewport.contains(nextFocused)) {
+    return
+  }
   stopDragSelection()
   stopFillSelection(false)
+  if (inlineEditor.value) {
+    commitInlineEdit()
+  }
 }
 
 function resolveTabTarget(current: CellCoord, backwards: boolean): CellCoord | null {
@@ -1386,17 +1682,62 @@ function isActiveCell(row: DataGridRowNode<IncidentRow>, columnKey: string): boo
   return resolveRowIndex(row) === activeCell.value.rowIndex && resolveColumnIndex(columnKey) === activeCell.value.columnIndex
 }
 
+function isRangeEndCell(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
+  const range = cellSelectionRange.value
+  if (!range || columnKey === "select") {
+    return false
+  }
+  return resolveRowIndex(row) === range.endRow && resolveColumnIndex(columnKey) === range.endColumn
+}
+
+function shouldShowFillHandle(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
+  if (isFillDragging.value || inlineEditor.value) {
+    return false
+  }
+  return isRangeEndCell(row, columnKey)
+}
+
+function isCellInFillPreview(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
+  const preview = fillPreviewRange.value
+  const base = fillBaseRange.value
+  if (!isFillDragging.value || !preview || columnKey === "select") {
+    return false
+  }
+  const rowIndex = resolveRowIndex(row)
+  const columnIndex = resolveColumnIndex(columnKey)
+  if (columnIndex < 0) {
+    return false
+  }
+  const inPreview = isCellWithinRange(rowIndex, columnIndex, preview)
+  if (!inPreview) {
+    return false
+  }
+  if (!base) {
+    return true
+  }
+  return !isCellWithinRange(rowIndex, columnIndex, base)
+}
+
 function onViewportScroll(event: Event) {
   const target = event.currentTarget as HTMLElement | null
   if (!target) return
-  scrollTop.value = target.scrollTop
-  scrollLeft.value = target.scrollLeft
+  const nextTop = target.scrollTop
+  const nextLeft = target.scrollLeft
+  if (nextTop !== scrollTop.value) {
+    scrollTop.value = nextTop
+  }
+  if (nextLeft !== scrollLeft.value) {
+    scrollLeft.value = nextLeft
+  }
   if (inlineEditor.value) {
-    inlineEditor.value = null
+    commitInlineEdit()
   }
 }
 
 function randomizeRuntime() {
+  if (inlineEditor.value) {
+    commitInlineEdit()
+  }
   seed.value += 1
   sourceRows.value = sourceRows.value.map((row, index) => {
     const latencyShift = ((index + seed.value) % 7) * 5 - 12
@@ -1428,6 +1769,7 @@ function resetDataset() {
 }
 
 watch(rowCount, () => {
+  resetVisibleRowsSyncCache()
   sourceRows.value = buildRows(rowCount.value, seed.value)
   selectedRowIds.value = new Set()
   inlineEditor.value = null
@@ -1447,6 +1789,10 @@ watch(pinStatusColumn, value => {
 })
 
 watch([query, sortMode], () => {
+  resetVisibleRowsSyncCache()
+  if (inlineEditor.value) {
+    commitInlineEdit()
+  }
   clearCellSelection()
 })
 
@@ -1461,7 +1807,7 @@ watch(sourceRows, rows => {
 watch(
   [filteredAndSortedRows, virtualRange],
   () => {
-    syncVisibleRows()
+    scheduleVisibleRowsSync()
   },
   { immediate: true },
 )
@@ -1473,7 +1819,7 @@ onMounted(() => {
   })
   syncViewportHeight()
   syncVisibleRows()
-  window.addEventListener("resize", syncViewportHeight)
+  window.addEventListener("resize", scheduleViewportMeasure)
   window.addEventListener("mouseup", onGlobalMouseUp)
   window.addEventListener("mousemove", onGlobalMouseMove)
 })
@@ -1481,9 +1827,19 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopFillSelection(false)
   stopDragSelection()
+  if (syncVisibleRowsFrame !== null) {
+    window.cancelAnimationFrame(syncVisibleRowsFrame)
+    syncVisibleRowsFrame = null
+  }
+  syncVisibleRowsPending = false
+  if (viewportMeasureFrame !== null) {
+    window.cancelAnimationFrame(viewportMeasureFrame)
+    viewportMeasureFrame = null
+  }
+  viewportMeasurePending = false
   unsubscribeColumns?.()
   unsubscribeColumns = null
-  window.removeEventListener("resize", syncViewportHeight)
+  window.removeEventListener("resize", scheduleViewportMeasure)
   window.removeEventListener("mouseup", onGlobalMouseUp)
   window.removeEventListener("mousemove", onGlobalMouseMove)
   void core.dispose()
@@ -1760,11 +2116,15 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               'datagrid-stage__cell--numeric': ['latencyMs', 'errorRate', 'availabilityPct', 'mttrMin', 'cpuPct', 'memoryPct', 'queueDepth', 'throughputRps', 'sloBurnRate', 'incidents24h'].includes(column.key),
               'datagrid-stage__cell--status': column.key === 'status',
               'datagrid-stage__cell--editable': isEditableColumn(column.key),
+              'datagrid-stage__cell--editing': isEditingCell(row.data.rowId, column.key),
+              'datagrid-stage__cell--enum': isEnumColumn(column.key),
               'datagrid-stage__cell--select': column.key === 'select',
               'datagrid-stage__cell--range': isCellInSelection(row, column.key),
+              'datagrid-stage__cell--fill-preview': isCellInFillPreview(row, column.key),
               'datagrid-stage__cell--anchor': isAnchorCell(row, column.key),
               'datagrid-stage__cell--active': isActiveCell(row, column.key),
               'datagrid-stage__cell--sticky': isStickyColumn(column.key),
+              'datagrid-stage__cell--range-end': isRangeEndCell(row, column.key),
             }"
             :style="getCellStyle(column.key)"
             @mousedown="onDataCellMouseDown(row, column.key, $event)"
@@ -1781,13 +2141,15 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               />
             </template>
 
-            <template v-else-if="isEditingCell(row.data.rowId, column.key) && getEditorOptions(column.key)">
+            <template v-else-if="isSelectEditorCell(row.data.rowId, column.key) && getEditorOptions(column.key)">
               <select
                 class="datagrid-stage__editor"
+                :data-inline-editor-row-id="row.data.rowId"
+                :data-inline-editor-column-key="column.key"
                 :value="inlineEditor?.draft ?? ''"
                 @change="onEditorSelectChange"
-                @keydown.esc.prevent="cancelInlineEdit"
-                @blur="cancelInlineEdit"
+                @keydown="onEditorKeyDown($event, row.data.rowId, column.key)"
+                @blur="commitInlineEdit"
                 autofocus
               >
                 <option v-for="option in getEditorOptions(column.key)" :key="option" :value="option">{{ option }}</option>
@@ -1797,12 +2159,13 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             <template v-else-if="isEditingCell(row.data.rowId, column.key)">
               <input
                 class="datagrid-stage__editor"
+                :data-inline-editor-row-id="row.data.rowId"
+                :data-inline-editor-column-key="column.key"
                 :type="['latencyMs', 'errorRate', 'availabilityPct', 'mttrMin', 'cpuPct', 'memoryPct', 'queueDepth', 'throughputRps', 'sloBurnRate', 'incidents24h'].includes(column.key) ? 'number' : 'text'"
                 :step="column.key === 'sloBurnRate' || column.key === 'availabilityPct' ? '0.01' : '1'"
                 :value="inlineEditor?.draft ?? ''"
                 @input="onEditorInput"
-                @keydown.enter.prevent="commitInlineEdit"
-                @keydown.esc.prevent="cancelInlineEdit"
+                @keydown="onEditorKeyDown($event, row.data.rowId, column.key)"
                 @blur="commitInlineEdit"
                 autofocus
               />
@@ -1811,6 +2174,23 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             <template v-else>
               {{ formatCellValue(column.key, getRowCellValue(row.data, column.key)) }}
             </template>
+
+            <button
+              v-if="shouldShowEnumTrigger(row, column.key)"
+              type="button"
+              class="datagrid-stage__enum-trigger"
+              :aria-label="`Open options for ${column.key}`"
+              @mousedown="onEnumTriggerMouseDown(row, column.key, $event)"
+            >
+              ▾
+            </button>
+
+            <span
+              v-if="shouldShowFillHandle(row, column.key)"
+              class="datagrid-stage__selection-handle datagrid-stage__selection-handle--cell"
+              aria-hidden="true"
+              @mousedown.stop.prevent="onSelectionHandleMouseDown"
+            ></span>
           </div>
         </div>
 
@@ -1826,14 +2206,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           :key="segment.key"
           class="datagrid-stage__selection-overlay"
           :style="segment.style"
-        >
-          <span
-            v-if="segment.showHandle"
-            class="datagrid-stage__selection-handle"
-            aria-hidden="true"
-            @mousedown.stop.prevent="onSelectionHandleMouseDown"
-          ></span>
-        </div>
+        ></div>
 
         <div v-if="visibleRows.length === 0" class="datagrid-stage__empty">No rows matched current filters.</div>
         <div :style="{ height: `${spacerBottomHeight}px` }"></div>
@@ -2033,13 +2406,13 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 .datagrid-stage__header {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 30;
   background: rgba(6, 10, 20, 0.98);
   border-bottom: 1px solid rgba(145, 170, 210, 0.22);
 }
 
 .datagrid-stage__row {
-  min-height: 38px;
+  height: 38px;
   border-bottom: 1px solid rgba(145, 170, 210, 0.14);
 }
 
@@ -2056,9 +2429,13 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 }
 
 .datagrid-stage__cell {
+  position: relative;
+  display: flex;
+  align-items: center;
   border-right: 1px solid rgba(145, 170, 210, 0.12);
-  padding: 0.55rem 0.7rem;
+  padding: 0 0.65rem;
   font-size: 0.78rem;
+  line-height: 1.15;
   color: var(--text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2094,8 +2471,13 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 }
 
 .datagrid-stage__cell--numeric {
+  justify-content: flex-end;
   text-align: right;
   color: #bae6fd;
+}
+
+.datagrid-stage__cell--numeric.datagrid-stage__cell--editing {
+  justify-content: stretch;
 }
 
 .datagrid-stage__cell--status {
@@ -2110,8 +2492,21 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   background: rgba(16, 30, 52, 0.88);
 }
 
+.datagrid-stage__cell--enum {
+  padding-right: 1.8rem;
+}
+
+.datagrid-stage__cell--editing {
+  padding: 2px 4px;
+  z-index: 24;
+}
+
 .datagrid-stage__cell--range {
   background: rgba(56, 189, 248, 0.14);
+}
+
+.datagrid-stage__cell--fill-preview {
+  background: rgba(125, 211, 252, 0.14);
 }
 
 .datagrid-stage__cell--anchor {
@@ -2123,21 +2518,75 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 }
 
 .datagrid-stage__editor {
-  width: calc(100% - 0.4rem);
-  margin: 0.2rem;
-  border-radius: 0.4rem;
-  border: 1px solid rgba(145, 170, 210, 0.45);
-  background: rgba(5, 8, 16, 0.95);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(145, 170, 210, 0.35);
+  background: rgba(9, 14, 25, 0.96);
   color: var(--text-primary);
-  padding: 0.26rem 0.36rem;
-  font-size: 0.74rem;
+  padding: 0 0.5rem;
+  font-size: 0.76rem;
+  line-height: 1.15;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 25;
+}
+
+.datagrid-stage__enum-trigger {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(145, 170, 210, 0.45);
+  border-radius: 4px;
+  background: rgba(11, 18, 30, 0.95);
+  color: rgba(186, 230, 253, 0.95);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 26;
+  padding: 0;
+}
+
+.datagrid-stage__enum-trigger:hover {
+  border-color: rgba(125, 211, 252, 0.8);
+  background: rgba(17, 31, 53, 0.98);
+}
+
+.datagrid-stage__editor:focus {
+  outline: none;
+  border-color: rgba(125, 211, 252, 0.75);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25);
+}
+
+select.datagrid-stage__editor {
+  appearance: none;
+  padding-right: 1.25rem;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(186, 230, 253, 0.9) 50%),
+    linear-gradient(135deg, rgba(186, 230, 253, 0.9) 50%, transparent 50%);
+  background-position:
+    calc(100% - 10px) 50%,
+    calc(100% - 6px) 50%;
+  background-size:
+    4px 4px,
+    4px 4px;
+  background-repeat: no-repeat;
 }
 
 .datagrid-stage__cell--sticky {
   position: sticky;
-  z-index: 12;
+  z-index: 16;
   background: rgba(10, 17, 30, 0.98);
   box-shadow: 1px 0 0 rgba(145, 170, 210, 0.2);
+  background-clip: padding-box;
+  contain: paint;
 }
 
 .datagrid-stage__row .datagrid-stage__cell--sticky.datagrid-stage__cell--range {
@@ -2161,25 +2610,31 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 }
 
 .datagrid-stage__header .datagrid-stage__cell--sticky {
-  z-index: 32;
+  z-index: 42;
   background: rgba(11, 17, 31, 0.99);
 }
 
 .datagrid-stage__row .datagrid-stage__cell--sticky {
-  z-index: 14;
+  z-index: 18;
+}
+
+.datagrid-stage__cell--range-end {
+  z-index: 20;
 }
 
 .datagrid-stage__selection-overlay {
   position: absolute;
-  z-index: 13;
+  z-index: 12;
   border: 2px solid rgba(56, 189, 248, 0.92);
   background: rgba(56, 189, 248, 0.08);
   pointer-events: none;
   box-sizing: border-box;
+  transform: translateZ(0);
+  will-change: transform, width, height, top, left;
 }
 
 .datagrid-stage__selection-overlay--fill {
-  z-index: 12;
+  z-index: 11;
   border-style: dashed;
   border-color: rgba(125, 211, 252, 0.9);
   background: rgba(56, 189, 248, 0.05);
@@ -2187,8 +2642,8 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 
 .datagrid-stage__selection-handle {
   position: absolute;
-  right: -4px;
-  bottom: -4px;
+  right: 2px;
+  bottom: 2px;
   width: 8px;
   height: 8px;
   border: 1px solid rgba(125, 211, 252, 0.95);
@@ -2196,6 +2651,10 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   box-sizing: border-box;
   pointer-events: auto;
   cursor: crosshair;
+}
+
+.datagrid-stage__selection-handle--cell {
+  z-index: 27;
 }
 
 .datagrid-stage__empty {
