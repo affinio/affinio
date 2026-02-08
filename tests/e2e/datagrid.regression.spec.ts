@@ -233,6 +233,60 @@ test.describe("datagrid column filter mvp", () => {
   })
 })
 
+test.describe("datagrid column resize foundation", () => {
+  test("drag resize handle updates width and stays stable after long horizontal scroll", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const viewport = page.locator(".datagrid-stage__viewport")
+    const serviceHeader = page.locator('.datagrid-stage__cell--header[data-column-key="service"]').first()
+    const serviceHandle = page.locator('[data-datagrid-resize-handle][data-column-key="service"]').first()
+
+    const beforeWidth = await headerWidth(serviceHeader)
+    await dragResizeHandle(page, serviceHandle, 90)
+    const afterWidth = await headerWidth(serviceHeader)
+    expect(afterWidth).toBeGreaterThan(beforeWidth + 40)
+
+    await runLongHorizontalSession(viewport)
+    await expect(serviceHeader).toBeVisible()
+    await expect.poll(async () => parseColumnWindowStart(await readText(metricValue(page, "Visible columns window")))).toBeGreaterThan(1)
+  })
+
+  test("double click resize handle auto-sizes using content heuristics", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const ownerHeader = page.locator('.datagrid-stage__cell--header[data-column-key="owner"]').first()
+    const ownerHandle = page.locator('[data-datagrid-resize-handle][data-column-key="owner"]').first()
+
+    await dragResizeHandle(page, ownerHandle, -55)
+    const narrowedWidth = await headerWidth(ownerHeader)
+
+    await ownerHandle.dblclick()
+    const autoSizedWidth = await headerWidth(ownerHeader)
+    expect(autoSizedWidth).toBeGreaterThan(narrowedWidth + 15)
+  })
+
+  test("pinned column resize keeps sticky offset under horizontal scroll", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await page
+      .locator(".datagrid-controls label")
+      .filter({ has: page.locator("span", { hasText: "Pin status column" }) })
+      .locator('input[type="checkbox"]')
+      .check()
+
+    const viewport = page.locator(".datagrid-stage__viewport")
+    const statusHandle = page.locator('[data-datagrid-resize-handle][data-column-key="status"]').first()
+    await dragResizeHandle(page, statusHandle, 70)
+
+    const statusCell = page.locator('.datagrid-stage__row .datagrid-stage__cell[data-column-key="status"]').first()
+    const before = await boundingBox(statusCell)
+    await runLongHorizontalSession(viewport)
+    const after = await boundingBox(statusCell)
+
+    expect(Math.abs(before.x - after.x)).toBeLessThan(2)
+  })
+})
+
 function metricValue(page: Page, label: string): Locator {
   return page
     .locator(".datagrid-metrics div")
@@ -257,6 +311,29 @@ function headerFilterTrigger(page: Page, columnKey: string): Locator {
 async function openHeaderFilter(page: Page, columnKey: string): Promise<void> {
   await headerFilterTrigger(page, columnKey).click()
   await expect(page.locator("[data-datagrid-filter-panel]")).toHaveAttribute("data-column-key", columnKey)
+}
+
+async function headerWidth(header: Locator): Promise<number> {
+  const box = await boundingBox(header)
+  return box.width
+}
+
+async function dragResizeHandle(page: Page, handle: Locator, deltaX: number): Promise<void> {
+  const box = await boundingBox(handle)
+  const startX = box.x + box.width / 2
+  const startY = box.y + box.height / 2
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  await page.mouse.move(startX + deltaX, startY)
+  await page.mouse.up()
+}
+
+async function boundingBox(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  const box = await locator.boundingBox()
+  if (!box) {
+    throw new Error("Expected element to be visible with bounding box")
+  }
+  return box
 }
 
 async function selectRowsPreset(page: Page, rows: string): Promise<void> {

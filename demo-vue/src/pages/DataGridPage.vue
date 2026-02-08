@@ -108,10 +108,21 @@ interface ColumnFilterDraft {
   value2: string
 }
 
+interface ColumnResizeState {
+  columnKey: string
+  startClientX: number
+  startWidth: number
+  lastWidth: number
+}
+
 const ROW_HEIGHT = 38
 const OVERSCAN = 8
 const DRAG_AUTO_SCROLL_EDGE_PX = 36
 const DRAG_AUTO_SCROLL_MAX_STEP_PX = 28
+const AUTO_SIZE_SAMPLE_LIMIT = 260
+const AUTO_SIZE_CHAR_WIDTH = 7.2
+const AUTO_SIZE_HORIZONTAL_PADDING = 28
+const AUTO_SIZE_MAX_WIDTH = 640
 
 const rowCount = ref(2400)
 const seed = ref(1)
@@ -188,6 +199,7 @@ const activeCell = ref<CellCoord | null>(null)
 const activeFilterColumnKey = ref<string | null>(null)
 const columnFilterDraft = ref<ColumnFilterDraft | null>(null)
 const appliedColumnFilters = ref<Record<string, AppliedColumnFilter>>({})
+const activeColumnResize = ref<ColumnResizeState | null>(null)
 const isDragSelecting = ref(false)
 const dragPointer = ref<{ clientX: number; clientY: number } | null>(null)
 const isFillDragging = ref(false)
@@ -427,6 +439,7 @@ const canApplyActiveColumnFilter = computed(() => {
   }
   return doesFilterDraftHaveRequiredValues(draft)
 })
+const isColumnResizing = computed(() => activeColumnResize.value !== null)
 
 const isQuickFilterActive = computed(() => normalizedQuickFilter.value.length > 0)
 const quickFilterStatus = computed(() => {
@@ -793,6 +806,123 @@ function applySortFromHeader(columnKey: string, keepExisting: boolean) {
   }
 
   sortState.value = nextState
+}
+
+function getColumnMinWidth(columnKey: string): number {
+  if (columnKey === "select") {
+    return 48
+  }
+  return 110
+}
+
+function clampColumnWidth(columnKey: string, width: number): number {
+  return Math.max(getColumnMinWidth(columnKey), Math.min(AUTO_SIZE_MAX_WIDTH, Math.round(width)))
+}
+
+function isColumnResizable(columnKey: string): boolean {
+  return columnKey !== "select"
+}
+
+function resolveColumnCurrentWidth(columnKey: string): number {
+  const column = columnSnapshot.value.visibleColumns.find(entry => entry.key === columnKey)
+  if (!column) {
+    return getColumnMinWidth(columnKey)
+  }
+  return resolveColumnWidth(column)
+}
+
+function setColumnWidth(columnKey: string, width: number) {
+  api.setColumnWidth(columnKey, clampColumnWidth(columnKey, width))
+}
+
+function sampleRowsForAutoSize(rows: readonly IncidentRow[], maxSamples: number): readonly IncidentRow[] {
+  if (rows.length <= maxSamples) {
+    return rows
+  }
+  const sample: IncidentRow[] = []
+  const step = (rows.length - 1) / Math.max(1, maxSamples - 1)
+  for (let index = 0; index < maxSamples; index += 1) {
+    const row = rows[Math.round(index * step)]
+    if (row) {
+      sample.push(row)
+    }
+  }
+  return sample
+}
+
+function estimateColumnAutoWidth(columnKey: string): number {
+  const column = orderedColumns.value.find(entry => entry.key === columnKey)
+  if (!column) {
+    return getColumnMinWidth(columnKey)
+  }
+  const rows = sampleRowsForAutoSize(filteredAndSortedRows.value, AUTO_SIZE_SAMPLE_LIMIT)
+  let maxTextLength = String(column.column.label ?? columnKey).length
+  for (const row of rows) {
+    const text = formatCellValue(columnKey, getRowCellValue(row, columnKey))
+    if (text.length > maxTextLength) {
+      maxTextLength = text.length
+    }
+  }
+  const estimated = maxTextLength * AUTO_SIZE_CHAR_WIDTH + AUTO_SIZE_HORIZONTAL_PADDING
+  return clampColumnWidth(columnKey, estimated)
+}
+
+function onHeaderResizeHandleMouseDown(columnKey: string, event: MouseEvent) {
+  if (event.button !== 0 || !isColumnResizable(columnKey)) {
+    return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+  if (isFillDragging.value) {
+    stopFillSelection(false)
+  }
+  if (isDragSelecting.value) {
+    stopDragSelection()
+  }
+  const startWidth = resolveColumnCurrentWidth(columnKey)
+  activeColumnResize.value = {
+    columnKey,
+    startClientX: event.clientX,
+    startWidth,
+    lastWidth: startWidth,
+  }
+}
+
+function onHeaderResizeHandleDoubleClick(columnKey: string, event: MouseEvent) {
+  if (!isColumnResizable(columnKey)) {
+    return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+  const nextWidth = estimateColumnAutoWidth(columnKey)
+  setColumnWidth(columnKey, nextWidth)
+  lastAction.value = `Auto-sized ${columnKey} to ${nextWidth}px`
+}
+
+function applyColumnResizeFromPointer(clientX: number) {
+  const state = activeColumnResize.value
+  if (!state) {
+    return
+  }
+  const delta = clientX - state.startClientX
+  const nextWidth = clampColumnWidth(state.columnKey, state.startWidth + delta)
+  if (nextWidth === state.lastWidth) {
+    return
+  }
+  setColumnWidth(state.columnKey, nextWidth)
+  activeColumnResize.value = {
+    ...state,
+    lastWidth: nextWidth,
+  }
+}
+
+function stopColumnResize() {
+  const state = activeColumnResize.value
+  if (!state) {
+    return
+  }
+  activeColumnResize.value = null
+  lastAction.value = `Resized ${state.columnKey} to ${state.lastWidth}px`
 }
 
 function onHeaderCellClick(columnKey: string, event: MouseEvent) {
@@ -1435,6 +1565,7 @@ function clearCellSelection() {
   fillBaseRange.value = null
   fillPreviewRange.value = null
   lastDragCoord = null
+  stopColumnResize()
   stopAutoScrollFrameIfIdle()
 }
 
@@ -1968,6 +2099,10 @@ function stopFillSelection(applyPreview: boolean) {
 }
 
 function onGlobalMouseMove(event: MouseEvent) {
+  if (activeColumnResize.value) {
+    applyColumnResizeFromPointer(event.clientX)
+    return
+  }
   if (isFillDragging.value) {
     const pointer = fillPointer.value
     if (!pointer || pointer.clientX !== event.clientX || pointer.clientY !== event.clientY) {
@@ -1987,6 +2122,9 @@ function onGlobalMouseMove(event: MouseEvent) {
 }
 
 function onGlobalMouseUp() {
+  if (activeColumnResize.value) {
+    stopColumnResize()
+  }
   if (isFillDragging.value) {
     stopFillSelection(true)
   }
@@ -2056,6 +2194,7 @@ function onViewportBlur(event: FocusEvent) {
   }
   stopDragSelection()
   stopFillSelection(false)
+  stopColumnResize()
   if (inlineEditor.value) {
     commitInlineEdit()
   }
@@ -2375,6 +2514,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopFillSelection(false)
   stopDragSelection()
+  stopColumnResize()
   if (syncVisibleRowsFrame !== null) {
     window.cancelAnimationFrame(syncVisibleRowsFrame)
     syncVisibleRowsFrame = null
@@ -2745,7 +2885,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <div
         ref="viewportRef"
         class="datagrid-stage__viewport"
-        :class="{ 'is-drag-selecting': isDragSelecting, 'is-fill-dragging': isFillDragging }"
+        :class="{ 'is-drag-selecting': isDragSelecting, 'is-fill-dragging': isFillDragging, 'is-column-resizing': isColumnResizing }"
         tabindex="0"
         role="grid"
         aria-label="Datagrid viewport"
@@ -2765,6 +2905,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               'datagrid-stage__cell--filtered': isColumnFilterActive(column.key),
               'datagrid-stage__cell--filter-open': activeFilterColumnKey === column.key,
             }"
+            :data-column-key="column.key"
             :style="getCellStyle(column.key)"
             role="columnheader"
             :tabindex="isSortableColumn(column.key) ? 0 : -1"
@@ -2810,6 +2951,17 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               >
                 F
               </button>
+              <button
+                v-if="isColumnResizable(column.key)"
+                type="button"
+                class="datagrid-stage__resize-handle"
+                data-datagrid-resize-handle
+                :data-column-key="column.key"
+                :aria-label="`Resize ${column.column.label ?? column.key}`"
+                @click.stop.prevent
+                @mousedown="onHeaderResizeHandleMouseDown(column.key, $event)"
+                @dblclick="onHeaderResizeHandleDoubleClick(column.key, $event)"
+              ></button>
             </template>
           </div>
         </div>
@@ -2841,6 +2993,8 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               'datagrid-stage__cell--sticky': isStickyColumn(column.key),
               'datagrid-stage__cell--range-end': isRangeEndCell(row, column.key),
             }"
+            :data-column-key="column.key"
+            :data-row-id="row.rowId"
             :style="getCellStyle(column.key)"
             @mousedown="onDataCellMouseDown(row, column.key, $event)"
             @mouseenter="onDataCellMouseEnter(row, column.key, $event)"
@@ -3238,6 +3392,12 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   user-select: none;
 }
 
+.datagrid-stage__viewport.is-column-resizing,
+.datagrid-stage__viewport.is-column-resizing .datagrid-stage__cell {
+  cursor: col-resize;
+  user-select: none;
+}
+
 .datagrid-stage__header,
 .datagrid-stage__row {
   display: grid;
@@ -3309,6 +3469,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   letter-spacing: 0.12em;
   color: var(--text-primary);
   background: rgba(11, 17, 31, 0.98);
+  padding-right: 1.45rem;
 }
 
 .datagrid-stage__cell--header.datagrid-stage__cell--sortable {
@@ -3358,6 +3519,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 .datagrid-stage__filter-trigger {
   flex: 0 0 auto;
   margin-left: 0.35rem;
+  margin-right: 0.35rem;
   width: 1.1rem;
   height: 1.1rem;
   border-radius: 0.25rem;
@@ -3379,6 +3541,25 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
   border-color: rgba(125, 211, 252, 0.85);
   background: rgba(8, 47, 73, 0.9);
   color: rgba(186, 230, 253, 1);
+}
+
+.datagrid-stage__resize-handle {
+  position: absolute;
+  top: 0;
+  right: -1px;
+  width: 9px;
+  height: 100%;
+  border: 0;
+  border-right: 2px solid transparent;
+  background: transparent;
+  cursor: col-resize;
+  z-index: 48;
+  padding: 0;
+}
+
+.datagrid-stage__resize-handle:hover,
+.datagrid-stage__viewport.is-column-resizing .datagrid-stage__resize-handle {
+  border-right-color: rgba(125, 211, 252, 0.9);
 }
 
 .datagrid-stage__cell--numeric {

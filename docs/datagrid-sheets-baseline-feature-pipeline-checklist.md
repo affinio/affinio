@@ -64,13 +64,13 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 
 ## 04. Column Resize (Virtualization-safe) (`target >= 9.0`)
 
-- [ ] Drag resize handles in header (mouse + pointer).
-- [ ] Double-click auto-size (fit content heuristics baseline).
-- [ ] Zero-desync with horizontal virtualization and pinned offsets.
-- [ ] Tests: long horizontal scroll while resizing + sticky headers.
-- [ ] Perf gate: no visible frame drops in benchmark harness scenario.
-- [ ] Final score for step: `TBD`.
-- Comment: `TBD`.
+- [x] Drag resize handles in header (mouse + pointer).
+- [x] Double-click auto-size (fit content heuristics baseline).
+- [x] Zero-desync with horizontal virtualization and pinned offsets.
+- [x] Tests: long horizontal scroll while resizing + sticky headers.
+- [x] Perf gate: no visible frame drops in benchmark harness scenario.
+- [x] Final score for step: `9.0`.
+- Comment: `2026-02-08` - шаг закрыт: в `demo-vue/src/pages/DataGridPage.vue` добавлены header resize handles (`mousedown drag` + `double-click autosize`) с безопасным clamping ширины, autosize-эвристикой по label+sample rows и интеграцией через `api.setColumnWidth`. Добавлена защита от конфликтов с selection/fill drag и стабильность sticky/pinned в том же viewport runtime. E2E покрытие добавлено в `tests/e2e/datagrid.regression.spec.ts`: drag resize + long horizontal scroll, autosize flow, pinned-column sticky offset under scroll.
 
 ## 05. Clipboard Copy (`target >= 9.0`)
 
@@ -136,3 +136,4 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 - `2026-02-08`: step `01` fully closed with score `9.1`.
 - `2026-02-08`: step `02` fully closed with score `9.1`.
 - `2026-02-08`: step `03` fully closed with score `9.0`.
+- `2026-02-08`: step `04` fully closed with score `9.0`.
