@@ -33,6 +33,14 @@
             'href' => 'https://github.com/affinio/affinio/tree/main/packages/combobox-core',
         ],
         [
+            'value' => 'datagrid',
+            'name' => 'DataGrid',
+            'path' => '/datagrid',
+            'description' => 'Headless datagrid core rendered in a Livewire page shell.',
+            'status' => 'Preview',
+            'href' => 'https://github.com/affinio/affinio/tree/main/packages/datagrid-core',
+        ],
+        [
             'value' => 'menus',
             'name' => 'Menus',
             'path' => '/menus',

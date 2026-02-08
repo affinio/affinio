@@ -25,6 +25,11 @@ const router = createRouter({
       component: () => import("@/pages/VirtualizationPage.vue"),
     },
     {
+      path: "/datagrid",
+      name: "datagrid-demo",
+      component: () => import("@/pages/DataGridPage.vue"),
+    },
+    {
       path: "/dialogs",
       name: "dialog-demo",
       component: () => import("@/pages/DialogPage.vue"),

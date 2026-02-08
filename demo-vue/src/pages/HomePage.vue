@@ -52,6 +52,12 @@ const advancedFlows = [
     label: "Virtualized grid",
   },
   {
+    title: "DataGrid",
+    description: "Full datagrid runtime with editing, pinning, and selection.",
+    to: "/datagrid",
+    label: "DataGrid demo",
+  },
+  {
     title: "Livewire adapters",
     description: "Laravel demo mirrors this layout.",
     href: "http://127.0.0.1:4180",

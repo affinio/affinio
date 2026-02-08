@@ -20,6 +20,7 @@
         "@affino/tabs-laravel": "workspace:*",
         "@affino/overlay-kernel": "workspace:*",
         "@affino/dialog-laravel": "workspace:*",
+        "@affino/datagrid-core": "workspace:*",
         "@affino/combobox-laravel": "workspace:*",
         "@affino/listbox-laravel": "workspace:*",
         "@affino/menu-laravel": "workspace:*",

@@ -35,6 +35,7 @@ class Navigation extends Component
             ['value' => 'disclosure', 'name' => 'Disclosure', 'path' => '/disclosure'],
             ['value' => 'listbox', 'name' => 'Listbox', 'path' => '/listbox'],
             ['value' => 'combobox', 'name' => 'Combobox', 'path' => '/combobox'],
+            ['value' => 'datagrid', 'name' => 'DataGrid', 'path' => '/datagrid'],
             ['value' => 'menus', 'name' => 'Menus', 'path' => '/menus'],
             ['value' => 'popovers', 'name' => 'Popovers', 'path' => '/popovers'],
             ['value' => 'dialogs', 'name' => 'Dialogs', 'path' => '/dialogs'],

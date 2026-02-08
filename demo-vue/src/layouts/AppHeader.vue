@@ -18,6 +18,7 @@ const activeCore = computed(() => {
   if (route.path.startsWith('/selection')) return 'Selection'
   if (route.path.startsWith('/combobox')) return 'Combobox'
   if (route.path.startsWith('/virtualization')) return 'Virtualization'
+  if (route.path.startsWith('/datagrid')) return 'DataGrid'
   if (route.path.startsWith('/tooltips')) return 'Tooltips'
   if (route.path.startsWith('/dialogs')) return 'Dialog'
   if (route.path.startsWith('/popovers')) return 'Popover'
@@ -37,6 +38,7 @@ const coreCapabilities: Record<string, { adapters: boolean }> = {
   tabs: { adapters: true },
   treeview: { adapters: true },
   virtualization: { adapters: false },
+  datagrid: { adapters: true },
   tooltips: { adapters: true },
   popover: { adapters: true },
 }
@@ -125,6 +127,16 @@ const subtitle = computed(() => {
           </a>
         </RouterLink>
 
+        <RouterLink to="/datagrid" v-slot="{ href }">
+          <a
+            :href="href"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.path.startsWith('/datagrid') }"
+          >
+            DataGrid
+          </a>
+        </RouterLink>
+
         <RouterLink to="/popovers" v-slot="{ href }">
           <a
             :href="href"
@@ -154,8 +166,6 @@ const subtitle = computed(() => {
             Treeview
           </a>
         </RouterLink>
-
-        <span class="nav-link-disabled">Table</span>
 
         <!-- GitHub -->
         <a
