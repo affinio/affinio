@@ -115,10 +115,25 @@ interface ColumnResizeState {
   lastWidth: number
 }
 
+type ContextMenuZone = "cell" | "range" | "header"
+type ContextMenuActionId =
+  | "copy"
+  | "paste"
+  | "cut"
+  | "clear"
+  | "sort-asc"
+  | "sort-desc"
+  | "sort-clear"
+  | "filter"
+  | "auto-size"
+
 interface CopyContextMenuState {
   visible: boolean
   x: number
   y: number
+  zone: ContextMenuZone
+  columnKey: string | null
+  rowId: string | null
 }
 
 const ROW_HEIGHT = 38
@@ -208,7 +223,7 @@ const appliedColumnFilters = ref<Record<string, AppliedColumnFilter>>({})
 const activeColumnResize = ref<ColumnResizeState | null>(null)
 const copiedSelectionRange = ref<CellSelectionRange | null>(null)
 const lastCopiedPayload = ref("")
-const copyContextMenu = ref<CopyContextMenuState>({ visible: false, x: 0, y: 0 })
+const copyContextMenu = ref<CopyContextMenuState>({ visible: false, x: 0, y: 0, zone: "cell", columnKey: null, rowId: null })
 const copyMenuRef = ref<HTMLDivElement | null>(null)
 const isDragSelecting = ref(false)
 const dragPointer = ref<{ clientX: number; clientY: number } | null>(null)
@@ -462,6 +477,29 @@ const copyContextMenuStyle = computed(() => ({
   left: `${copyContextMenu.value.x}px`,
   top: `${copyContextMenu.value.y}px`,
 }))
+const contextMenuActions = computed(() => {
+  if (!copyContextMenu.value.visible) {
+    return [] as readonly { id: ContextMenuActionId; label: string }[]
+  }
+  if (copyContextMenu.value.zone === "header") {
+    const actions: { id: ContextMenuActionId; label: string }[] = [
+      { id: "sort-asc", label: "Sort ascending" },
+      { id: "sort-desc", label: "Sort descending" },
+      { id: "sort-clear", label: "Clear sort" },
+      { id: "filter", label: "Filter column" },
+    ]
+    if (copyContextMenu.value.columnKey && isColumnResizable(copyContextMenu.value.columnKey)) {
+      actions.push({ id: "auto-size", label: "Auto size column" })
+    }
+    return actions
+  }
+  return [
+    { id: "cut", label: "Cut" },
+    { id: "paste", label: "Paste" },
+    { id: "copy", label: "Copy" },
+    { id: "clear", label: "Clear values" },
+  ] as const
+})
 
 const isQuickFilterActive = computed(() => normalizedQuickFilter.value.length > 0)
 const quickFilterStatus = computed(() => {
@@ -830,6 +868,18 @@ function applySortFromHeader(columnKey: string, keepExisting: boolean) {
   sortState.value = nextState
 }
 
+function applyExplicitSort(columnKey: string, direction: "asc" | "desc" | null) {
+  if (!isSortableColumn(columnKey)) {
+    return
+  }
+  if (direction === null) {
+    const next = sortState.value.filter(entry => entry.key !== columnKey)
+    sortState.value = next
+    return
+  }
+  sortState.value = [{ key: columnKey, direction }]
+}
+
 function getColumnMinWidth(columnKey: string): number {
   if (columnKey === "select") {
     return 48
@@ -955,6 +1005,18 @@ function onHeaderCellClick(columnKey: string, event: MouseEvent) {
 }
 
 function onHeaderCellKeyDown(columnKey: string, event: KeyboardEvent) {
+  if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+    if (columnKey === "select") {
+      return
+    }
+    event.preventDefault()
+    const target = event.currentTarget as HTMLElement | null
+    const rect = target?.getBoundingClientRect()
+    const x = rect ? rect.left + Math.min(rect.width - 8, Math.max(8, rect.width * 0.5)) : 24
+    const y = rect ? rect.bottom - 6 : 24
+    openCopyContextMenu(x, y, { zone: "header", columnKey })
+    return
+  }
   if (!isSortableColumn(columnKey)) {
     return
   }
@@ -1597,6 +1659,7 @@ function clearCellSelection() {
   fillBaseRange.value = null
   fillPreviewRange.value = null
   lastDragCoord = null
+  closeCopyContextMenu()
   stopColumnResize()
   stopAutoScrollFrameIfIdle()
 }
@@ -1779,12 +1842,100 @@ function isCoordInsideRange(coord: CellCoord, range: CellSelectionRange): boolea
 }
 
 function closeCopyContextMenu() {
-  copyContextMenu.value = { visible: false, x: 0, y: 0 }
+  copyContextMenu.value = { visible: false, x: 0, y: 0, zone: "cell", columnKey: null, rowId: null }
 }
 
-function openCopyContextMenu(clientX: number, clientY: number) {
+async function focusContextMenuFirstItem() {
+  await nextTick()
+  const menu = copyMenuRef.value
+  if (!menu) {
+    return
+  }
+  const first = menu.querySelector('[data-datagrid-menu-action]') as HTMLButtonElement | null
+  if (first) {
+    first.focus()
+    return
+  }
+  menu.focus()
+}
+
+function openCopyContextMenu(
+  clientX: number,
+  clientY: number,
+  context: { zone: ContextMenuZone; columnKey?: string | null; rowId?: string | null },
+) {
   closeColumnFilterPanel()
-  copyContextMenu.value = { visible: true, x: Math.max(8, clientX), y: Math.max(8, clientY) }
+  copyContextMenu.value = {
+    visible: true,
+    x: Math.max(8, clientX),
+    y: Math.max(8, clientY),
+    zone: context.zone,
+    columnKey: context.columnKey ?? null,
+    rowId: context.rowId ?? null,
+  }
+  void focusContextMenuFirstItem()
+}
+
+function isMultiCellSelection(range: CellSelectionRange | null): boolean {
+  if (!range) {
+    return false
+  }
+  return range.startRow !== range.endRow || range.startColumn !== range.endColumn
+}
+
+function onCopyMenuKeyDown(event: KeyboardEvent) {
+  const menu = copyMenuRef.value
+  if (!menu) {
+    return
+  }
+  const items = Array.from(menu.querySelectorAll('[data-datagrid-menu-action]')) as HTMLButtonElement[]
+  if (!items.length) {
+    return
+  }
+  const active = document.activeElement as HTMLElement | null
+  let index = items.findIndex(item => item === active)
+
+  if (event.key === "ArrowDown") {
+    event.preventDefault()
+    index = index < 0 ? 0 : (index + 1) % items.length
+    items[index]?.focus()
+    return
+  }
+  if (event.key === "ArrowUp") {
+    event.preventDefault()
+    index = index < 0 ? items.length - 1 : (index - 1 + items.length) % items.length
+    items[index]?.focus()
+    return
+  }
+  if (event.key === "Home") {
+    event.preventDefault()
+    items[0]?.focus()
+    return
+  }
+  if (event.key === "End") {
+    event.preventDefault()
+    items[items.length - 1]?.focus()
+    return
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault()
+    const target = index >= 0 ? items[index] : items[0]
+    target?.click()
+    return
+  }
+  if (event.key === "Escape") {
+    event.preventDefault()
+    closeCopyContextMenu()
+    viewportRef.value?.focus()
+    return
+  }
+  if (event.key === "Tab") {
+    event.preventDefault()
+    const nextIndex = event.shiftKey
+      ? (index <= 0 ? items.length - 1 : index - 1)
+      : (index + 1) % items.length
+    items[nextIndex]?.focus()
+  }
 }
 
 function clearCopiedSelectionFlash() {
@@ -1884,10 +2035,6 @@ async function copySelection(trigger: "keyboard" | "context-menu"): Promise<bool
   const columns = range.endColumn - range.startColumn + 1
   lastAction.value = `Copied ${rows}x${columns} cells (${trigger})`
   return true
-}
-
-async function onCopyContextMenuAction() {
-  await copySelection("context-menu")
 }
 
 function clearValueForCut(row: IncidentRow, columnKey: EditableColumnKey): boolean {
@@ -2118,22 +2265,7 @@ async function pasteSelection(trigger: "keyboard" | "context-menu"): Promise<boo
   return true
 }
 
-async function onPasteContextMenuAction() {
-  await pasteSelection("context-menu")
-}
-
-async function cutSelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
-  const range = resolveCopyRange()
-  if (!range) {
-    closeCopyContextMenu()
-    lastAction.value = "Cut skipped: no active selection"
-    return false
-  }
-  const copied = await copySelection(trigger)
-  if (!copied) {
-    return false
-  }
-
+function clearSelectionValues(range: CellSelectionRange): { cleared: number; blocked: number } {
   const sourceById = new Map(sourceRows.value.map(row => [row.rowId, row]))
   const mutableById = new Map<string, IncidentRow>()
   const statusNeedsRecompute = new Set<string>()
@@ -2196,6 +2328,44 @@ async function cutSelection(trigger: "keyboard" | "context-menu"): Promise<boole
     activeCell.value = { rowIndex: range.startRow, columnIndex: range.startColumn }
   }
 
+  return { cleared, blocked }
+}
+
+function clearCurrentSelection(trigger: "context-menu" | "keyboard"): boolean {
+  const range = resolveCopyRange()
+  if (!range) {
+    closeCopyContextMenu()
+    lastAction.value = "Clear skipped: no active selection"
+    return false
+  }
+  const result = clearSelectionValues(range)
+  closeCopyContextMenu()
+  if (result.cleared === 0) {
+    lastAction.value = `Clear blocked (${result.blocked} cells)`
+    return false
+  }
+  lastAction.value = result.blocked > 0
+    ? `Cleared ${result.cleared} cells (${trigger}), blocked ${result.blocked}`
+    : `Cleared ${result.cleared} cells (${trigger})`
+  return true
+}
+
+async function cutSelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
+  const range = resolveCopyRange()
+  if (!range) {
+    closeCopyContextMenu()
+    lastAction.value = "Cut skipped: no active selection"
+    return false
+  }
+  const copied = await copySelection(trigger)
+  if (!copied) {
+    return false
+  }
+
+  const result = clearSelectionValues(range)
+  const cleared = result.cleared
+  const blocked = result.blocked
+
   closeCopyContextMenu()
   if (cleared === 0) {
     lastAction.value = `Cut blocked (${blocked} cells)`
@@ -2207,8 +2377,73 @@ async function cutSelection(trigger: "keyboard" | "context-menu"): Promise<boole
   return true
 }
 
-async function onCutContextMenuAction() {
-  await cutSelection("context-menu")
+function onHeaderContextAction(action: ContextMenuActionId, columnKey: string): boolean {
+  if (!isSortableColumn(columnKey) && action !== "auto-size") {
+    return false
+  }
+  if (action === "sort-asc") {
+    applyExplicitSort(columnKey, "asc")
+    lastAction.value = `Sorted ${columnKey} asc`
+    closeCopyContextMenu()
+    return true
+  }
+  if (action === "sort-desc") {
+    applyExplicitSort(columnKey, "desc")
+    lastAction.value = `Sorted ${columnKey} desc`
+    closeCopyContextMenu()
+    return true
+  }
+  if (action === "sort-clear") {
+    applyExplicitSort(columnKey, null)
+    lastAction.value = `Sort cleared for ${columnKey}`
+    closeCopyContextMenu()
+    return true
+  }
+  if (action === "filter") {
+    openColumnFilter(columnKey)
+    closeCopyContextMenu()
+    return true
+  }
+  if (action === "auto-size") {
+    const nextWidth = estimateColumnAutoWidth(columnKey)
+    setColumnWidth(columnKey, nextWidth)
+    lastAction.value = `Auto-sized ${columnKey} to ${nextWidth}px`
+    closeCopyContextMenu()
+    return true
+  }
+  return false
+}
+
+async function onContextMenuAction(action: ContextMenuActionId) {
+  const zone = copyContextMenu.value.zone
+  const columnKey = copyContextMenu.value.columnKey
+  if (zone === "header") {
+    if (!columnKey) {
+      closeCopyContextMenu()
+      return
+    }
+    onHeaderContextAction(action, columnKey)
+    return
+  }
+
+  if (action === "copy") {
+    await copySelection("context-menu")
+    return
+  }
+  if (action === "paste") {
+    await pasteSelection("context-menu")
+    return
+  }
+  if (action === "cut") {
+    await cutSelection("context-menu")
+    return
+  }
+  if (action === "clear") {
+    clearCurrentSelection("context-menu")
+    return
+  }
+
+  closeCopyContextMenu()
 }
 
 function resolveCellCoordFromDataset(rowId: string, columnKey: string): CellCoord | null {
@@ -2670,6 +2905,15 @@ function onViewportContextMenu(event: MouseEvent) {
   if (!targetNode) {
     return
   }
+  const headerCell = targetNode.closest(".datagrid-stage__cell--header[data-column-key]") as HTMLElement | null
+  if (headerCell) {
+    const columnKey = headerCell.dataset.columnKey ?? ""
+    if (columnKey && columnKey !== "select") {
+      event.preventDefault()
+      openCopyContextMenu(event.clientX, event.clientY, { zone: "header", columnKey })
+    }
+    return
+  }
   const cell = targetNode.closest(".datagrid-stage__cell[data-row-id][data-column-key]") as HTMLElement | null
   if (cell) {
     const rowId = cell.dataset.rowId ?? ""
@@ -2683,11 +2927,18 @@ function onViewportContextMenu(event: MouseEvent) {
         } else if (!cellCoordsEqual(activeCell.value, coord)) {
           activeCell.value = coord
         }
+        const nextRange = cellSelectionRange.value
+        const zone: ContextMenuZone = isMultiCellSelection(nextRange) && nextRange && isCoordInsideRange(coord, nextRange)
+          ? "range"
+          : "cell"
+        event.preventDefault()
+        openCopyContextMenu(event.clientX, event.clientY, { zone, columnKey, rowId })
+        return
       }
     }
   }
   event.preventDefault()
-  openCopyContextMenu(event.clientX, event.clientY)
+  closeCopyContextMenu()
 }
 
 function onDataCellMouseEnter(row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) {
@@ -2717,6 +2968,9 @@ function onViewportBlur(event: FocusEvent) {
   const viewport = viewportRef.value
   const nextFocused = event.relatedTarget as Node | null
   if (viewport && nextFocused && viewport.contains(nextFocused)) {
+    return
+  }
+  if (nextFocused && copyMenuRef.value?.contains(nextFocused)) {
     return
   }
   stopDragSelection()
@@ -2753,13 +3007,61 @@ function resolveTabTarget(current: CellCoord, backwards: boolean): CellCoord | n
   })
 }
 
+function openContextMenuFromCurrentCell() {
+  const current = resolveCurrentCellCoord()
+  const viewport = viewportRef.value
+  if (!current || !viewport) {
+    return
+  }
+  const row = filteredAndSortedRows.value[current.rowIndex]
+  const column = orderedColumns.value[current.columnIndex]
+  if (!row || !column || column.key === "select") {
+    return
+  }
+  const selector = `.datagrid-stage__cell[data-row-id="${row.rowId}"][data-column-key="${column.key}"]`
+  const element = viewport.querySelector(selector) as HTMLElement | null
+  let x = 24
+  let y = 24
+  if (element) {
+    const rect = element.getBoundingClientRect()
+    x = rect.left + Math.max(10, Math.min(rect.width - 10, rect.width * 0.5))
+    y = rect.bottom - 4
+  } else {
+    const rect = viewport.getBoundingClientRect()
+    x = rect.left + Math.max(10, Math.min(rect.width - 10, rect.width * 0.3))
+    y = rect.top + Math.max(10, Math.min(rect.height - 10, rect.height * 0.4))
+  }
+  const range = cellSelectionRange.value
+  const zone: ContextMenuZone = range && isMultiCellSelection(range) && isCoordInsideRange(current, range) ? "range" : "cell"
+  openCopyContextMenu(x, y, { zone, columnKey: column.key, rowId: String(row.rowId) })
+}
+
 function onViewportKeyDown(event: KeyboardEvent) {
   if (inlineEditor.value) {
     return
   }
-  if (event.key === "Escape" && copyContextMenu.value.visible) {
+  if (copyContextMenu.value.visible) {
+    if (event.key === "Escape") {
+      event.preventDefault()
+      closeCopyContextMenu()
+      viewportRef.value?.focus()
+    } else if (
+      event.key.startsWith("Arrow") ||
+      event.key === "Home" ||
+      event.key === "End" ||
+      event.key === "PageUp" ||
+      event.key === "PageDown" ||
+      event.key === "Tab" ||
+      event.key === "Enter" ||
+      event.key === " "
+    ) {
+      event.preventDefault()
+    }
+    return
+  }
+  if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
     event.preventDefault()
-    closeCopyContextMenu()
+    openContextMenuFromCurrentCell()
     return
   }
   if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "c") {
@@ -3667,11 +3969,25 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       class="datagrid-copy-menu"
       :style="copyContextMenuStyle"
       data-datagrid-copy-menu
+      :data-zone="copyContextMenu.zone"
+      role="menu"
+      tabindex="-1"
       @mousedown.stop
+      @keydown.stop="onCopyMenuKeyDown"
     >
-      <button type="button" data-datagrid-cut-action @click="onCutContextMenuAction">Cut</button>
-      <button type="button" data-datagrid-paste-action @click="onPasteContextMenuAction">Paste</button>
-      <button type="button" data-datagrid-copy-action @click="onCopyContextMenuAction">Copy</button>
+      <button
+        v-for="action in contextMenuActions"
+        :key="action.id"
+        type="button"
+        role="menuitem"
+        :data-datagrid-menu-action="action.id"
+        :data-datagrid-cut-action="action.id === 'cut' ? 'true' : null"
+        :data-datagrid-paste-action="action.id === 'paste' ? 'true' : null"
+        :data-datagrid-copy-action="action.id === 'copy' ? 'true' : null"
+        @click="onContextMenuAction(action.id)"
+      >
+        {{ action.label }}
+      </button>
     </div>
   </section>
 </template>
@@ -4383,7 +4699,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 
 .datagrid-copy-menu {
   position: fixed;
-  z-index: 140;
+  z-index: 220;
   min-width: 120px;
   border-radius: 0.6rem;
   border: 1px solid rgba(125, 211, 252, 0.35);

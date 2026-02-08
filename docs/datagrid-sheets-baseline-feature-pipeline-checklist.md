@@ -104,13 +104,13 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 
 ## 08. Context Menu System (`target >= 9.0`)
 
-- [ ] Right-click context menu for cell/range/header zones.
-- [ ] Action routing: copy/paste/cut, clear, sort, filter, resize shortcuts.
-- [ ] Keyboard access (`Shift+F10`/context-menu key).
-- [ ] Overlay/pinning layering contract (menu always on top, no focus traps).
-- [ ] Tests: mouse + keyboard invocation across pinned/non-pinned areas.
-- [ ] Final score for step: `TBD`.
-- Comment: `TBD`.
+- [x] Right-click context menu for cell/range/header zones.
+- [x] Action routing: copy/paste/cut, clear, sort, filter, resize shortcuts.
+- [x] Keyboard access (`Shift+F10`/context-menu key).
+- [x] Overlay/pinning layering contract (menu always on top, no focus traps).
+- [x] Tests: mouse + keyboard invocation across pinned/non-pinned areas.
+- [x] Final score for step: `9.0`.
+- Comment: `2026-02-08` - шаг закрыт: контекстное меню расширено до zone-based system (`cell/range/header`) с action routing для clipboard/clear и header операций (`sort asc/desc/clear`, `filter`, `auto-size`). Добавлен keyboard entrypoint (`Shift+F10`/`ContextMenu`) для active cell и header, меню поднято по z-index поверх pinned/overlay слоев. E2E покрытие добавлено в `tests/e2e/datagrid.regression.spec.ts`: header routing, keyboard invocation, pinned-header scenario после горизонтального скролла.
 
 ## 09. Drag & Drop Editing Flows (`target >= 9.0`)
 
@@ -140,3 +140,4 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 - `2026-02-08`: step `05` fully closed with score `9.0`.
 - `2026-02-08`: step `06` fully closed with score `9.0`.
 - `2026-02-08`: step `07` fully closed with score `9.0`.
+- `2026-02-08`: step `08` fully closed with score `9.0`.

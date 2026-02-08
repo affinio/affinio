@@ -427,6 +427,70 @@ test.describe("datagrid clipboard cut foundation", () => {
   })
 })
 
+test.describe("datagrid context menu system", () => {
+  test("header context menu routes sort/filter/auto-size actions", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const ownerHeader = page.locator('.datagrid-stage__cell--header[data-column-key="owner"]').first()
+    const ownerHandle = page.locator('[data-datagrid-resize-handle][data-column-key="owner"]').first()
+    const sortValue = metricValue(page, "Sort state")
+
+    await dragResizeHandle(page, ownerHandle, -60)
+    const narrowedWidth = await headerWidth(ownerHeader)
+
+    await ownerHeader.click({ button: "right" })
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveAttribute("data-zone", "header")
+    await page.locator('[data-datagrid-menu-action="sort-desc"]').click()
+    await expect(sortValue).toContainText("1:owner:desc")
+
+    await ownerHeader.click({ button: "right" })
+    await page.locator('[data-datagrid-menu-action="filter"]').click()
+    await expect(page.locator("[data-datagrid-filter-panel]")).toHaveAttribute("data-column-key", "owner")
+    await page.locator("[data-datagrid-filter-close]").click()
+
+    await ownerHeader.click({ button: "right" })
+    await page.locator('[data-datagrid-menu-action="auto-size"]').click()
+    const autoSizedWidth = await headerWidth(ownerHeader)
+    expect(autoSizedWidth).toBeGreaterThan(narrowedWidth + 15)
+  })
+
+  test("keyboard Shift+F10 opens cell context menu and executes clear action", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const ownerCell = cellLocator(page, "owner", 0)
+    const activeCellMetric = metricValue(page, "Active cell")
+    await ownerCell.click()
+    const activeBefore = await readText(activeCellMetric)
+    await page.keyboard.press("Shift+F10")
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveAttribute("data-zone", "cell")
+    await page.keyboard.press("ArrowDown")
+    await expect(activeCellMetric).toHaveText(activeBefore)
+    await page.locator('[data-datagrid-menu-action="clear"]').click()
+
+    await expect(ownerCell).toHaveText("")
+    await expect(page.locator(".datagrid-controls__status")).toContainText("Cleared 1 cells")
+  })
+
+  test("pinned header context menu stays usable after horizontal scroll", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await page
+      .locator(".datagrid-controls label")
+      .filter({ has: page.locator("span", { hasText: "Pin status column" }) })
+      .locator('input[type="checkbox"]')
+      .check()
+
+    const viewport = page.locator(".datagrid-stage__viewport")
+    await runLongHorizontalSession(viewport)
+
+    const statusHeader = page.locator('.datagrid-stage__cell--header[data-column-key="status"]').first()
+    await statusHeader.click({ button: "right" })
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveAttribute("data-zone", "header")
+    await page.locator('[data-datagrid-menu-action="sort-asc"]').click()
+    await expect(metricValue(page, "Sort state")).toContainText("1:status:asc")
+  })
+})
+
 function metricValue(page: Page, label: string): Locator {
   return page
     .locator(".datagrid-metrics div")
