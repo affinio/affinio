@@ -491,6 +491,59 @@ test.describe("datagrid context menu system", () => {
   })
 })
 
+test.describe("datagrid drag & drop editing flows", () => {
+  test("alt-drag moves selected editable range and clears source", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const channelA = await cellText(page, "channel", 0)
+    const runbookA = await cellText(page, "runbook", 0)
+    const channelB = await cellText(page, "channel", 1)
+    const runbookB = await cellText(page, "runbook", 1)
+
+    await cellLocator(page, "channel", 0).click()
+    await page.keyboard.press("Shift+ArrowRight")
+    await page.keyboard.press("Shift+ArrowDown")
+
+    await altDragRange(page, cellLocator(page, "channel", 0), cellLocator(page, "channel", 3))
+
+    await expect(page.locator(".datagrid-controls__status")).toContainText("Moved")
+    await expect(cellLocator(page, "channel", 3)).toHaveText(channelA)
+    await expect(cellLocator(page, "runbook", 3)).toHaveText(runbookA)
+    await expect(cellLocator(page, "channel", 4)).toHaveText(channelB)
+    await expect(cellLocator(page, "runbook", 4)).toHaveText(runbookB)
+    await expect(cellLocator(page, "channel", 0)).toHaveText("")
+    await expect(cellLocator(page, "runbook", 0)).toHaveText("")
+  })
+
+  test("alt-drag remains stable in large virtualized+pinned session", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    await selectRowsPreset(page, "6400")
+    await page
+      .locator(".datagrid-controls label")
+      .filter({ has: page.locator("span", { hasText: "Pin status column" }) })
+      .locator('input[type="checkbox"]')
+      .check()
+
+    const viewport = page.locator(".datagrid-stage__viewport")
+    await runLongVerticalSession(viewport)
+    await runLongHorizontalSession(viewport)
+    await viewport.evaluate(element => {
+      element.scrollLeft = Math.max(0, element.scrollWidth - element.clientWidth - 120)
+    })
+
+    await cellLocator(page, "channel", 0).click()
+    await page.keyboard.press("Shift+ArrowRight")
+    await page.keyboard.press("Shift+ArrowDown")
+    const beforeStart = parseRangeStart(await readText(metricValue(page, "Window")))
+    await altDragRangeWithAutoScroll(page, cellLocator(page, "channel", 0), viewport)
+
+    await expect(page.locator(".datagrid-controls__status")).toContainText("Moved")
+    await expect(page.locator(".datagrid-stage__selection-overlay--move")).toHaveCount(0)
+    await expect.poll(async () => parseRangeStart(await readText(metricValue(page, "Window")))).toBeGreaterThan(beforeStart)
+  })
+})
+
 function metricValue(page: Page, label: string): Locator {
   return page
     .locator(".datagrid-metrics div")
@@ -538,6 +591,39 @@ async function dragResizeHandle(page: Page, handle: Locator, deltaX: number): Pr
   await page.mouse.down()
   await page.mouse.move(startX + deltaX, startY)
   await page.mouse.up()
+}
+
+async function altDragRange(page: Page, fromCell: Locator, toCell: Locator): Promise<void> {
+  const from = await boundingBox(fromCell)
+  const to = await boundingBox(toCell)
+  const startX = from.x + Math.max(8, Math.min(from.width - 8, from.width * 0.5))
+  const startY = from.y + Math.max(8, Math.min(from.height - 8, from.height * 0.5))
+  const endX = to.x + Math.max(8, Math.min(to.width - 8, to.width * 0.5))
+  const endY = to.y + Math.max(8, Math.min(to.height - 8, to.height * 0.5))
+  await page.keyboard.down("Alt")
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  await page.mouse.move(endX, endY)
+  await page.mouse.up()
+  await page.keyboard.up("Alt")
+}
+
+async function altDragRangeWithAutoScroll(page: Page, fromCell: Locator, viewport: Locator): Promise<void> {
+  const from = await boundingBox(fromCell)
+  const viewportBox = await boundingBox(viewport)
+  const startX = from.x + Math.max(8, Math.min(from.width - 8, from.width * 0.5))
+  const startY = from.y + Math.max(8, Math.min(from.height - 8, from.height * 0.5))
+  const endX = viewportBox.x + Math.max(12, Math.min(viewportBox.width - 12, viewportBox.width * 0.5))
+  const endY = viewportBox.y + viewportBox.height - 3
+  await page.keyboard.down("Alt")
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  for (let step = 0; step < 12; step += 1) {
+    await page.mouse.move(endX, endY)
+    await page.waitForTimeout(20)
+  }
+  await page.mouse.up()
+  await page.keyboard.up("Alt")
 }
 
 async function boundingBox(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {

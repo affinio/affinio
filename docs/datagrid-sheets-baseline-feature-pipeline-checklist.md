@@ -114,12 +114,12 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 
 ## 09. Drag & Drop Editing Flows (`target >= 9.0`)
 
-- [ ] Range drag-move (where allowed) with preview and commit/cancel.
-- [ ] Fill-handle integration with copy-series baseline behavior.
-- [ ] Auto-scroll on drag to viewport edges (X/Y).
-- [ ] Tests: drag across pinned boundary + large virtualized datasets.
-- [ ] Final score for step: `TBD`.
-- Comment: `TBD`.
+- [x] Range drag-move (where allowed) with preview and commit/cancel.
+- [x] Fill-handle integration with copy-series baseline behavior.
+- [x] Auto-scroll on drag to viewport edges (X/Y).
+- [x] Tests: drag across pinned boundary + large virtualized datasets.
+- [x] Final score for step: `9.0`.
+- Comment: `2026-02-08` - шаг закрыт: добавлен `Alt + drag` move-range flow с preview overlay, commit/cancel (`Escape`) и общим auto-scroll loop по краям viewport. Move выполняется транзакционно через snapshot/mutable-map с blocked accounting для неразрешенных ячеек и корректным re-sync selection/active cell. Fill-handle и edge auto-scroll остались совместимы в едином pointer runtime. E2E добавлены в `tests/e2e/datagrid.regression.spec.ts`: move editable range, move в large virtualized+pinned сценарии с автоскроллом.
 
 ## 10. Polish + Hardening (`target >= 9.0`)
 
@@ -141,3 +141,4 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 - `2026-02-08`: step `06` fully closed with score `9.0`.
 - `2026-02-08`: step `07` fully closed with score `9.0`.
 - `2026-02-08`: step `08` fully closed with score `9.0`.
+- `2026-02-08`: step `09` fully closed with score `9.0`.
