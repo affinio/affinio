@@ -23,11 +23,23 @@ export function bootstrapAffinoDatagridDemos(root = document) {
     root.querySelectorAll?.("[data-affino-datagrid-demo]").forEach((element) => roots.push(element));
 
     roots.forEach((element) => {
-        if (!(element instanceof HTMLElement) || teardownByRoot.has(element)) {
+        if (!(element instanceof HTMLElement)) {
             return;
         }
-        const teardown = mountDatagridDemo(element);
-        teardownByRoot.set(element, teardown);
+        const previousTeardown = teardownByRoot.get(element);
+        if (typeof previousTeardown === "function") {
+            previousTeardown();
+            teardownByRoot.delete(element);
+        }
+
+        try {
+            const teardown = mountDatagridDemo(element);
+            if (typeof teardown === "function") {
+                teardownByRoot.set(element, teardown);
+            }
+        } catch (error) {
+            console.error("[Affino][DataGridDemo] mount failed", error);
+        }
     });
 }
 
@@ -49,7 +61,7 @@ function mountDatagridDemo(root) {
     const windowNode = root.querySelector("[data-datagrid-window]");
 
     if (!viewport || !header || !rowsHost || !spacerTop || !spacerBottom) {
-        return () => {};
+        return null;
     }
 
     const initialSize = readPositiveNumber(root.dataset.datagridInitialRows, DEFAULT_SIZE);
@@ -399,4 +411,3 @@ function formatCellValue(key, value) {
     }
     return String(value ?? "");
 }
-
