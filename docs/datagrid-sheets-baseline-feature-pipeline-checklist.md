@@ -94,13 +94,13 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 
 ## 07. Clipboard Cut (`target >= 9.0`)
 
-- [ ] Cut as copy+clear for editable cells.
-- [ ] Keyboard shortcuts: `Cmd/Ctrl+X`.
-- [ ] Context menu action: `Cut`.
-- [ ] Undo-safe transactional behavior (no partial corruption).
-- [ ] Tests: cut single/range + mixed editable/non-editable cells.
-- [ ] Final score for step: `TBD`.
-- Comment: `TBD`.
+- [x] Cut as copy+clear for editable cells.
+- [x] Keyboard shortcuts: `Cmd/Ctrl+X`.
+- [x] Context menu action: `Cut`.
+- [x] Undo-safe transactional behavior (no partial corruption).
+- [x] Tests: cut single/range + mixed editable/non-editable cells.
+- [x] Final score for step: `9.0`.
+- Comment: `2026-02-08` - шаг закрыт: реализован cut pipeline как `copy + atomic clear` (одно батч-обновление `sourceRows` через mutable map), keyboard shortcut `Cmd/Ctrl+X` и context-menu action `Cut`. Для mixed selection добавлен blocked accounting (non-editable/unsupported clear), что исключает частичную порчу состояния и явно отражается в статусе. Тесты добавлены в `tests/e2e/datagrid.regression.spec.ts`: keyboard range cut и context cut с mixed editable/non-editable.
 
 ## 08. Context Menu System (`target >= 9.0`)
 
@@ -139,3 +139,4 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 - `2026-02-08`: step `04` fully closed with score `9.0`.
 - `2026-02-08`: step `05` fully closed with score `9.0`.
 - `2026-02-08`: step `06` fully closed with score `9.0`.
+- `2026-02-08`: step `07` fully closed with score `9.0`.

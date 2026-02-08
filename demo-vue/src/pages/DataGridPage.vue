@@ -1890,6 +1890,83 @@ async function onCopyContextMenuAction() {
   await copySelection("context-menu")
 }
 
+function clearValueForCut(row: IncidentRow, columnKey: EditableColumnKey): boolean {
+  if (columnKey === "owner") {
+    if (row.owner === "") return false
+    row.owner = ""
+    return true
+  }
+  if (columnKey === "deployment") {
+    if (row.deployment === "") return false
+    row.deployment = ""
+    return true
+  }
+  if (columnKey === "channel") {
+    if (row.channel === "") return false
+    row.channel = ""
+    return true
+  }
+  if (columnKey === "runbook") {
+    if (row.runbook === "") return false
+    row.runbook = ""
+    return true
+  }
+  if (columnKey === "region" || columnKey === "environment" || columnKey === "severity" || columnKey === "status") {
+    return false
+  }
+  if (columnKey === "latencyMs") {
+    if (row.latencyMs === 0) return false
+    row.latencyMs = 0
+    return true
+  }
+  if (columnKey === "errorRate") {
+    if (row.errorRate === 0) return false
+    row.errorRate = 0
+    return true
+  }
+  if (columnKey === "availabilityPct") {
+    if (row.availabilityPct === 0) return false
+    row.availabilityPct = 0
+    return true
+  }
+  if (columnKey === "mttrMin") {
+    if (row.mttrMin === 0) return false
+    row.mttrMin = 0
+    return true
+  }
+  if (columnKey === "cpuPct") {
+    if (row.cpuPct === 0) return false
+    row.cpuPct = 0
+    return true
+  }
+  if (columnKey === "memoryPct") {
+    if (row.memoryPct === 0) return false
+    row.memoryPct = 0
+    return true
+  }
+  if (columnKey === "queueDepth") {
+    if (row.queueDepth === 0) return false
+    row.queueDepth = 0
+    return true
+  }
+  if (columnKey === "throughputRps") {
+    if (row.throughputRps === 0) return false
+    row.throughputRps = 0
+    return true
+  }
+  if (columnKey === "sloBurnRate") {
+    if (row.sloBurnRate === 0) return false
+    row.sloBurnRate = 0
+    return true
+  }
+  if (columnKey === "incidents24h") {
+    if (row.incidents24h === 0) return false
+    row.incidents24h = 0
+    return true
+  }
+  return false
+}
+
 function parseClipboardMatrix(payload: string): string[][] {
   const normalized = payload.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
   const rows = normalized
@@ -2043,6 +2120,95 @@ async function pasteSelection(trigger: "keyboard" | "context-menu"): Promise<boo
 
 async function onPasteContextMenuAction() {
   await pasteSelection("context-menu")
+}
+
+async function cutSelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
+  const range = resolveCopyRange()
+  if (!range) {
+    closeCopyContextMenu()
+    lastAction.value = "Cut skipped: no active selection"
+    return false
+  }
+  const copied = await copySelection(trigger)
+  if (!copied) {
+    return false
+  }
+
+  const sourceById = new Map(sourceRows.value.map(row => [row.rowId, row]))
+  const mutableById = new Map<string, IncidentRow>()
+  const statusNeedsRecompute = new Set<string>()
+
+  const getMutableRow = (rowId: string): IncidentRow | null => {
+    const existing = mutableById.get(rowId)
+    if (existing) {
+      return existing
+    }
+    const source = sourceById.get(rowId)
+    if (!source) {
+      return null
+    }
+    const clone = { ...source }
+    mutableById.set(rowId, clone)
+    return clone
+  }
+
+  let cleared = 0
+  let blocked = 0
+  for (let rowIndex = range.startRow; rowIndex <= range.endRow; rowIndex += 1) {
+    const targetRow = filteredAndSortedRows.value[rowIndex]
+    if (!targetRow) {
+      blocked += range.endColumn - range.startColumn + 1
+      continue
+    }
+    for (let columnIndex = range.startColumn; columnIndex <= range.endColumn; columnIndex += 1) {
+      const targetColumn = orderedColumns.value[columnIndex]
+      if (!targetColumn || !isEditableColumn(targetColumn.key)) {
+        blocked += 1
+        continue
+      }
+      const mutable = getMutableRow(String(targetRow.rowId))
+      if (!mutable) {
+        blocked += 1
+        continue
+      }
+      const didClear = clearValueForCut(mutable, targetColumn.key)
+      if (!didClear) {
+        blocked += 1
+        continue
+      }
+      if (targetColumn.key === "latencyMs" || targetColumn.key === "errorRate") {
+        statusNeedsRecompute.add(mutable.rowId)
+      }
+      cleared += 1
+    }
+  }
+
+  for (const rowId of statusNeedsRecompute) {
+    const row = mutableById.get(rowId)
+    if (!row) continue
+    row.status = resolveStatus(row.latencyMs, row.errorRate)
+  }
+
+  if (cleared > 0) {
+    sourceRows.value = sourceRows.value.map(row => mutableById.get(row.rowId) ?? row)
+    cellAnchor.value = { rowIndex: range.startRow, columnIndex: range.startColumn }
+    cellFocus.value = { rowIndex: range.endRow, columnIndex: range.endColumn }
+    activeCell.value = { rowIndex: range.startRow, columnIndex: range.startColumn }
+  }
+
+  closeCopyContextMenu()
+  if (cleared === 0) {
+    lastAction.value = `Cut blocked (${blocked} cells)`
+    return false
+  }
+  lastAction.value = blocked > 0
+    ? `Cut ${cleared} cells (${trigger}), blocked ${blocked}`
+    : `Cut ${cleared} cells (${trigger})`
+  return true
+}
+
+async function onCutContextMenuAction() {
+  await cutSelection("context-menu")
 }
 
 function resolveCellCoordFromDataset(rowId: string, columnKey: string): CellCoord | null {
@@ -2604,6 +2770,11 @@ function onViewportKeyDown(event: KeyboardEvent) {
   if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "v") {
     event.preventDefault()
     void pasteSelection("keyboard")
+    return
+  }
+  if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "x") {
+    event.preventDefault()
+    void cutSelection("keyboard")
     return
   }
   const current = resolveCurrentCellCoord()
@@ -3498,6 +3669,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       data-datagrid-copy-menu
       @mousedown.stop
     >
+      <button type="button" data-datagrid-cut-action @click="onCutContextMenuAction">Cut</button>
       <button type="button" data-datagrid-paste-action @click="onPasteContextMenuAction">Paste</button>
       <button type="button" data-datagrid-copy-action @click="onCopyContextMenuAction">Copy</button>
     </div>

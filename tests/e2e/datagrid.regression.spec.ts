@@ -389,6 +389,44 @@ test.describe("datagrid clipboard paste foundation", () => {
   })
 })
 
+test.describe("datagrid clipboard cut foundation", () => {
+  test("keyboard cut clears editable range and keeps copy payload flow", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const actionStatus = page.locator(".datagrid-controls__status")
+    const ownerBefore = await cellText(page, "owner", 0)
+    const deploymentBefore = await cellText(page, "deployment", 0)
+
+    await cellLocator(page, "owner", 0).click()
+    await page.keyboard.press("Shift+ArrowRight")
+    await page.keyboard.press("Shift+ArrowDown")
+    await page.keyboard.press("ControlOrMeta+X")
+
+    await expect(actionStatus).toContainText("Cut 4 cells (keyboard)")
+    expect(await cellText(page, "owner", 0)).not.toBe(ownerBefore)
+    expect(await cellText(page, "deployment", 0)).not.toBe(deploymentBefore)
+    await expect(cellLocator(page, "owner", 0)).toHaveText("")
+    await expect(cellLocator(page, "deployment", 0)).toHaveText("")
+  })
+
+  test("context cut supports mixed editable/non-editable selection with blocked count", async ({ page }) => {
+    await page.goto(ROUTE)
+
+    const serviceBefore = await cellText(page, "service", 0)
+    await cellLocator(page, "service", 0).click()
+    await page.keyboard.press("Shift+ArrowRight")
+
+    await cellLocator(page, "service", 0).click({ button: "right" })
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(1)
+    await page.locator("[data-datagrid-cut-action]").click()
+
+    await expect(page.locator(".datagrid-controls__status")).toContainText("blocked")
+    await expect(cellLocator(page, "service", 0)).toHaveText(serviceBefore)
+    await expect(cellLocator(page, "owner", 0)).toHaveText("")
+    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(0)
+  })
+})
+
 function metricValue(page: Page, label: string): Locator {
   return page
     .locator(".datagrid-metrics div")
