@@ -3282,7 +3282,6 @@ function applyRangeMove(): boolean {
     sourceCellsToClear.set(entry.sourceRowId, set)
   }
 
-  let cleared = 0
   for (const [rowId, columns] of sourceCellsToClear.entries()) {
     const mutable = getMutableRow(rowId)
     if (!mutable) {
@@ -3298,7 +3297,6 @@ function applyRangeMove(): boolean {
       if (columnKey === "latencyMs" || columnKey === "errorRate") {
         statusNeedsRecompute.add(mutable.rowId)
       }
-      cleared += 1
     }
   }
 

@@ -675,17 +675,21 @@ test.describe("datagrid critical regression bundle", () => {
     const ownerWidthAfter = await headerWidth(ownerHeader)
     expect(ownerWidthAfter).toBeGreaterThanOrEqual(ownerWidthBefore)
 
-    await expect.poll(async () => page.locator('.datagrid-stage__cell[data-column-key="owner"]').count()).toBeGreaterThan(0)
+    const ownerCells = page.locator('.datagrid-stage__cell[data-column-key="owner"]')
+    if ((await ownerCells.count()) < 2) {
+      await openHeaderFilter(page, "owner")
+      await page.locator("[data-datagrid-filter-clear-all]").click()
+    }
+    await expect.poll(async () => ownerCells.count()).toBeGreaterThan(1)
+
     const viewport = page.locator(".datagrid-stage__viewport")
     await viewport.evaluate(element => {
       element.scrollTop = 0
     })
-    const ownerCell0 = leafCellLocator(page, "owner", 0)
-    const ownerCell1 = leafCellLocator(page, "owner", 1)
-    await ownerCell0.scrollIntoViewIfNeeded()
+    const ownerCell0 = cellLocator(page, "owner", 0)
+    const ownerCell1 = cellLocator(page, "owner", 1)
     await ownerCell0.click()
     await page.keyboard.press("ControlOrMeta+C")
-    await ownerCell1.scrollIntoViewIfNeeded()
     await ownerCell1.click()
     await page.keyboard.press("ControlOrMeta+V")
     await expect(page.locator(".datagrid-controls__status")).toContainText("Pasted")
