@@ -54,6 +54,8 @@
         @apply relative min-w-0;
         width: 100%;
         overflow: hidden;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
     }
 
     .affino-datagrid-demo__controls {
@@ -114,8 +116,18 @@
         @apply mt-1 text-sm font-semibold text-[var(--text-strong)];
     }
 
+    .affino-datagrid-demo__header-viewport {
+        @apply relative overflow-hidden border border-b-0 border-[var(--panel-border)] bg-[rgba(6,10,20,0.98)];
+        border-top-left-radius: 0.9rem;
+        border-top-right-radius: 0.9rem;
+        max-width: 100%;
+    }
+
     .affino-datagrid-demo__viewport {
-        @apply relative overflow-auto rounded-[0.9rem] border border-[var(--panel-border)] bg-[rgba(5,8,16,0.95)];
+        @apply relative overflow-auto border border-[var(--panel-border)] bg-[rgba(5,8,16,0.95)];
+        border-top: none;
+        border-bottom-left-radius: 0.9rem;
+        border-bottom-right-radius: 0.9rem;
         max-height: 560px;
         max-width: 100%;
         width: 100%;
@@ -135,6 +147,15 @@
     [data-datagrid-spacer-top],
     [data-datagrid-spacer-bottom] {
         overflow-anchor: none;
+    }
+
+    .affino-datagrid-demo__overlay-layer {
+        position: absolute;
+        left: 0;
+        right: 0;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 18;
     }
 
     .affino-datagrid-demo__selection-overlay {
@@ -191,8 +212,7 @@
     }
 
     .affino-datagrid-demo__header {
-        position: sticky;
-        top: 0;
+        position: relative;
         z-index: 36;
         background: rgba(6, 10, 20, 0.98);
         border-bottom: 1px solid rgba(145, 170, 210, 0.22);

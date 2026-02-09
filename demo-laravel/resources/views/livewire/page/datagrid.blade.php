@@ -40,6 +40,24 @@
                     </select>
                 </label>
 
+                <label class="affino-datagrid-demo__control">
+                    <span>Column visibility</span>
+                    <select data-datagrid-visibility>
+                        <option value="all" selected>All columns</option>
+                        <option value="incident-core">Incident core</option>
+                        <option value="reliability-ops">Reliability ops</option>
+                    </select>
+                </label>
+
+                <label class="affino-datagrid-demo__control">
+                    <span>Advanced filter</span>
+                    <select data-datagrid-advanced-filter>
+                        <option value="none" selected>None</option>
+                        <option value="risk-hotspots">Risk hotspots</option>
+                        <option value="production-critical">Production critical</option>
+                    </select>
+                </label>
+
                 <label class="affino-datagrid-demo__toggle">
                     <input type="checkbox" data-datagrid-pin-status>
                     <span>Pin status column</span>
@@ -85,17 +103,41 @@
                     <dt>Group by</dt>
                     <dd data-datagrid-grouped>None</dd>
                 </div>
+                <div>
+                    <dt>Advanced filter</dt>
+                    <dd data-datagrid-advanced-filter-summary>None</dd>
+                </div>
+                <div>
+                    <dt>Visible columns window</dt>
+                    <dd data-datagrid-visible-columns-window>0-0 / 0</dd>
+                </div>
+                <div>
+                    <dt>Selected latency Σ</dt>
+                    <dd data-datagrid-selected-latency-sum>—</dd>
+                </div>
+                <div>
+                    <dt>Selected latency avg</dt>
+                    <dd data-datagrid-selected-latency-avg>—</dd>
+                </div>
+                <div>
+                    <dt>Selected owners</dt>
+                    <dd data-datagrid-selected-owners>0</dd>
+                </div>
             </dl>
         </aside>
 
         <div class="affino-datagrid-demo__stage">
-            <div class="affino-datagrid-demo__viewport" data-datagrid-viewport tabindex="0">
+            <div class="affino-datagrid-demo__header-viewport" data-datagrid-header-viewport aria-hidden="true">
                 <div class="affino-datagrid-demo__header" data-datagrid-header></div>
+            </div>
+            <div class="affino-datagrid-demo__viewport" data-datagrid-viewport tabindex="0">
                 <div data-datagrid-spacer-top></div>
                 <div class="affino-datagrid-demo__rows" data-datagrid-rows></div>
+                <div data-datagrid-spacer-bottom></div>
+            </div>
+            <div class="affino-datagrid-demo__overlay-layer" data-datagrid-overlay-layer aria-hidden="true">
                 <div class="affino-datagrid-demo__selection-overlay" data-datagrid-selection-overlay hidden></div>
                 <div class="affino-datagrid-demo__selection-overlay affino-datagrid-demo__selection-overlay--fill" data-datagrid-fill-overlay hidden></div>
-                <div data-datagrid-spacer-bottom></div>
             </div>
             <div class="affino-datagrid-demo__menu" data-datagrid-context-menu role="menu" hidden>
                 <button type="button" role="menuitem" data-datagrid-menu-action="copy">Copy</button>
