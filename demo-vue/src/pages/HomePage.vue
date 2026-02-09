@@ -58,6 +58,12 @@ const advancedFlows = [
     label: "DataGrid demo",
   },
   {
+    title: "DataGrid Sugar",
+    description: "High-level useAffinoDataGrid API with ready bindings.",
+    to: "/datagrid/sugar",
+    label: "DataGrid sugar",
+  },
+  {
     title: "Livewire adapters",
     description: "Laravel demo mirrors this layout.",
     href: "http://127.0.0.1:4180",

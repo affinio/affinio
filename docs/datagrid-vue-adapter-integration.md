@@ -1,18 +1,25 @@
 # DataGrid Vue Adapter Integration Guide
 
-Baseline date: `2026-02-08`
+Baseline date: `2026-02-09`
 Package: `@affino/datagrid-vue`
 
 ## Current Stable Contract
 
-As of this baseline, the stable public adapter API covers settings persistence and deterministic overlay transforms:
+As of this baseline, the stable public adapter API covers runtime, sugar integration, settings persistence, deterministic overlay transforms, and stable components:
 
 - `createDataGridVueRuntime`
 - `useDataGridRuntime`
+- `useAffinoDataGrid`
+- `useAffinoDataGridUi`
+- `DataGrid`
+- `AffinoDataGridSimple` (`@affino/datagrid-vue/components`)
 - `createDataGridSettingsAdapter`
 - `useDataGridSettingsStore`
 - `buildDataGridOverlayTransform`
 - `buildDataGridOverlayTransformFromSnapshot`
+- `mapDataGridA11yGridAttributes`
+- `mapDataGridA11yCellAttributes`
+- `useDataGridContextMenu`
 
 Cross-platform runtime protocol (from core):
 
@@ -25,7 +32,32 @@ Import path for protocol/runtime/viewport power-user APIs:
 
 Source: `/Users/anton/Projects/affinio/packages/datagrid-vue/src/public.ts`
 
-## Quick Start (Settings + Overlay Determinism)
+## Quick Start (Recommended: Simple Sugar Component)
+
+```ts
+import { ref } from "vue"
+import { AffinoDataGridSimple } from "@affino/datagrid-vue/components"
+
+const rows = ref([
+  { rowId: "1", service: "edge-gateway", owner: "NOC" },
+  { rowId: "2", service: "billing-api", owner: "Payments" },
+])
+
+const columns = [
+  { key: "service", label: "Service", width: 220 },
+  { key: "owner", label: "Owner", width: 180 },
+]
+```
+
+```vue
+<AffinoDataGridSimple
+  v-model:rows="rows"
+  :columns="columns"
+  :features="{ selection: true, clipboard: true, editing: true }"
+/>
+```
+
+## Runtime/Overlay Quick Start (Power-User)
 
 ```ts
 import {

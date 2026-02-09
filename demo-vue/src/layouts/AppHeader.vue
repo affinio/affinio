@@ -131,9 +131,19 @@ const subtitle = computed(() => {
           <a
             :href="href"
             class="nav-link"
-            :class="{ 'nav-link--active': route.path.startsWith('/datagrid') }"
+            :class="{ 'nav-link--active': route.path === '/datagrid' }"
           >
             DataGrid
+          </a>
+        </RouterLink>
+
+        <RouterLink to="/datagrid/sugar" v-slot="{ href }">
+          <a
+            :href="href"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.path.startsWith('/datagrid/sugar') }"
+          >
+            DataGrid Sugar
           </a>
         </RouterLink>
 

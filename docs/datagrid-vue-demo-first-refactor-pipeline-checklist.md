@@ -92,11 +92,11 @@ Goal: довести demo до эталонного UX, затем перене�
 
 ## 09. Final DX Polish and Release Readiness (`target >= 9.5`)
 
-- [ ] Publish concise getting-started docs with copy-paste examples.
-- [ ] Publish migration notes from direct core wiring to datagrid-vue.
-- [ ] Lock stable API list and deprecation policy for next releases.
-- [ ] Final score for step: `TBD`.
-- Comment: `TBD`.
+- [x] Publish concise getting-started docs with copy-paste examples.
+- [x] Publish migration notes from direct core wiring to datagrid-vue.
+- [x] Lock stable API list and deprecation policy for next releases.
+- [x] Final score for step: `9.5`.
+- Comment: `2026-02-09` - DX/release-readiness docs закрыты: quick-start и copy-paste flow обновлены в `/Users/anton/Projects/affinio/packages/datagrid-vue/README.md`; стабильная поверхность и onboarding-поток зафиксированы в `/Users/anton/Projects/affinio/docs/datagrid-vue-stable-entrypoint.md`; интеграционный гайд обновлен в `/Users/anton/Projects/affinio/docs/datagrid-vue-adapter-integration.md`; migration и deprecation policy закреплены в `/Users/anton/Projects/affinio/docs/datagrid-migration-guide.md`, `/Users/anton/Projects/affinio/docs/datagrid-versioned-public-protocol.md`, `/Users/anton/Projects/affinio/docs/datagrid-legacy-compatibility-window.md`.
 
 ## 10. Sugar Layer (60-Second Integrator Setup) (`target >= 9.5`)
 
@@ -105,12 +105,12 @@ Goal: довести demo до эталонного UX, затем перене�
   - `mode A`: advanced owns state and pushes to core.
   - `mode B`: advanced reads state from core and only translates to UI.
   - no mixed A+B semantics inside one composable.
-- [ ] Introduce high-level component API for fast onboarding (AG-style quick start).
-- [ ] Support out-of-the-box setup without mandatory manual module registry.
-- [ ] Keep advanced/custom orchestration in `@affino/datagrid-vue/advanced` (no stable-surface overload).
-- [ ] Publish `npm install -> import -> rows/columns -> render` docs in one minimal flow.
+- [x] Introduce high-level component API for fast onboarding (AG-style quick start).
+- [x] Support out-of-the-box setup without mandatory manual module registry.
+- [x] Keep advanced/custom orchestration in `@affino/datagrid-vue/advanced` (no stable-surface overload).
+- [x] Publish `npm install -> import -> rows/columns -> render` docs in one minimal flow.
 - [ ] Final score for step: `TBD`.
-- Comment: `2026-02-09` - step added by request: sugar wrapper will be implemented after demo extraction is complete.
+- Comment: `2026-02-09` - реализован sugar-слой для быстрого онбординга: `useAffinoDataGrid`, `useAffinoDataGridUi`, и high-level component `/Users/anton/Projects/affinio/packages/datagrid-vue/src/components/AffinoDataGridSimple.ts`; демо-страница `/Users/anton/Projects/affinio/demo-vue/src/pages/DataGridSugarPage.vue` переведена на simple API; минимальный install/import/rows/columns/render поток задокументирован в README и stable-entrypoint docs.
 
 ## 11. Shared Orchestration Core (Post-Extraction) (`target >= 9.5`)
 
@@ -122,7 +122,7 @@ Goal: довести demo до эталонного UX, затем перене�
   - Laravel/Livewire adapter = hydration/events bridge.
   - React adapter = hooks/event bridge.
 - [x] Ensure one-way dependency: adapters depend on orchestration core, not vice versa.
-- [ ] Publish adapter contract so React/Laravel reuse same behavior without rewriting orchestration.
+- [x] Publish adapter contract so React/Laravel reuse same behavior without rewriting orchestration.
 - [ ] Final score for step: `TBD`.
 - Comment: `2026-02-09` - step added by request: shared orchestration core planned after current Vue demo-to-package extraction finishes.
 - Comment: `2026-02-09` - прогресс шага `11`: создан пакет `/Users/anton/Projects/affinio/packages/datagrid-orchestration` и подключен как dependency в `@affino/datagrid-vue`; `67` `useDataGrid*` composables в `@affino/datagrid-vue/advanced` переведены на orchestration core (часть как thin wrappers, часть как vue-bridge поверх headless calculators/services) без изменения публичного API.
@@ -243,3 +243,6 @@ Goal: довести demo до эталонного UX, затем перене�
 - `2026-02-09`: step `11` progress - добавлены shared contracts (`context-menu`, `pointer`, `writable-ref`) и вынесены дополнительные orchestration блоки: overlay transform, context-menu action/anchor/router, header context actions, header sort/resize core, clipboard bridge/mutations, intent history, rows projection, grouping/group-meta, column layout, virtual range metrics, selection overlay, row-selection helpers, inline-edit core. Суммарно `67` composables в `datagrid-vue` теперь используют `@affino/datagrid-orchestration`; открытыми остались `3` vue-bound модуля (`column-filter`, `context-menu`, `runtime`).
 - `2026-02-09`: step `08` progress - converted remaining interaction wrapper `function` blocks in `DataGridPage.vue` into forward delegate constants (including fill/move/drag/autoscroll/cell-hit/keyboard/context handlers). File now keeps only demo-specific scenario logic (`randomizeRuntime/resetDataset/theme/row synthesis/formatters`) as local functions.
 - `2026-02-09`: step `11` progress - завершен перенос последних `3` vue-bound composables (`column-filter`, `context-menu`, `runtime`) в `@affino/datagrid-orchestration`; в `@affino/datagrid-vue` не осталось `useDataGrid*.ts` с собственной orchestration-логикой, только thin Vue bridges и API-совместимые re-export wrappers.
+- `2026-02-09`: step `09` fully closed with score `9.5` (getting-started/migration/stable+deprecation docs synced).
+- `2026-02-09`: step `10` partial close - high-level sugar API delivered (`useAffinoDataGrid`, `useAffinoDataGridUi`, `AffinoDataGridSimple`) and minimal 60-second flow documented; gating items tied to step `08` parity remain open.
+- `2026-02-09`: step `11` adapter-contract item marked done via cross-platform protocol docs (`docs/datagrid-cross-platform-adapter-protocol.md`); remaining blockers are step `08`-gated (`start condition`, thin-adapter completion for non-Vue, and final score).

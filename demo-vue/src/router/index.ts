@@ -30,6 +30,11 @@ const router = createRouter({
       component: () => import("@/pages/DataGridPage.vue"),
     },
     {
+      path: "/datagrid/sugar",
+      name: "datagrid-sugar-demo",
+      component: () => import("@/pages/DataGridSugarPage.vue"),
+    },
+    {
       path: "/dialogs",
       name: "dialog-demo",
       component: () => import("@/pages/DialogPage.vue"),
