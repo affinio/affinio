@@ -50,6 +50,8 @@ import {
   useDataGridGroupMetaOrchestration,
   useDataGridGroupBadge,
   useDataGridGroupingSortOrchestration,
+  resolveDataGridHeaderLayerViewportGeometry,
+  resolveDataGridHeaderScrollSyncLeft,
   useDataGridDragPointerSelection,
   useDataGridClipboardBridge,
   useDataGridClipboardMutations,
@@ -362,6 +364,7 @@ const DATA_GRID_COLUMNS: readonly DataGridColumnDef[] = [
 ]
 
 const viewportRef = ref<HTMLDivElement | null>(null)
+const headerViewportRef = ref<HTMLDivElement | null>(null)
 const headerRef = ref<HTMLDivElement | null>(null)
 const themeRootRef = ref<HTMLElement | null>(null)
 const scrollTop = ref(0)
@@ -369,6 +372,17 @@ const scrollLeft = ref(0)
 const viewportHeight = ref(420)
 const viewportWidth = ref(960)
 const headerHeight = ref(ROW_HEIGHT)
+const bodyViewportHeaderOffset = computed(() => 0)
+const viewportLayerGeometry = computed(() => resolveDataGridHeaderLayerViewportGeometry({
+  headerViewportHeight: headerHeight.value,
+  bodyViewportWidth: viewportWidth.value,
+  bodyViewportHeight: viewportHeight.value,
+}))
+const overlayLayerStyle = computed(() => ({
+  top: `${viewportLayerGeometry.value.overlayTop}px`,
+  width: `${viewportLayerGeometry.value.overlayWidth}px`,
+  height: `${viewportLayerGeometry.value.overlayHeight}px`,
+}))
 const cellAnchor = ref<CellCoord | null>(null)
 const cellFocus = ref<CellCoord | null>(null)
 const activeCell = ref<CellCoord | null>(null)
@@ -1762,7 +1776,7 @@ const pointerCellCoordResolver = useDataGridPointerCellCoordResolver<CellCoord>(
     return orderedColumns.value
   },
   resolveHeaderHeight() {
-    return headerHeight.value
+    return bodyViewportHeaderOffset.value
   },
   resolveRowHeight() {
     return ROW_HEIGHT
@@ -1774,6 +1788,19 @@ const axisAutoScrollDelta = useDataGridAxisAutoScrollDelta({
   edgePx: DRAG_AUTO_SCROLL_EDGE_PX,
   maxStepPx: DRAG_AUTO_SCROLL_MAX_STEP_PX,
 })
+function setSynchronizedScrollLeft(nextLeft: number) {
+  scrollLeft.value = resolveDataGridHeaderScrollSyncLeft(scrollLeft.value, nextLeft)
+}
+function syncHeaderViewportScroll() {
+  const headerViewport = headerViewportRef.value
+  if (!headerViewport) {
+    return
+  }
+  const nextLeft = resolveDataGridHeaderScrollSyncLeft(headerViewport.scrollLeft, scrollLeft.value)
+  if (headerViewport.scrollLeft !== nextLeft) {
+    headerViewport.scrollLeft = nextLeft
+  }
+}
 const cellVisibilityScroller = useDataGridCellVisibilityScroller<CellCoord>({
   resolveViewportElement() {
     return viewportRef.value
@@ -1782,14 +1809,14 @@ const cellVisibilityScroller = useDataGridCellVisibilityScroller<CellCoord>({
     return orderedColumnMetrics.value[columnIndex] ?? null
   },
   resolveHeaderHeight() {
-    return headerHeight.value
+    return bodyViewportHeaderOffset.value
   },
   resolveRowHeight() {
     return ROW_HEIGHT
   },
   setScrollPosition(position) {
     scrollTop.value = position.top
-    scrollLeft.value = position.left
+    setSynchronizedScrollLeft(position.left)
   },
 })
 ensureCellVisibleByCoord = cellVisibilityScroller.ensureCellVisible
@@ -1853,12 +1880,12 @@ const pointerAutoScroll = useDataGridPointerAutoScroll({
     return viewportRef.value
   },
   resolveHeaderHeight() {
-    return headerHeight.value
+    return bodyViewportHeaderOffset.value
   },
   resolveAxisAutoScrollDelta,
   setScrollPosition(next) {
     scrollTop.value = next.top
-    scrollLeft.value = next.left
+    setSynchronizedScrollLeft(next.left)
   },
   applyRangeMovePreviewFromPointer,
   applyFillPreviewFromPointer,
@@ -2014,7 +2041,7 @@ const cellNavigation = useDataGridCellNavigation<CellCoord>({
     return Math.max(0, resolveDisplayRowCount() - 1)
   },
   resolveStepRows() {
-    return Math.max(1, Math.floor((viewportHeight.value - headerHeight.value) / ROW_HEIGHT))
+    return Math.max(1, Math.floor(viewportLayerGeometry.value.overlayHeight / ROW_HEIGHT))
   },
   closeContextMenu: closeCopyContextMenu,
   clearCellSelection,
@@ -2650,7 +2677,7 @@ const activeCellLabel = computed(() => {
 })
 
 const selectionOverlayOrchestration = useDataGridSelectionOverlayOrchestration({
-  headerHeight,
+  headerHeight: bodyViewportHeaderOffset,
   rowHeight: ROW_HEIGHT,
   orderedColumns,
   orderedColumnMetrics,
@@ -2830,7 +2857,7 @@ const viewportScrollLifecycle = useDataGridViewportScrollLifecycle({
     scrollTop.value = value
   },
   setScrollLeft(value) {
-    scrollLeft.value = value
+    setSynchronizedScrollLeft(value)
   },
   hasInlineEditor() {
     return Boolean(inlineEditor.value)
@@ -2844,6 +2871,7 @@ const onViewportScroll = (event: Event) => {
     return
   }
   viewportScrollLifecycle.onViewportScroll(event)
+  syncHeaderViewportScroll()
 }
 
 function randomizeRuntime() {
@@ -2879,6 +2907,10 @@ function resetDataset() {
     scrollLeft.value = 0
   }
 }
+
+watch(scrollLeft, () => {
+  syncHeaderViewportScroll()
+})
 
 watch(rowCount, () => {
   resetVisibleRowsSyncCache()
@@ -2991,6 +3023,9 @@ function resetViewportScrollPosition() {
     viewportRef.value.scrollTop = 0
     viewportRef.value.scrollLeft = 0
   }
+  if (headerViewportRef.value) {
+    headerViewportRef.value.scrollLeft = 0
+  }
   scrollTop.value = 0
   scrollLeft.value = 0
 }
@@ -3008,13 +3043,16 @@ onMounted(() => {
   }
   syncViewportHeight()
   resetViewportScrollPosition()
+  syncHeaderViewportScroll()
   syncVisibleRows()
   void nextTick(() => {
     resetViewportScrollPosition()
+    syncHeaderViewportScroll()
     syncVisibleRows()
     if (typeof window !== "undefined") {
       window.requestAnimationFrame(() => {
         resetViewportScrollPosition()
+        syncHeaderViewportScroll()
         syncVisibleRows()
         isViewportBootstrapping = false
       })
@@ -3343,23 +3381,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
     </section>
 
     <section class="datagrid-stage">
-      <div
-        ref="viewportRef"
-        class="datagrid-stage__viewport"
-        :class="{ 'is-drag-selecting': isDragSelecting, 'is-fill-dragging': isFillDragging, 'is-range-moving': isRangeMoving, 'is-column-resizing': isColumnResizing }"
-        tabindex="0"
-        role="grid"
-        aria-label="Datagrid viewport"
-        :aria-colcount="orderedColumns.length"
-        :aria-rowcount="gridRowCount"
-        aria-multiselectable="true"
-        :aria-activedescendant="activeCellDescendantId ?? undefined"
-        :aria-describedby="GRID_HINT_ID"
-        @scroll="onViewportScroll"
-        @contextmenu="onViewportContextMenu"
-        @keydown="onViewportKeyDown"
-        @blur="onViewportBlur"
-      >
+      <div ref="headerViewportRef" class="datagrid-stage__header-viewport">
         <div ref="headerRef" class="datagrid-stage__header" role="row" :style="{ gridTemplateColumns: layerTrackTemplate }">
           <div
             v-for="layer in columnLayers"
@@ -3601,7 +3623,26 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             </div>
           </div>
         </div>
+      </div>
 
+      <div class="datagrid-stage__body">
+      <div
+        ref="viewportRef"
+        class="datagrid-stage__viewport"
+        :class="{ 'is-drag-selecting': isDragSelecting, 'is-fill-dragging': isFillDragging, 'is-range-moving': isRangeMoving, 'is-column-resizing': isColumnResizing }"
+        tabindex="0"
+        role="grid"
+        aria-label="Datagrid viewport"
+        :aria-colcount="orderedColumns.length"
+        :aria-rowcount="gridRowCount"
+        aria-multiselectable="true"
+        :aria-activedescendant="activeCellDescendantId ?? undefined"
+        :aria-describedby="GRID_HINT_ID"
+        @scroll="onViewportScroll"
+        @contextmenu="onViewportContextMenu"
+        @keydown="onViewportKeyDown"
+        @blur="onViewportBlur"
+      >
         <div :style="{ height: `${spacerTopHeight}px` }"></div>
 
         <div
@@ -3770,6 +3811,10 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           </div>
         </div>
 
+        <div v-if="visibleRows.length === 0" class="datagrid-stage__empty">No rows matched current filters.</div>
+        <div :style="{ height: `${spacerBottomHeight}px` }"></div>
+      </div>
+      <div class="datagrid-stage__overlay-layer" :style="overlayLayerStyle" aria-hidden="true">
         <div
           v-for="segment in fillPreviewOverlaySegments"
           :key="segment.key"
@@ -3790,9 +3835,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           class="datagrid-stage__selection-overlay datagrid-stage__selection-overlay--main"
           :style="segment.style"
         ></div>
-
-        <div v-if="visibleRows.length === 0" class="datagrid-stage__empty">No rows matched current filters.</div>
-        <div :style="{ height: `${spacerBottomHeight}px` }"></div>
+      </div>
       </div>
       <p :id="GRID_HINT_ID" class="datagrid-stage__hint">Visible columns: {{ visibleColumnsWindow.keys }} · Tip: drag selection border to move range.</p>
     </section>
