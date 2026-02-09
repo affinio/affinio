@@ -57,4 +57,33 @@ test.describe("laravel datagrid interactions", () => {
     await expect(targetCell).toHaveText(editedValue)
     expect(targetBefore).not.toBe("")
   })
+
+  test("keyboard navigation auto-scrolls to keep active cell visible", async ({ page }) => {
+    await page.goto("http://127.0.0.1:4180/datagrid")
+
+    const viewport = page.locator("[data-datagrid-viewport]")
+    await expect(viewport).toBeVisible()
+
+    const firstCell = page
+      .locator('[data-datagrid-row-index="0"][data-datagrid-column-key="service"]')
+      .first()
+    await firstCell.click()
+    await viewport.focus()
+
+    const activeCellValue = page.locator("[data-datagrid-active-cell]")
+    const initialActive = (await activeCellValue.textContent())?.trim() ?? ""
+
+    await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBe(0)
+
+    for (let i = 0; i < 60; i += 1) {
+      await page.keyboard.press("ArrowDown")
+    }
+
+    await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+
+    await expect.poll(async () => {
+      const current = (await activeCellValue.textContent())?.trim() ?? ""
+      return current !== "" && current !== initialActive
+    }).toBe(true)
+  })
 })

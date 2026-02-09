@@ -1,6 +1,6 @@
 # DataGrid Sheets Baseline: User Interactions + Integrator API
 
-Updated: `2026-02-08`
+Updated: `2026-02-09`
 Scope: `/datagrid` demo baseline and `@affino/datagrid-core` integration contract.
 
 ## 1) End-User Interactions (Behavior Contract)
@@ -94,6 +94,7 @@ await api.start()
 - Keep row identity stable (`rowId`/`rowKey`), never index-based fallback.
 - Keep GroupBy in row-model pipeline (`filter -> sort -> groupBy -> flatten -> viewport`).
 - Treat transaction history as model-level capability, not UI-only state.
+- Prefer declarative `advancedExpression` in filter snapshot for complex conditions (`and`/`or`/`not`).
 
 ### Common API operations
 
@@ -110,6 +111,8 @@ await api.start()
   - `api.applyTransaction(tx)`
   - `api.undoTransaction()`
   - `api.redoTransaction()`
+- Selection summary:
+  - `api.summarizeSelection({ columns, defaultAggregations })`
 
 ## 3) Related References
 

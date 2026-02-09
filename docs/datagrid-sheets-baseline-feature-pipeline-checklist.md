@@ -147,6 +147,25 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 - [x] Final score for step: `9.1`.
 - Comment: `2026-02-08` - подпункт `11.1` закрыт: в `packages/datagrid-core/src/core/transactionService.ts` добавлен `maxHistoryDepth` (bounded undo stack без изменения apply semantics), добавлен контрактный тест в `packages/datagrid-core/src/core/__tests__/transactionService.contract.spec.ts` (overflow history keeps latest intent-level transactions only). Подпункт `11.2` закрыт: transaction contract расширен `meta` (`intent`, `affectedRange`) для input/command/event, и demo wiring в `demo-vue/src/pages/DataGridPage.vue` теперь записывает intent-транзакции (`paste`, `cut`, `clear`, `fill`, `move`, `edit`) с label + affected range через `createDataGridTransactionService`. Подпункт `11.3` закрыт: demo runtime подключен к core transaction capability (`services.transaction` + `DataGridApi.applyTransaction/undoTransaction/redoTransaction`) вместо прямых вызовов локального runtime. Подпункт `11.4` закрыт: добавлены deterministic keyboard bindings `Cmd/Ctrl+Z`, `Cmd/Ctrl+Shift+Z` и `Ctrl+Y` в `onViewportKeyDown`, с приоритетным перехватом до навигации/контекстного меню. Подпункт `11.5` закрыт: в `tests/e2e/datagrid.regression.spec.ts` добавлен history regression bundle с grouped + virtualized setup (`Rows=6400`, `Group by=Service`, pinned column, long vertical/horizontal session) и проверками undo/redo для `edit`, `paste`, `cut`, `fill`, `move` через keyboard и control buttons.
 
+## 12. Tree/AdvancedFilter/Summary/Visibility Hardening (`target >= 9.0`)
+
+- [x] `12.1` TreeView baseline formalized as RowModel projection contract (group rows as virtual rows, expansion state in model, flattened viewport boundary).
+- [x] `12.2` Advanced filter upgraded from column-only clauses to declarative expression AST (`condition|group|not`) with legacy compatibility bridge.
+- [x] `12.3` Selection summarize engine added in core (`count`, `countDistinct`, `sum`, `avg`, `min`, `max`) with API facade access.
+- [x] `12.4` Column visibility contract fixed as canonical projection boundary for selection/summary/navigation (`visibleColumns` as source of truth).
+- [x] Final score for step: `9.2`.
+- Comment: `2026-02-09` - `12.1` закрыт документально и контрактно: `docs/datagrid-model-contracts.md` обновлен секцией `TreeView Contract`, модельная граница зафиксирована как `filter -> sort -> group/tree -> flatten -> virtualization`. `12.2` закрыт реализационно: добавлен headless expression engine `packages/datagrid-core/src/models/advancedFilter.ts` (typed operators, nested `and/or/not`), расширен `DataGridFilterSnapshot` полем `advancedExpression`, `createClientRowModel` переведен на expression evaluation с back-compat через `buildDataGridAdvancedFilterExpressionFromLegacyFilters`, добавлены unit/contract tests (`models/__tests__/advancedFilter.spec.ts`, `models/__tests__/clientRowModel.spec.ts`). `12.3` закрыт реализационно: добавлен core summary engine `packages/datagrid-core/src/selection/selectionSummary.ts` + API facade `DataGridApi.summarizeSelection(...)` (`packages/datagrid-core/src/core/gridApi.ts`) и contract tests (`selection/__tests__/selectionSummary.spec.ts`, `core/__tests__/gridApi.contract.spec.ts`). `12.4` подтвержден как canonical boundary через ColumnModel snapshot (`visibleColumns`) и зафиксирован в docs/contracts.
+
+## 13. Demo-first Feature Lift (`internal demo -> sugar`)
+
+- [x] `13.1` Internal demo wired with advanced-filter presets and active-state indicators.
+- [x] `13.2` Internal demo wired with selection summarize metrics (`sum/avg/countDistinct`).
+- [x] `13.3` Sugar API (`useAffinoDataGrid`) exposes filtering + summary features for integrators.
+- [x] `13.4` Column visibility shipped as runtime feature in both internal demo and sugar API.
+- [x] `13.5` TreeView parent/child projection UX in internal demo (expand/collapse virtual tree rows, not only grouped badges).
+- [x] `13.6` Decompose `useAffinoDataGrid` into feature-focused sub-composables (`selection/clipboard/editing/filtering/summary/visibility`) and keep top-level composable as orchestrator.
+- Comment: `2026-02-09` - step `13` закрыт полностью: `13.1-13.5` выполнены (advanced filter + summary + visibility + tree runtime UX в internal demo), и `13.6` выполнен рефактором sugar оркестратора. В `useAffinoDataGrid` оставлен orchestration-layer, а feature-логика вынесена в отдельные composables: `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useAffinoDataGridSelectionFeature.ts`, `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useAffinoDataGridClipboardFeature.ts`, `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useAffinoDataGridEditingFeature.ts`, `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useAffinoDataGridFilteringFeature.ts`, `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useAffinoDataGridSummaryFeature.ts`, `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useAffinoDataGridVisibilityFeature.ts`, `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useAffinoDataGridTreeFeature.ts`. Summary wiring остался через публичный API контракт `runtime.api.summarizeSelection(...)`, tree sugar добавлен через `features.tree` (`setGroupBy/toggleGroup/expandAll/collapseAll` + reactive `groupBy/groupExpansion`).
+
 ## Close Log
 
 - `2026-02-08`: checklist created.
@@ -176,3 +195,5 @@ Goal: покрыть базовый функционал уровня AG Grid/Go
 - `2026-02-08`: step `11.5` (grouped+virtualized e2e history bundle for edit/paste/cut/fill/move with keyboard/control undo-redo) closed.
 - `2026-02-08`: step `10` fully closed with score `9.2` (including docs + 10.4 umbrella close).
 - `2026-02-08`: step `11` fully closed with score `9.1`.
+- `2026-02-09`: step `12` fully closed with score `9.2`.
+- `2026-02-09`: step `13` fully closed (internal demo uplift + sugar feature decomposition complete).

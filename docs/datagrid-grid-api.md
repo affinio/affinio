@@ -1,6 +1,6 @@
 # DataGrid Unified Grid API
 
-Updated: `2026-02-08`
+Updated: `2026-02-09`
 
 `GridApi` is the semver-safe facade for model/service operations in `@affino/datagrid-core`.
 
@@ -60,6 +60,7 @@ Creation is fail-fast for missing required services (`rowModel` / `columnModel`)
   - `getSelectionSnapshot`
   - `setSelectionSnapshot`
   - `clearSelection`
+  - `summarizeSelection`
 - transaction:
   - `hasTransactionSupport`
   - `getTransactionSnapshot`
@@ -72,6 +73,9 @@ Selection contract in `GridApi` is headless:
 
 - `getSelectionSnapshot(): DataGridSelectionSnapshot | null`
 - `setSelectionSnapshot(snapshot: DataGridSelectionSnapshot): void`
+- `summarizeSelection(options?): DataGridSelectionSummarySnapshot | null`
+
+`summarizeSelection` computes aggregates over current selection scope from core services (`rowModel` + `columnModel` + `selection`) and supports per-column metric config (`count`, `countDistinct`, `sum`, `avg`, `min`, `max`).
 
 UI adapter mapping stays at adapter boundary (Vue): core snapshot (`GridSelectionSnapshot`) is converted to UI snapshot (`UiTableSelectionSnapshot`) inside `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useTableSelection.ts`.
 

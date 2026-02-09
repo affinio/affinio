@@ -1,6 +1,6 @@
 # DataGrid Model Contracts
 
-Updated: `2026-02-08`
+Updated: `2026-02-09`
 
 This document defines the canonical model layer for `@affino/datagrid-core`.
 
@@ -76,6 +76,17 @@ Execution notes:
 
 Reference: `/Users/anton/Projects/affinio/docs/datagrid-groupby-rowmodel-projection.md`.
 
+## TreeView Contract (DataGrid Baseline)
+
+TreeView in DataGrid is treated as **row projection**, not UI state:
+
+- hierarchy is produced as virtual group rows (`kind="group"`) + leaf rows (`kind="leaf"`)
+- expansion/collapse is model state (`groupExpansion`) via `toggleGroup(groupKey)`
+- viewport consumes flattened rows only (tree-agnostic virtualization)
+- adapters derive render hints from row meta (`level`, `isGroup`, `isExpanded`, `hasChildren`)
+
+Current baseline implementation uses `groupBy` projection in `DataGridRowModel`.
+
 ## Column Model
 
 `DataGridColumnModel` is the canonical ownership boundary for column state.
@@ -100,6 +111,12 @@ Snapshot guarantees:
 
 - deterministic order output
 - `visibleColumns` is derived from canonical state
+
+Dynamic visibility contract:
+
+- `setColumnVisibility(key, visible)` is the canonical runtime command
+- `visibleColumns` in snapshot is the source of truth for viewport/render adapters
+- selection/clipboard/navigation must resolve column indices against visible projection, not raw schema order
 
 Viewport boundary:
 
@@ -144,6 +161,46 @@ Command invariants:
 - same command sequence gives same apply/undo/redo ordering
 - history is intent-level (transaction/batch), not per-cell event stream
 - optional `maxHistoryDepth` caps undo memory growth without changing apply semantics
+
+## Advanced Filter Contract
+
+`DataGridFilterSnapshot` supports both compatibility and canonical expression input:
+
+- compatibility: `advancedFilters` map (`columnKey -> clauses[]`)
+- canonical: `advancedExpression` AST (`condition | group | not`)
+
+Expression rules:
+
+- condition: `{ key, operator, value, value2?, type? }`
+- group: `{ operator: "and" | "or", children[] }`
+- not: `{ child }`
+
+Projection order remains unchanged:
+
+- filter (including advanced expression) -> sort -> group/tree projection -> flatten -> virtualization
+
+Compatibility guarantee:
+
+- if `advancedExpression` is absent, row model derives expression from legacy `advancedFilters` map.
+
+## Selection Summary Contract
+
+`createDataGridSelectionSummary` is a headless aggregation engine over current selection scope.
+
+Input boundary:
+
+- selection snapshot (ranges/active cell)
+- row source (`rowCount`, `getRow`)
+- visible column resolver (`getColumnKeyByIndex`)
+
+Output:
+
+- immutable summary snapshot (`selectedCells`, `selectedRows`, per-column metrics)
+- supported metrics: `count`, `countDistinct`, `sum`, `avg`, `min`, `max`
+
+API bridge:
+
+- `DataGridApi.summarizeSelection(...)` computes summary directly from core services (rowModel + columnModel + selection).
 
 ## Public API Tiers
 

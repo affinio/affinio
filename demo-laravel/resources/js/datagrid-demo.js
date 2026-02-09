@@ -142,6 +142,19 @@ function mountDatagridDemo(root) {
 
     let frameHandle = null;
 
+    const debugAutoScroll =
+        root.dataset.datagridDebugAutoscroll === "true" ||
+        (typeof window !== "undefined" && window.__AFFINO_DATAGRID_DEBUG_AUTOSCROLL === true);
+
+    const logAutoScroll = (...args) => {
+        if (!debugAutoScroll) {
+            return;
+        }
+        console.debug("[Affino][DataGridDemo][AutoScroll]", ...args);
+    };
+
+    const resolveColumnWidth = (column) => Math.max(110, column.width ?? 160);
+
     const setStatus = (message) => {
         statusMessage = message;
         requestRender();
@@ -307,8 +320,79 @@ function mountDatagridDemo(root) {
         const node = rowsHost.querySelector(selector);
         if (node instanceof HTMLElement) {
             node.focus({ preventScroll: true });
+            const beforeTop = viewport.scrollTop;
+            const beforeLeft = viewport.scrollLeft;
             node.scrollIntoView({ block: "nearest", inline: "nearest" });
+            logAutoScroll("scrollIntoView", {
+                rowIndex: activeCell.rowIndex,
+                columnKey: activeCell.columnKey,
+                beforeTop,
+                beforeLeft,
+                afterTop: viewport.scrollTop,
+                afterLeft: viewport.scrollLeft,
+            });
+            return;
         }
+
+        if (!Number.isFinite(activeCell.rowIndex) || activeCell.rowIndex < 0) {
+            return;
+        }
+
+        const columns = resolveVisibleColumns();
+        const orderedColumns = orderColumns(columns);
+        const targetColumnIndex = orderedColumns.findIndex((column) => column.key === activeCell.columnKey);
+        const targetColumn = targetColumnIndex >= 0 ? orderedColumns[targetColumnIndex] : null;
+        const headerHeight = header instanceof HTMLElement ? header.offsetHeight : ROW_HEIGHT;
+        const rowTop = headerHeight + activeCell.rowIndex * ROW_HEIGHT;
+        const rowBottom = rowTop + ROW_HEIGHT;
+
+        let nextTop = viewport.scrollTop;
+        let nextLeft = viewport.scrollLeft;
+
+        if (rowTop < viewport.scrollTop) {
+            nextTop = rowTop;
+        } else if (rowBottom > viewport.scrollTop + viewport.clientHeight) {
+            nextTop = rowBottom - viewport.clientHeight;
+        }
+
+        if (targetColumn && targetColumn.pin !== "left" && targetColumn.pin !== "right") {
+            let leftOffset = 0;
+            let targetWidth = resolveColumnWidth(targetColumn);
+            orderedColumns.forEach((column, index) => {
+                const width = resolveColumnWidth(column);
+                if (index < targetColumnIndex) {
+                    leftOffset += width;
+                }
+                if (index === targetColumnIndex) {
+                    targetWidth = width;
+                }
+            });
+
+            const columnLeft = leftOffset;
+            const columnRight = columnLeft + targetWidth;
+            const visibleLeft = viewport.scrollLeft;
+            const visibleRight = viewport.scrollLeft + viewport.clientWidth;
+
+            if (columnLeft < visibleLeft) {
+                nextLeft = columnLeft;
+            } else if (columnRight > visibleRight) {
+                nextLeft = columnRight - viewport.clientWidth;
+            }
+        }
+
+        if (nextTop !== viewport.scrollTop) {
+            viewport.scrollTop = nextTop;
+        }
+        if (nextLeft !== viewport.scrollLeft) {
+            viewport.scrollLeft = nextLeft;
+        }
+
+        logAutoScroll("fallback", {
+            rowIndex: activeCell.rowIndex,
+            columnKey: activeCell.columnKey,
+            nextTop: viewport.scrollTop,
+            nextLeft: viewport.scrollLeft,
+        });
     };
 
     const isCellInSelectionRange = (rowIndex, columnIndex) => {
@@ -1274,11 +1358,8 @@ function mountDatagridDemo(root) {
 
         const visibleColumns = api.getColumnModelSnapshot().visibleColumns;
         const orderedColumns = orderColumns(visibleColumns);
-        const templateColumns = orderedColumns.map((column) => `${Math.max(110, column.width ?? 160)}px`).join(" ");
-        const tableWidth = orderedColumns.reduce(
-            (total, column) => total + Math.max(110, column.width ?? 160),
-            0,
-        );
+        const templateColumns = orderedColumns.map((column) => `${resolveColumnWidth(column)}px`).join(" ");
+        const tableWidth = orderedColumns.reduce((total, column) => total + resolveColumnWidth(column), 0);
         const stickyOffsets = createStickyOffsets(orderedColumns);
 
         renderHeader(orderedColumns, templateColumns, stickyOffsets);

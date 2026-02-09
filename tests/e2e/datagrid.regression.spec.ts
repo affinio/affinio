@@ -126,18 +126,18 @@ test.describe("datagrid quick filter foundation", () => {
     const filteredValue = metricValue(page, "Filtered")
     const total = await readText(totalValue)
     const input = page.locator('.datagrid-controls input[placeholder*="quick filter"]')
-    const indicator = page.locator(".datagrid-controls__filter-indicator")
+    const indicator = page.locator(".datagrid-controls__filter-indicator", { hasText: "Quick filter" })
     const clearButton = page.locator(".datagrid-controls__clear-filter")
 
     await expect(indicator).toContainText("Quick filter: all rows")
     await input.fill("edge-gateway-1")
 
-    await expect(indicator).toHaveAttribute("data-active", "true")
+    await expect.poll(async () => indicator.getAttribute("data-active")).toBe("true")
     await expect(filteredValue).not.toHaveText(total)
 
     await clearButton.click()
-    await expect(indicator).toHaveAttribute("data-active", "false")
-    await expect(filteredValue).toHaveText(total)
+    await expect.poll(async () => indicator.getAttribute("data-active")).toBe("false")
+    await expect.poll(async () => await readText(filteredValue)).toBe(total)
   })
 
   test("quick filter composes with sort and virtualization window", async ({ page }) => {
@@ -185,10 +185,10 @@ test.describe("datagrid group-by baseline", () => {
 
     await selectControlOption(page, "Group by", "Owner")
 
-    await expect(metricValue(page, "Group by")).toHaveText("owner")
+    await expect(metricValue(page, "Group by")).toContainText("owner")
     await expect.poll(async () => parseMetricNumber(await readText(metricValue(page, "Groups")))).toBeGreaterThan(1)
     await expect(page.locator(".datagrid-controls__status")).toContainText("Grouped by owner")
-    await expect(page.locator('.datagrid-stage__cell[data-column-key="owner"] .datagrid-stage__group-badge').first()).toBeVisible()
+    await expect(page.locator(".datagrid-stage__tree-toggle").first()).toBeVisible()
   })
 
   test("group by remains deterministic with quick filter and sorting", async ({ page }) => {

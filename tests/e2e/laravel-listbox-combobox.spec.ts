@@ -12,14 +12,14 @@ test.describe("laravel listbox + combobox", () => {
     const trigger = root.locator("[data-affino-listbox-trigger]")
     await trigger.click()
 
-    const optionLabels = await root.locator("[data-affino-listbox-option] strong").allTextContents()
+    const optionLabels = await page.locator("[data-affino-listbox-option] strong").allTextContents()
     const targetIndex = optionLabels.findIndex((label) => label.trim() !== initialSelection)
     const resolvedIndex = targetIndex >= 0 ? targetIndex : 0
-    const option = root.locator("[data-affino-listbox-option]").nth(resolvedIndex)
+    const option = page.locator("[data-affino-listbox-option]").nth(resolvedIndex)
     const targetLabel = optionLabels[resolvedIndex]?.trim() ?? initialSelection
     await option.click()
 
-    await expect(root).toHaveAttribute("data-affino-listbox-state", "closed")
+    await expect.poll(async () => root.getAttribute("data-affino-listbox-state")).toBe("closed")
     await expect(selection).toHaveText(targetLabel)
   })
 
@@ -35,14 +35,14 @@ test.describe("laravel listbox + combobox", () => {
     await input.click()
     await input.fill("")
 
-    const optionLabels = await root.locator("[data-affino-listbox-option] strong").allTextContents()
+    const optionLabels = await page.locator("[data-affino-listbox-option] strong").allTextContents()
     const targetIndex = optionLabels.findIndex((label) => label.trim() !== initialSelection)
     const resolvedIndex = targetIndex >= 0 ? targetIndex : 0
-    const option = root.locator("[data-affino-listbox-option]").nth(resolvedIndex)
+    const option = page.locator("[data-affino-listbox-option]").nth(resolvedIndex)
     const optionLabel = optionLabels[resolvedIndex]?.trim() ?? initialSelection
     await option.click()
 
-    await expect(root).toHaveAttribute("data-affino-combobox-state", "false")
+    await expect.poll(async () => root.getAttribute("data-affino-combobox-state")).toBe("false")
     await expect(selection).toHaveText(optionLabel)
   })
 })

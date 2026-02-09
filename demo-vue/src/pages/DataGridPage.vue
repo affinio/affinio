@@ -3,7 +3,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import AffinoSelect from "@/components/AffinoSelect.vue"
 import ThemeToggle from "@/components/ThemeToggle.vue"
 import {
+  createDataGridSelectionSummary,
+  evaluateDataGridAdvancedFilterExpression,
   type DataGridColumnDef,
+  type DataGridAdvancedFilterExpression,
   type DataGridRowNode,
   type DataGridSortState,
 } from "@affino/datagrid-core"
@@ -170,6 +173,16 @@ type GroupByColumnKey =
   | "severity"
   | "status"
 
+type ColumnVisibilityPreset =
+  | "all"
+  | "incident-core"
+  | "reliability-ops"
+
+type AdvancedFilterPreset =
+  | "none"
+  | "risk-hotspots"
+  | "production-critical"
+
 const ROW_HEIGHT = 38
 const OVERSCAN = 8
 const DRAG_AUTO_SCROLL_EDGE_PX = 36
@@ -186,6 +199,8 @@ const seed = ref(1)
 const query = ref("")
 const sortPreset = ref("latency-desc")
 const groupBy = ref<GroupByColumnKey>("none")
+const columnVisibilityPreset = ref<ColumnVisibilityPreset>("all")
+const advancedFilterPreset = ref<AdvancedFilterPreset>("none")
 const sortState = ref<readonly DataGridSortState[]>([
   { key: "latencyMs", direction: "desc" },
 ])
@@ -208,6 +223,71 @@ const groupByOptions = [
   { value: "severity", label: "Severity" },
   { value: "status", label: "Status" },
 ] as const
+const columnVisibilityPresetOptions = [
+  { value: "all", label: "All columns" },
+  { value: "incident-core", label: "Incident core" },
+  { value: "reliability-ops", label: "Reliability ops" },
+] as const
+const advancedFilterPresetOptions = [
+  { value: "none", label: "None" },
+  { value: "risk-hotspots", label: "Risk hotspots" },
+  { value: "production-critical", label: "Production critical" },
+] as const
+
+const COLUMN_VISIBILITY_PRESETS: Record<ColumnVisibilityPreset, readonly string[]> = {
+  all: [
+    "select",
+    "service",
+    "owner",
+    "region",
+    "environment",
+    "deployment",
+    "severity",
+    "latencyMs",
+    "errorRate",
+    "availabilityPct",
+    "mttrMin",
+    "cpuPct",
+    "memoryPct",
+    "queueDepth",
+    "throughputRps",
+    "sloBurnRate",
+    "incidents24h",
+    "channel",
+    "runbook",
+    "updatedAt",
+    "status",
+  ],
+  "incident-core": [
+    "select",
+    "service",
+    "owner",
+    "region",
+    "environment",
+    "deployment",
+    "severity",
+    "status",
+    "updatedAt",
+  ],
+  "reliability-ops": [
+    "select",
+    "service",
+    "owner",
+    "region",
+    "environment",
+    "latencyMs",
+    "errorRate",
+    "availabilityPct",
+    "mttrMin",
+    "cpuPct",
+    "memoryPct",
+    "queueDepth",
+    "throughputRps",
+    "sloBurnRate",
+    "incidents24h",
+    "status",
+  ],
+}
 
 const NUMERIC_COLUMN_KEYS = new Set<string>([
   "latencyMs",
@@ -394,12 +474,12 @@ const {
   isMultiCellSelection,
   resolveCopyRange,
 } = copyRangeHelpers
-const cellDatasetResolver = useDataGridCellDatasetResolver<IncidentRow, CellCoord>({
+const cellDatasetResolver = useDataGridCellDatasetResolver<DataGridRowNode<IncidentRow>, CellCoord>({
   resolveRows() {
-    return filteredAndSortedRows.value
+    return materializeDisplayRows()
   },
   resolveRowId(row) {
-    return String(row.rowId)
+    return String(row.rowId ?? row.rowKey)
   },
   resolveColumnIndex,
   normalizeCellCoord,
@@ -714,18 +794,21 @@ const history = useDataGridIntentHistory<GridMutationSnapshot>({
   applySnapshot: applyGridMutationSnapshot,
   logger: console,
 })
-const clipboard = useDataGridClipboardBridge<IncidentRow, CellSelectionRange>({
+const clipboard = useDataGridClipboardBridge<DataGridRowNode<IncidentRow>, CellSelectionRange>({
   copiedSelectionRange,
   lastCopiedPayload,
   resolveCopyRange,
   getRowAtIndex(rowIndex) {
-    return resolveDisplayLeafRowAtIndex(rowIndex)
+    return resolveDisplayNodeAtIndex(rowIndex)
   },
   getColumnKeyAtIndex(columnIndex) {
     return orderedColumns.value[columnIndex]?.key ?? null
   },
   getCellValue(row, columnKey) {
-    return getRowCellValue(row, columnKey)
+    if (row.kind === "group") {
+      return ""
+    }
+    return getRowCellValue(row.data, columnKey)
   },
   setLastAction(message) {
     lastAction.value = message
@@ -1253,10 +1336,24 @@ const cellPointerDownRouter = useDataGridCellPointerDownRouter<DataGridRowNode<I
   },
 })
 const onDataCellMouseDown = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) => {
+  if (row.kind === "group") {
+    if (columnKey !== "select" && isTreeGroupToggleCell(row, columnKey)) {
+      const eventTarget = event.target as Element | null
+      if (eventTarget?.closest('[data-datagrid-tree-toggle="true"]')) {
+        return false
+      }
+    }
+    if (event.button === 0 && isTreeGroupToggleCell(row, columnKey)) {
+      event.preventDefault()
+      event.stopPropagation()
+      toggleRuntimeGroup(row)
+      return true
+    }
+    return false
+  }
   if (
     event.detail >= 2 &&
     columnKey !== "select" &&
-    row.kind !== "group" &&
     !event.shiftKey &&
     !isRangeMoveModifierActive(event)
   ) {
@@ -1299,10 +1396,19 @@ const cellPointerHoverRouter = useDataGridCellPointerHoverRouter<DataGridRowNode
 const onDataCellMouseEnter = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) =>
   cellPointerHoverRouter.dispatchCellPointerEnter(row, columnKey, event)
 const onDataCellDoubleClick = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) => {
-  if (columnKey === "select") {
+  if (row.kind === "group") {
+    if (columnKey !== "select" && isTreeGroupToggleCell(row, columnKey)) {
+      const eventTarget = event.target as Element | null
+      if (eventTarget?.closest('[data-datagrid-tree-toggle="true"]')) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      toggleRuntimeGroup(row)
+    }
     return
   }
-  if (row.kind === "group") {
+  if (columnKey === "select") {
     return
   }
   if (event.shiftKey || isRangeMoveModifierActive(event)) {
@@ -1740,6 +1846,39 @@ const {
     transaction: history.transactionService,
   },
 })
+
+function applyColumnVisibilityPreset(preset: ColumnVisibilityPreset): void {
+  const visibleSet = new Set(COLUMN_VISIBILITY_PRESETS[preset] ?? COLUMN_VISIBILITY_PRESETS.all)
+  for (const column of DATA_GRID_COLUMNS) {
+    const shouldBeVisible = column.key === "select" || visibleSet.has(column.key)
+    api.setColumnVisibility(column.key, shouldBeVisible)
+  }
+}
+
+function applyRuntimeGroupBy(nextGroupBy: GroupByColumnKey): void {
+  if (nextGroupBy === "none") {
+    api.setGroupBy(null)
+    return
+  }
+  api.setGroupBy({
+    fields: [nextGroupBy],
+    expandedByDefault: true,
+  })
+}
+
+function toggleRuntimeGroup(row: DataGridRowNode<IncidentRow>): void {
+  if (row.kind !== "group") {
+    return
+  }
+  const groupKey = row.groupMeta?.groupKey ?? String(row.rowId ?? row.rowKey)
+  api.toggleGroup(groupKey)
+  resetVisibleRowsSyncCache()
+  syncVisibleRows()
+  const label = resolveTreeGroupLabel(row)
+  const nextState = row.state.expanded ? "collapsed" : "expanded"
+  lastAction.value = `${nextState}: ${label}`
+}
+
 resolveDisplayRowCount = () => Math.max(0, rowModel.getRowCount())
 resolveDisplayNodeAtIndex = (rowIndex: number) => {
   if (!Number.isFinite(rowIndex)) {
@@ -1837,8 +1976,96 @@ const rowsProjection = useDataGridRowsProjection({
 })
 const {
   normalizedQuickFilter,
-  filteredAndSortedRows,
+  filteredAndSortedRows: baseFilteredAndSortedRows,
 } = rowsProjection
+const advancedFilterExpression = computed<DataGridAdvancedFilterExpression | null>(() => {
+  if (advancedFilterPreset.value === "none") {
+    return null
+  }
+  if (advancedFilterPreset.value === "risk-hotspots") {
+    return {
+      kind: "group",
+      operator: "and",
+      children: [
+        {
+          kind: "condition",
+          key: "status",
+          type: "text",
+          operator: "in",
+          value: ["degraded", "watch"],
+        },
+        {
+          kind: "group",
+          operator: "or",
+          children: [
+            {
+              kind: "condition",
+              key: "latencyMs",
+              type: "number",
+              operator: "gt",
+              value: 320,
+            },
+            {
+              kind: "condition",
+              key: "errorRate",
+              type: "number",
+              operator: "gt",
+              value: 8,
+            },
+            {
+              kind: "condition",
+              key: "sloBurnRate",
+              type: "number",
+              operator: "gt",
+              value: 2,
+            },
+          ],
+        },
+      ],
+    }
+  }
+  return {
+    kind: "group",
+    operator: "and",
+    children: [
+      {
+        kind: "condition",
+        key: "environment",
+        type: "text",
+        operator: "equals",
+        value: "prod",
+      },
+      {
+        kind: "condition",
+        key: "severity",
+        type: "text",
+        operator: "in",
+        value: ["critical", "high"],
+      },
+    ],
+  }
+})
+const isAdvancedFilterActive = computed(() => advancedFilterExpression.value != null)
+const filteredAndSortedRows = computed(() => {
+  const expression = advancedFilterExpression.value
+  if (!expression) {
+    return baseFilteredAndSortedRows.value
+  }
+  return baseFilteredAndSortedRows.value.filter(row =>
+    evaluateDataGridAdvancedFilterExpression(expression, condition =>
+      getRowCellValue(row, condition.key),
+    ),
+  )
+})
+const advancedFilterSummary = computed(() => {
+  if (advancedFilterPreset.value === "none") {
+    return "none"
+  }
+  if (advancedFilterPreset.value === "risk-hotspots") {
+    return "risk hotspots"
+  }
+  return "production critical"
+})
 const rowSelectionOrchestration = useDataGridRowSelectionOrchestration({
   allRows: sourceRows,
   visibleRows: filteredAndSortedRows,
@@ -1897,10 +2124,77 @@ const groupBadge = useDataGridGroupBadge<DataGridRowNode<IncidentRow>>({
   resolveGroupBadgeTextByRowId,
 })
 const {
-  isGroupStartRow,
-  shouldShowGroupBadge,
-  resolveGroupBadgeText,
+  isGroupStartRow: isLegacyGroupStartRow,
+  shouldShowGroupBadge: shouldShowLegacyGroupBadgeRaw,
+  resolveGroupBadgeText: resolveLegacyGroupBadgeText,
 } = groupBadge
+const isTreeGroupingEnabled = computed(() => groupBy.value !== "none")
+const visibleGroupRowsCount = computed(() => (
+  visibleRows.value.reduce((count, row) => count + (row.kind === "group" ? 1 : 0), 0)
+))
+const groupsMetricLabel = computed(() => {
+  if (!isTreeGroupingEnabled.value) {
+    return String(groupCount.value)
+  }
+  return `${visibleGroupRowsCount.value} visible / ${groupCount.value} total`
+})
+
+function resolveTreeGroupColumnKey(row: DataGridRowNode<IncidentRow>): string | null {
+  if (row.kind !== "group") {
+    return null
+  }
+  const fromMeta = typeof row.groupMeta?.groupField === "string" ? row.groupMeta.groupField.trim() : ""
+  if (fromMeta.length > 0) {
+    return fromMeta
+  }
+  return groupBy.value === "none" ? null : groupBy.value
+}
+
+function isTreeGroupToggleCell(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
+  return row.kind === "group" && columnKey === resolveTreeGroupColumnKey(row)
+}
+
+function resolveTreeGroupIndentStyle(row: DataGridRowNode<IncidentRow>): { paddingInlineStart: string } {
+  const level = row.kind === "group" && Number.isFinite(row.groupMeta?.level)
+    ? Math.max(0, Math.trunc(row.groupMeta?.level as number))
+    : 0
+  return {
+    paddingInlineStart: `${level * 14}px`,
+  }
+}
+
+function resolveTreeGroupLabel(row: DataGridRowNode<IncidentRow>): string {
+  if (row.kind !== "group") {
+    return ""
+  }
+  const value = typeof row.groupMeta?.groupValue === "string" ? row.groupMeta.groupValue : ""
+  return value.length > 0 ? value : "Group"
+}
+
+function resolveTreeGroupChildrenCount(row: DataGridRowNode<IncidentRow>): number {
+  if (row.kind !== "group" || !Number.isFinite(row.groupMeta?.childrenCount)) {
+    return 0
+  }
+  return Math.max(0, Math.trunc(row.groupMeta?.childrenCount as number))
+}
+
+function isRuntimeGroupStartRow(row: DataGridRowNode<IncidentRow>): boolean {
+  return row.kind === "group" || isLegacyGroupStartRow(row)
+}
+
+function shouldShowGroupBadge(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
+  if (row.kind !== "leaf" || isTreeGroupingEnabled.value) {
+    return false
+  }
+  return shouldShowLegacyGroupBadgeRaw(row, columnKey)
+}
+
+function resolveGroupBadgeText(row: DataGridRowNode<IncidentRow>): string {
+  if (row.kind !== "leaf") {
+    return ""
+  }
+  return resolveLegacyGroupBadgeText(row)
+}
 const columnLayoutOrchestration = useDataGridColumnLayoutOrchestration({
   columns: computed(() => columnSnapshot.value.visibleColumns),
   resolveColumnWidth,
@@ -1989,6 +2283,77 @@ const selectedCellsCount = computed(() => {
   if (!range) return 0
   return (range.endRow - range.startRow + 1) * (range.endColumn - range.startColumn + 1)
 })
+const selectionSummary = computed(() => {
+  const range = cellSelectionRange.value
+  if (!range) {
+    return null
+  }
+
+  const rowCount = resolveDisplayRowCount()
+  if (rowCount <= 0) {
+    return null
+  }
+
+  const startRowNode = resolveDisplayNodeAtIndex(range.startRow)
+  const endRowNode = resolveDisplayNodeAtIndex(range.endRow)
+  if (!startRowNode || !endRowNode) {
+    return null
+  }
+
+  return createDataGridSelectionSummary<IncidentRow>({
+    selection: {
+      ranges: [
+        {
+          startRow: range.startRow,
+          endRow: range.endRow,
+          startCol: range.startColumn,
+          endCol: range.endColumn,
+          startRowId: startRowNode.rowId,
+          endRowId: endRowNode.rowId,
+          anchor: {
+            rowIndex: range.startRow,
+            colIndex: range.startColumn,
+            rowId: startRowNode.rowId,
+          },
+          focus: {
+            rowIndex: range.endRow,
+            colIndex: range.endColumn,
+            rowId: endRowNode.rowId,
+          },
+        },
+      ],
+      activeRangeIndex: 0,
+      activeCell: activeCell.value
+        ? {
+            rowIndex: activeCell.value.rowIndex,
+            colIndex: activeCell.value.columnIndex,
+            rowId: resolveDisplayNodeAtIndex(activeCell.value.rowIndex)?.rowId ?? null,
+          }
+        : null,
+    },
+    rowCount,
+    getRow(rowIndex) {
+      return resolveDisplayNodeAtIndex(rowIndex)
+    },
+    getColumnKeyByIndex(columnIndex) {
+      return orderedColumns.value[columnIndex]?.key ?? null
+    },
+    columns: [
+      { key: "latencyMs", aggregations: ["sum", "avg", "max"] },
+      { key: "errorRate", aggregations: ["avg", "max"] },
+      { key: "owner", aggregations: ["countDistinct"] },
+    ],
+  })
+})
+const selectedLatencySum = computed(() => {
+  return selectionSummary.value?.columns.latencyMs?.metrics.sum ?? null
+})
+const selectedLatencyAvg = computed(() => {
+  return selectionSummary.value?.columns.latencyMs?.metrics.avg ?? null
+})
+const selectedOwnersDistinct = computed(() => {
+  return selectionSummary.value?.columns.owner?.metrics.countDistinct ?? null
+})
 const copiedCellsCount = computed(() => {
   const range = copiedSelectionRange.value
   if (!range) {
@@ -2067,7 +2432,7 @@ const quickFilterActions = useDataGridQuickFilterActions({
 const {
   clearQuickFilter,
 } = quickFilterActions
-const gridRowCount = computed(() => filteredAndSortedRows.value.length + 1)
+const gridRowCount = computed(() => resolveDisplayRowCount() + 1)
 const activeCellDescendantId = computed(() => {
   const active = activeCell.value
   if (!active) {
@@ -2177,6 +2542,16 @@ function stopDragSelection() {
 function onViewportKeyDown(event: KeyboardEvent) {
   if (inlineEditor.value) {
     return
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    const active = activeCell.value
+    const activeRow = active ? resolveDisplayNodeAtIndex(active.rowIndex) : null
+    const activeColumnKey = active ? orderedColumns.value[active.columnIndex]?.key : null
+    if (activeRow && activeColumnKey && isTreeGroupToggleCell(activeRow, activeColumnKey)) {
+      event.preventDefault()
+      toggleRuntimeGroup(activeRow)
+      return
+    }
   }
   if (keyboardCommandRouter.dispatchKeyboardCommands(event)) {
     return
@@ -2367,10 +2742,23 @@ watch(sortState, value => {
 }, { immediate: true, deep: true })
 
 watch(groupBy, value => {
+  applyRuntimeGroupBy(value)
+  resetVisibleRowsSyncCache()
+  syncVisibleRows()
   lastAction.value = value === "none" ? "Grouping disabled" : `Grouped by ${value}`
+}, { immediate: true })
+
+watch(columnVisibilityPreset, value => {
+  applyColumnVisibilityPreset(value)
+  const visibleCount = COLUMN_VISIBILITY_PRESETS[value]?.length ?? COLUMN_VISIBILITY_PRESETS.all.length
+  lastAction.value = `Column preset: ${value} (${visibleCount} visible)`
+}, { immediate: true })
+
+watch(advancedFilterPreset, value => {
+  lastAction.value = value === "none" ? "Advanced filter disabled" : `Advanced filter: ${advancedFilterSummary.value}`
 })
 
-watch([query, sortState, appliedColumnFilters, groupBy], () => {
+watch([query, sortState, appliedColumnFilters, groupBy, advancedFilterPreset], () => {
   resetVisibleRowsSyncCache()
   if (inlineEditor.value) {
     commitInlineEdit()
@@ -2610,6 +2998,22 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           :options="groupByOptions"
         />
       </label>
+      <label>
+        <span>Columns</span>
+        <AffinoSelect
+          v-model="columnVisibilityPreset"
+          class="datagrid-controls__select"
+          :options="columnVisibilityPresetOptions"
+        />
+      </label>
+      <label>
+        <span>Advanced filter</span>
+        <AffinoSelect
+          v-model="advancedFilterPreset"
+          class="datagrid-controls__select"
+          :options="advancedFilterPresetOptions"
+        />
+      </label>
       <label class="datagrid-controls__toggle">
         <input v-model="pinStatusColumn" type="checkbox" />
         <span>Pin status column</span>
@@ -2643,6 +3047,9 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       </button>
       <p class="datagrid-controls__filter-indicator" :data-active="isQuickFilterActive ? 'true' : 'false'">
         {{ quickFilterStatus }}
+      </p>
+      <p class="datagrid-controls__filter-indicator" :data-active="isAdvancedFilterActive ? 'true' : 'false'">
+        Advanced filter: {{ advancedFilterSummary }}
       </p>
       <section
         v-if="columnFilterDraft"
@@ -2751,8 +3158,12 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         <dd>{{ groupBySummary }}</dd>
       </div>
       <div>
+        <dt>Advanced filter</dt>
+        <dd>{{ advancedFilterSummary }}</dd>
+      </div>
+      <div>
         <dt>Groups</dt>
-        <dd>{{ groupCount }}</dd>
+        <dd>{{ groupsMetricLabel }}</dd>
       </div>
       <div>
         <dt>Visible columns window</dt>
@@ -2761,6 +3172,18 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <div>
         <dt>Cells selected</dt>
         <dd>{{ selectedCellsCount }}</dd>
+      </div>
+      <div>
+        <dt>Selected latency Σ</dt>
+        <dd>{{ selectedLatencySum == null ? "—" : Math.round(selectedLatencySum) }}</dd>
+      </div>
+      <div>
+        <dt>Selected latency avg</dt>
+        <dd>{{ selectedLatencyAvg == null ? "—" : Math.round(selectedLatencyAvg) }}</dd>
+      </div>
+      <div>
+        <dt>Selected owners</dt>
+        <dd>{{ selectedOwnersDistinct == null ? "—" : selectedOwnersDistinct }}</dd>
       </div>
       <div>
         <dt>Copied cells</dt>
@@ -2875,7 +3298,10 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           v-for="row in visibleRows"
           :key="row.rowId"
           class="datagrid-stage__row"
-          :class="{ 'is-selected': isRowSelected(String(row.rowId)), 'datagrid-stage__row--group-start': isGroupStartRow(row) }"
+          :class="{
+            'is-selected': row.kind === 'leaf' && isRowSelected(String(row.rowId)),
+            'datagrid-stage__row--group-start': isRuntimeGroupStartRow(row),
+          }"
           role="row"
           :aria-rowindex="getRowAriaIndex(row)"
           :style="{ gridTemplateColumns: templateColumns }"
@@ -2888,8 +3314,9 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               'datagrid-stage__cell--numeric': ['latencyMs', 'errorRate', 'availabilityPct', 'mttrMin', 'cpuPct', 'memoryPct', 'queueDepth', 'throughputRps', 'sloBurnRate', 'incidents24h'].includes(column.key),
               'datagrid-stage__cell--status': column.key === 'status',
               'datagrid-stage__cell--editable': isEditableColumn(column.key),
-              'datagrid-stage__cell--editing': isEditingCell(row.data.rowId, column.key),
+              'datagrid-stage__cell--editing': row.kind === 'leaf' && isEditingCell(row.data.rowId, column.key),
               'datagrid-stage__cell--enum': isEnumColumn(column.key),
+              'datagrid-stage__cell--tree-group': row.kind === 'group',
               'datagrid-stage__cell--select': column.key === 'select',
               'datagrid-stage__cell--range': isCellInSelection(row, column.key),
               'datagrid-stage__cell--copied': isCellInCopiedRange(row, column.key),
@@ -2909,7 +3336,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             role="gridcell"
             :aria-colindex="getColumnAriaIndex(column.key)"
             :aria-selected="isCellInSelection(row, column.key) ? 'true' : 'false'"
-            :aria-readonly="isEditableColumn(column.key) ? 'false' : 'true'"
+            :aria-readonly="row.kind === 'group' ? 'true' : (isEditableColumn(column.key) ? 'false' : 'true')"
             :aria-labelledby="getHeaderCellId(column.key)"
             @mousedown="onDataCellMouseDown(row, column.key, $event)"
             @mouseenter="onDataCellMouseEnter(row, column.key, $event)"
@@ -2917,15 +3344,17 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           >
             <template v-if="column.key === 'select'">
               <input
+                v-if="row.kind === 'leaf'"
                 type="checkbox"
                 class="datagrid-stage__checkbox"
                 :checked="isRowSelected(String(row.rowId))"
                 @change="onRowSelectChange(String(row.rowId), $event)"
                 :aria-label="`Select ${row.data.service}`"
               />
+              <span v-else aria-hidden="true"></span>
             </template>
 
-            <template v-else-if="isSelectEditorCell(row.data.rowId, column.key) && getEditorOptions(column.key)">
+            <template v-else-if="row.kind === 'leaf' && isSelectEditorCell(row.data.rowId, column.key) && getEditorOptions(column.key)">
               <AffinoSelect
                 class="datagrid-stage__editor datagrid-stage__editor-select"
                 :data-inline-editor-row-id="row.data.rowId"
@@ -2939,7 +3368,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               />
             </template>
 
-            <template v-else-if="isEditingCell(row.data.rowId, column.key)">
+            <template v-else-if="row.kind === 'leaf' && isEditingCell(row.data.rowId, column.key)">
               <input
                 class="datagrid-stage__editor datagrid-stage__editor-input"
                 :data-inline-editor-row-id="row.data.rowId"
@@ -2955,17 +3384,33 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             </template>
 
             <template v-else>
+              <button
+                v-if="isTreeGroupToggleCell(row, column.key)"
+                type="button"
+                data-datagrid-tree-toggle="true"
+                class="datagrid-stage__tree-toggle"
+                style="display:inline-flex; align-items:center; gap:0.45rem; width:100%; border:0; background:transparent; color:inherit; padding:0; cursor:pointer; font:inherit; text-align:left;"
+                :style="resolveTreeGroupIndentStyle(row)"
+                :aria-expanded="row.state.expanded ? 'true' : 'false'"
+                @click.stop="toggleRuntimeGroup(row)"
+              >
+                <span class="datagrid-stage__tree-chevron" aria-hidden="true">{{ row.state.expanded ? '▾' : '▸' }}</span>
+                <span class="datagrid-stage__tree-label">{{ resolveTreeGroupLabel(row) }}</span>
+                <span class="datagrid-stage__tree-count">{{ resolveTreeGroupChildrenCount(row) }}</span>
+              </button>
               <span
-                v-if="shouldShowGroupBadge(row, column.key)"
+                v-else-if="shouldShowGroupBadge(row, column.key)"
                 class="datagrid-stage__group-badge"
               >
                 {{ resolveGroupBadgeText(row) }}
               </span>
-              {{ formatCellValue(column.key, getRowCellValue(row.data, column.key)) }}
+              <span v-else-if="row.kind === 'leaf'">
+                {{ formatCellValue(column.key, getRowCellValue(row.data, column.key)) }}
+              </span>
             </template>
 
             <button
-              v-if="shouldShowEnumTrigger(row, column.key)"
+              v-if="row.kind === 'leaf' && shouldShowEnumTrigger(row, column.key)"
               type="button"
               class="datagrid-stage__enum-trigger"
               :aria-label="`Open options for ${column.key}`"
@@ -2975,32 +3420,32 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             </button>
 
             <span
-              v-if="shouldShowFillHandle(row, column.key)"
+              v-if="row.kind === 'leaf' && shouldShowFillHandle(row, column.key)"
               class="datagrid-stage__selection-handle datagrid-stage__selection-handle--cell"
               aria-hidden="true"
               @mousedown.stop.prevent="onSelectionHandleMouseDown"
             ></span>
 
             <span
-              v-if="shouldShowSelectionMoveHandle(row, column.key, 'top')"
+              v-if="row.kind === 'leaf' && shouldShowSelectionMoveHandle(row, column.key, 'top')"
               class="datagrid-stage__move-handle-zone datagrid-stage__move-handle-zone--top"
               aria-hidden="true"
               @mousedown.stop.prevent="onSelectionMoveHandleMouseDown(row, column.key, $event)"
             ></span>
             <span
-              v-if="shouldShowSelectionMoveHandle(row, column.key, 'right')"
+              v-if="row.kind === 'leaf' && shouldShowSelectionMoveHandle(row, column.key, 'right')"
               class="datagrid-stage__move-handle-zone datagrid-stage__move-handle-zone--right"
               aria-hidden="true"
               @mousedown.stop.prevent="onSelectionMoveHandleMouseDown(row, column.key, $event)"
             ></span>
             <span
-              v-if="shouldShowSelectionMoveHandle(row, column.key, 'bottom')"
+              v-if="row.kind === 'leaf' && shouldShowSelectionMoveHandle(row, column.key, 'bottom')"
               class="datagrid-stage__move-handle-zone datagrid-stage__move-handle-zone--bottom"
               aria-hidden="true"
               @mousedown.stop.prevent="onSelectionMoveHandleMouseDown(row, column.key, $event)"
             ></span>
             <span
-              v-if="shouldShowSelectionMoveHandle(row, column.key, 'left')"
+              v-if="row.kind === 'leaf' && shouldShowSelectionMoveHandle(row, column.key, 'left')"
               class="datagrid-stage__move-handle-zone datagrid-stage__move-handle-zone--left"
               aria-hidden="true"
               @mousedown.stop.prevent="onSelectionMoveHandleMouseDown(row, column.key, $event)"
