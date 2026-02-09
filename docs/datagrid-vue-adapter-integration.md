@@ -145,3 +145,6 @@ Deterministic setup reference:
 
 Cross-platform adapter protocol reference:
 `/Users/anton/Projects/affinio/docs/datagrid-cross-platform-adapter-protocol.md`
+
+Sugar-first integration playbook (recommended for product teams):
+`/Users/anton/Projects/affinio/docs/datagrid-vue-sugar-playbook.md`
