@@ -152,6 +152,7 @@
     .affino-datagrid-demo__overlay-layer {
         position: absolute;
         left: 0;
+        top: 0;
         right: 0;
         overflow: hidden;
         pointer-events: none;

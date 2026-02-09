@@ -35,6 +35,12 @@ type Grid = ReturnType<typeof useAffinoDataGrid>
 // grid is fully typed and safe to destructure.
 ```
 
+Row identity contract (required):
+
+1. Provide stable non-empty `rowId` (or `id`/`key`) for each row, or
+2. Pass `features.selection.resolveRowKey(row, index)`.
+3. Index-based fallback keys are intentionally disabled.
+
 ```vue
 <DataGrid v-bind="grid.componentProps" />
 ```

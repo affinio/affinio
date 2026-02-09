@@ -131,13 +131,13 @@
                 <div class="affino-datagrid-demo__header" data-datagrid-header></div>
             </div>
             <div class="affino-datagrid-demo__viewport" data-datagrid-viewport tabindex="0">
+                <div class="affino-datagrid-demo__overlay-layer" data-datagrid-overlay-layer aria-hidden="true">
+                    <div class="affino-datagrid-demo__selection-overlay" data-datagrid-selection-overlay hidden></div>
+                    <div class="affino-datagrid-demo__selection-overlay affino-datagrid-demo__selection-overlay--fill" data-datagrid-fill-overlay hidden></div>
+                </div>
                 <div data-datagrid-spacer-top></div>
                 <div class="affino-datagrid-demo__rows" data-datagrid-rows></div>
                 <div data-datagrid-spacer-bottom></div>
-            </div>
-            <div class="affino-datagrid-demo__overlay-layer" data-datagrid-overlay-layer aria-hidden="true">
-                <div class="affino-datagrid-demo__selection-overlay" data-datagrid-selection-overlay hidden></div>
-                <div class="affino-datagrid-demo__selection-overlay affino-datagrid-demo__selection-overlay--fill" data-datagrid-fill-overlay hidden></div>
             </div>
             <div class="affino-datagrid-demo__menu" data-datagrid-context-menu role="menu" hidden>
                 <button type="button" role="menuitem" data-datagrid-menu-action="copy">Copy</button>

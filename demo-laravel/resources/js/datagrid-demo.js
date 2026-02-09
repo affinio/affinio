@@ -2225,8 +2225,8 @@ function mountDatagridDemo(root) {
             }
         });
 
-        const top = rowStart * ROW_HEIGHT - viewport.scrollTop;
-        const bottom = (rowEnd + 1) * ROW_HEIGHT - viewport.scrollTop;
+        const top = rowStart * ROW_HEIGHT;
+        const bottom = (rowEnd + 1) * ROW_HEIGHT;
         const height = bottom - top;
 
         const parts = [];
@@ -2260,20 +2260,20 @@ function mountDatagridDemo(root) {
                 return null;
             }
 
-            let segmentLeft = startMetric.start - viewport.scrollLeft;
+            let segmentLeft = startMetric.start;
             if (part.mode === "left") {
-                segmentLeft = startMetric.start;
+                segmentLeft = startMetric.start + viewport.scrollLeft;
             } else if (part.mode === "right") {
                 const offsetInsideRightLayer = startMetric.start - (leftWidth + scrollWidth);
-                segmentLeft = viewport.clientWidth - rightWidth + offsetInsideRightLayer;
+                segmentLeft = viewport.scrollLeft + viewport.clientWidth - rightWidth + offsetInsideRightLayer;
             }
 
-            let right = endMetric.end - viewport.scrollLeft;
+            let right = endMetric.end;
             if (part.mode === "left") {
-                right = endMetric.end;
+                right = endMetric.end + viewport.scrollLeft;
             } else if (part.mode === "right") {
                 const endOffsetInsideRightLayer = (endMetric.start - (leftWidth + scrollWidth)) + endMetric.width;
-                right = viewport.clientWidth - rightWidth + endOffsetInsideRightLayer;
+                right = viewport.scrollLeft + viewport.clientWidth - rightWidth + endOffsetInsideRightLayer;
             }
             const width = Math.max(1, right - segmentLeft);
 
@@ -2434,14 +2434,10 @@ function mountDatagridDemo(root) {
             headerViewport.scrollLeft = renderScrollLeft;
         }
         if (overlayLayer instanceof HTMLElement) {
-            const geometry = resolveDataGridHeaderLayerViewportGeometry({
-                headerViewportHeight: headerViewport instanceof HTMLElement ? headerViewport.offsetHeight : ROW_HEIGHT,
-                bodyViewportWidth: viewport.clientWidth,
-                bodyViewportHeight: viewport.clientHeight,
-            });
-            overlayLayer.style.top = `${geometry.overlayTop}px`;
-            overlayLayer.style.height = `${geometry.overlayHeight}px`;
-            overlayLayer.style.width = `${geometry.overlayWidth}px`;
+            overlayLayer.style.top = "0px";
+            overlayLayer.style.left = "0px";
+            overlayLayer.style.width = tableWidthCss;
+            overlayLayer.style.height = `${Math.max(0, rowCount * ROW_HEIGHT)}px`;
         }
 
         spacerTop.style.height = `${Math.max(0, start * ROW_HEIGHT)}px`;

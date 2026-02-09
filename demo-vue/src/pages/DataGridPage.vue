@@ -206,7 +206,8 @@ const AUTO_SIZE_MAX_WIDTH = 640
 const GRID_HINT_ID = "datagrid-a11y-hint"
 const FILTER_PANEL_TITLE_ID = "datagrid-filter-panel-title"
 
-const rowCount = ref(2400)
+const rowCount = ref(10000)
+const columnCount = ref(20)
 const seed = ref(1)
 const query = ref("")
 const sortPreset = ref("latency-desc")
@@ -217,8 +218,10 @@ const sortState = ref<readonly DataGridSortState[]>([
   { key: "latencyMs", direction: "desc" },
 ])
 const pinStatusColumn = ref(false)
+const pinUpdatedAtRight = ref(false)
 const lastAction = ref("Ready")
-const rowCountOptions = [1200, 2400, 6400] as const
+const rowCountOptions = [10000, 50000, 100000] as const
+const columnCountOptions = [10, 20, 50] as const
 const sortPresetOptions = [
   { value: "latency-desc", label: "Latency desc" },
   { value: "latency-asc", label: "Latency asc" },
@@ -257,30 +260,60 @@ const activeAdvancedFilterPresetOption = computed(() => (
   ?? advancedFilterPresetOptions[0]
 ))
 
+const NUMERIC_COLUMN_KEYS = new Set<string>([
+  "latencyMs",
+  "errorRate",
+  "availabilityPct",
+  "mttrMin",
+  "cpuPct",
+  "memoryPct",
+  "queueDepth",
+  "throughputRps",
+  "sloBurnRate",
+  "incidents24h",
+])
+
+const INLINE_EDITOR_ENUM_OPTIONS = {
+  severity: ["critical", "high", "medium", "low"],
+  status: ["stable", "watch", "degraded"],
+  environment: ["prod", "staging", "dev"],
+  region: ["us-east", "us-west", "eu-central", "ap-south"],
+} as const
+
+const SORT_PRESETS: Record<string, readonly DataGridSortState[]> = {
+  "latency-desc": [{ key: "latencyMs", direction: "desc" }],
+  "latency-asc": [{ key: "latencyMs", direction: "asc" }],
+  "errors-desc": [{ key: "errorRate", direction: "desc" }],
+  "service-asc": [{ key: "service", direction: "asc" }],
+}
+
+const MAX_COLUMN_COUNT = 50
+const BASE_DATA_GRID_COLUMNS: readonly DataGridColumnDef[] = [
+  { key: "select", label: "Select", width: 58, pin: "left" },
+  { key: "service", label: "Service", width: 240, pin: "left" },
+  { key: "owner", label: "Owner", width: 180 },
+  { key: "region", label: "Region", width: 130 },
+  { key: "environment", label: "Env", width: 120 },
+  { key: "deployment", label: "Deployment", width: 170 },
+  { key: "severity", label: "Severity", width: 130 },
+  { key: "latencyMs", label: "Latency (ms)", width: 130 },
+  { key: "errorRate", label: "Errors / h", width: 130 },
+  { key: "availabilityPct", label: "Availability %", width: 140 },
+  { key: "mttrMin", label: "MTTR (min)", width: 130 },
+  { key: "cpuPct", label: "CPU %", width: 120 },
+  { key: "memoryPct", label: "Memory %", width: 130 },
+  { key: "queueDepth", label: "Queue Depth", width: 140 },
+  { key: "throughputRps", label: "Throughput RPS", width: 150 },
+  { key: "sloBurnRate", label: "SLO Burn", width: 130 },
+  { key: "incidents24h", label: "Incidents 24h", width: 150 },
+  { key: "channel", label: "Channel", width: 140 },
+  { key: "runbook", label: "Runbook", width: 180 },
+  { key: "updatedAt", label: "Updated", width: 170 },
+  { key: "status", label: "Status", width: 130 },
+]
+
 const COLUMN_VISIBILITY_PRESETS: Record<ColumnVisibilityPreset, readonly string[]> = {
-  all: [
-    "select",
-    "service",
-    "owner",
-    "region",
-    "environment",
-    "deployment",
-    "severity",
-    "latencyMs",
-    "errorRate",
-    "availabilityPct",
-    "mttrMin",
-    "cpuPct",
-    "memoryPct",
-    "queueDepth",
-    "throughputRps",
-    "sloBurnRate",
-    "incidents24h",
-    "channel",
-    "runbook",
-    "updatedAt",
-    "status",
-  ],
+  all: BASE_DATA_GRID_COLUMNS.map(column => column.key),
   "incident-core": [
     "select",
     "service",
@@ -312,55 +345,16 @@ const COLUMN_VISIBILITY_PRESETS: Record<ColumnVisibilityPreset, readonly string[
   ],
 }
 
-const NUMERIC_COLUMN_KEYS = new Set<string>([
-  "latencyMs",
-  "errorRate",
-  "availabilityPct",
-  "mttrMin",
-  "cpuPct",
-  "memoryPct",
-  "queueDepth",
-  "throughputRps",
-  "sloBurnRate",
-  "incidents24h",
-])
-
-const INLINE_EDITOR_ENUM_OPTIONS = {
-  severity: ["critical", "high", "medium", "low"],
-  status: ["stable", "watch", "degraded"],
-  environment: ["prod", "staging", "dev"],
-  region: ["us-east", "us-west", "eu-central", "ap-south"],
-} as const
-
-const SORT_PRESETS: Record<string, readonly DataGridSortState[]> = {
-  "latency-desc": [{ key: "latencyMs", direction: "desc" }],
-  "latency-asc": [{ key: "latencyMs", direction: "asc" }],
-  "errors-desc": [{ key: "errorRate", direction: "desc" }],
-  "service-asc": [{ key: "service", direction: "asc" }],
-}
-
 const DATA_GRID_COLUMNS: readonly DataGridColumnDef[] = [
-  { key: "select", label: "Select", width: 58, pin: "left" },
-  { key: "service", label: "Service", width: 240, pin: "left" },
-  { key: "owner", label: "Owner", width: 180 },
-  { key: "region", label: "Region", width: 130 },
-  { key: "environment", label: "Env", width: 120 },
-  { key: "deployment", label: "Deployment", width: 170 },
-  { key: "severity", label: "Severity", width: 130 },
-  { key: "latencyMs", label: "Latency (ms)", width: 130 },
-  { key: "errorRate", label: "Errors / h", width: 130 },
-  { key: "availabilityPct", label: "Availability %", width: 140 },
-  { key: "mttrMin", label: "MTTR (min)", width: 130 },
-  { key: "cpuPct", label: "CPU %", width: 120 },
-  { key: "memoryPct", label: "Memory %", width: 130 },
-  { key: "queueDepth", label: "Queue Depth", width: 140 },
-  { key: "throughputRps", label: "Throughput RPS", width: 150 },
-  { key: "sloBurnRate", label: "SLO Burn", width: 130 },
-  { key: "incidents24h", label: "Incidents 24h", width: 150 },
-  { key: "channel", label: "Channel", width: 140 },
-  { key: "runbook", label: "Runbook", width: 180 },
-  { key: "updatedAt", label: "Updated", width: 170 },
-  { key: "status", label: "Status", width: 130 },
+  ...BASE_DATA_GRID_COLUMNS,
+  ...Array.from({ length: Math.max(0, MAX_COLUMN_COUNT - BASE_DATA_GRID_COLUMNS.length) }, (_, index) => {
+    const id = index + 1
+    return {
+      key: `extra_${id}`,
+      label: `Extra ${id}`,
+      width: 140,
+    } satisfies DataGridColumnDef
+  }),
 ]
 
 const viewportRef = ref<HTMLDivElement | null>(null)
@@ -374,14 +368,23 @@ const viewportWidth = ref(960)
 const headerHeight = ref(ROW_HEIGHT)
 const bodyViewportHeaderOffset = computed(() => 0)
 const viewportLayerGeometry = computed(() => resolveDataGridHeaderLayerViewportGeometry({
-  headerViewportHeight: headerHeight.value,
+  headerViewportHeight: 0,
   bodyViewportWidth: viewportWidth.value,
   bodyViewportHeight: viewportHeight.value,
 }))
+const overlayContentWidth = computed(() => {
+  const metrics = orderedColumnMetrics.value
+  if (!metrics.length) {
+    return 0
+  }
+  return metrics[metrics.length - 1]?.end ?? 0
+})
+const overlayContentHeight = computed(() => Math.max(0, resolveDisplayRowCount()) * ROW_HEIGHT)
 const overlayLayerStyle = computed(() => ({
-  top: `${viewportLayerGeometry.value.overlayTop}px`,
-  width: `${viewportLayerGeometry.value.overlayWidth}px`,
-  height: `${viewportLayerGeometry.value.overlayHeight}px`,
+  top: "0px",
+  left: "0px",
+  width: `${Math.max(0, overlayContentWidth.value)}px`,
+  height: `${Math.max(0, overlayContentHeight.value)}px`,
 }))
 const cellAnchor = ref<CellCoord | null>(null)
 const cellFocus = ref<CellCoord | null>(null)
@@ -768,6 +771,31 @@ function serializeFilterValueList(values: readonly string[]): string {
   )
 }
 
+function createSortStateSignature(entries: readonly DataGridSortState[]): string {
+  if (!entries.length) {
+    return ""
+  }
+  return entries
+    .map(entry => `${entry.key}:${entry.direction}`)
+    .join("|")
+}
+
+function createAppliedColumnFiltersSignature(
+  filters: Record<string, { kind: string; operator: string; value: string; value2?: string }>,
+): string {
+  const keys = Object.keys(filters)
+  if (!keys.length) {
+    return ""
+  }
+  keys.sort((left, right) => left.localeCompare(right))
+  return keys
+    .map((key) => {
+      const filter = filters[key]
+      return `${key}:${filter?.kind ?? ""}:${filter?.operator ?? ""}:${filter?.value ?? ""}:${filter?.value2 ?? ""}`
+    })
+    .join("|")
+}
+
 function resolveInitialSetFilterValues(): string[] {
   const draft = columnFilterDraft.value
   if (!draft || draft.kind === "number") {
@@ -838,6 +866,10 @@ const setFilterVisibleOptions = computed(() => {
 
 const setFilterSelectedValueSet = computed(() => new Set(columnSetFilterSelectedValues.value))
 const selectedSetFilterValueCount = computed(() => columnSetFilterSelectedValues.value.length)
+const sortStateSignature = computed(() => createSortStateSignature(sortState.value))
+const appliedColumnFiltersSignature = computed(() => (
+  createAppliedColumnFiltersSignature(appliedColumnFilters.value)
+))
 
 function isSetFilterValueSelected(value: string): boolean {
   return setFilterSelectedValueSet.value.has(value)
@@ -2065,9 +2097,13 @@ const {
 })
 
 function applyColumnVisibilityPreset(preset: ColumnVisibilityPreset): void {
-  const visibleSet = new Set(COLUMN_VISIBILITY_PRESETS[preset] ?? COLUMN_VISIBILITY_PRESETS.all)
+  const maxColumns = Math.max(1, Math.min(columnCount.value, DATA_GRID_COLUMNS.length))
+  const allowedKeys = new Set(DATA_GRID_COLUMNS.slice(0, maxColumns).map(column => column.key))
+  const presetKeys = new Set(COLUMN_VISIBILITY_PRESETS[preset] ?? COLUMN_VISIBILITY_PRESETS.all)
+  const showAll = preset === "all"
   for (const column of DATA_GRID_COLUMNS) {
-    const shouldBeVisible = column.key === "select" || visibleSet.has(column.key)
+    const isAllowed = allowedKeys.has(column.key)
+    const shouldBeVisible = isAllowed && (column.key === "select" || showAll || presetKeys.has(column.key))
     api.setColumnVisibility(column.key, shouldBeVisible)
   }
 }
@@ -2555,17 +2591,23 @@ const selectionSummary = computed(() => {
       return orderedColumns.value[columnIndex]?.key ?? null
     },
     columns: [
-      { key: "latencyMs", aggregations: ["sum", "avg", "max"] },
+      { key: "latencyMs", aggregations: ["sum", "avg", "min", "max"] },
       { key: "errorRate", aggregations: ["avg", "max"] },
       { key: "owner", aggregations: ["countDistinct"] },
     ],
   })
+})
+const selectedLatencyMin = computed(() => {
+  return selectionSummary.value?.columns.latencyMs?.metrics.min ?? null
 })
 const selectedLatencySum = computed(() => {
   return selectionSummary.value?.columns.latencyMs?.metrics.sum ?? null
 })
 const selectedLatencyAvg = computed(() => {
   return selectionSummary.value?.columns.latencyMs?.metrics.avg ?? null
+})
+const selectedLatencyMax = computed(() => {
+  return selectionSummary.value?.columns.latencyMs?.metrics.max ?? null
 })
 const selectedOwnersDistinct = computed(() => {
   return selectionSummary.value?.columns.owner?.metrics.countDistinct ?? null
@@ -2931,6 +2973,10 @@ watch(pinStatusColumn, value => {
   api.setColumnPin("status", value ? "left" : "none")
   lastAction.value = value ? "Pinned status column" : "Unpinned status column"
 })
+watch(pinUpdatedAtRight, value => {
+  api.setColumnPin("updatedAt", value ? "right" : "none")
+  lastAction.value = value ? "Pinned updatedAt right" : "Unpinned updatedAt"
+})
 
 watch(sortPreset, value => {
   if (value === "custom") {
@@ -2943,7 +2989,8 @@ watch(sortPreset, value => {
   sortState.value = preset.map(entry => ({ ...entry }))
 })
 
-watch(sortState, value => {
+watch(sortStateSignature, () => {
+  const value = sortState.value
   const presetEntry = Object.entries(SORT_PRESETS).find(([, preset]) => {
     if (preset.length !== value.length) {
       return false
@@ -2960,7 +3007,7 @@ watch(sortState, value => {
   lastAction.value = value.length
     ? `Sorted: ${value.map((entry, index) => `${index + 1}.${entry.key} ${entry.direction}`).join(", ")}`
     : "Sorting cleared"
-}, { immediate: true, deep: true })
+}, { immediate: true })
 
 watch(groupBy, value => {
   applyRuntimeGroupBy(value)
@@ -2975,17 +3022,22 @@ watch(columnVisibilityPreset, value => {
   lastAction.value = `Column preset: ${value} (${visibleCount} visible)`
 }, { immediate: true })
 
+watch(columnCount, value => {
+  applyColumnVisibilityPreset(columnVisibilityPreset.value)
+  lastAction.value = `Column count: ${value}`
+}, { immediate: true })
+
 watch(advancedFilterPreset, value => {
   lastAction.value = value === "none" ? "Advanced filter disabled" : `Advanced filter: ${advancedFilterSummary.value}`
 })
 
-watch([query, sortState, appliedColumnFilters, groupBy, advancedFilterPreset], () => {
+watch([query, sortStateSignature, appliedColumnFiltersSignature, groupBy, advancedFilterPreset], () => {
   resetVisibleRowsSyncCache()
   if (inlineEditor.value) {
     commitInlineEdit()
   }
   clearCellSelection()
-}, { deep: true })
+})
 
 watch(sourceRows, () => {
   reconcileRowSelection()
@@ -3206,6 +3258,14 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         />
       </label>
       <label>
+        <span>Columns</span>
+        <AffinoSelect
+          v-model="columnCount"
+          class="datagrid-controls__select"
+          :options="columnCountOptions"
+        />
+      </label>
+      <label>
         <span>Search</span>
         <input v-model.trim="query" type="text" placeholder="quick filter: service / owner / region" />
       </label>
@@ -3240,7 +3300,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         </UiMenu>
       </label>
       <label>
-        <span>Columns</span>
+        <span>Visibility</span>
         <AffinoSelect
           v-model="columnVisibilityPreset"
           class="datagrid-controls__select"
@@ -3272,6 +3332,10 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <label class="datagrid-controls__toggle">
         <input v-model="pinStatusColumn" type="checkbox" />
         <span>Pin status column</span>
+      </label>
+      <label class="datagrid-controls__toggle">
+        <input v-model="pinUpdatedAtRight" type="checkbox" />
+        <span>Pin updatedAt right</span>
       </label>
       <ThemeToggle variant="compact" @theme-change="applyDemoTheme" />
       <button type="button" @click="randomizeRuntime">Runtime shift</button>
@@ -3355,12 +3419,20 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         <dd>{{ selectedCellsCount }}</dd>
       </div>
       <div>
+        <dt>Selected latency min</dt>
+        <dd>{{ selectedLatencyMin == null ? "—" : Math.round(selectedLatencyMin) }}</dd>
+      </div>
+      <div>
         <dt>Selected latency Σ</dt>
         <dd>{{ selectedLatencySum == null ? "—" : Math.round(selectedLatencySum) }}</dd>
       </div>
       <div>
         <dt>Selected latency avg</dt>
         <dd>{{ selectedLatencyAvg == null ? "—" : Math.round(selectedLatencyAvg) }}</dd>
+      </div>
+      <div>
+        <dt>Selected latency max</dt>
+        <dd>{{ selectedLatencyMax == null ? "—" : Math.round(selectedLatencyMax) }}</dd>
       </div>
       <div>
         <dt>Selected owners</dt>
@@ -3643,6 +3715,28 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         @keydown="onViewportKeyDown"
         @blur="onViewportBlur"
       >
+        <div class="datagrid-stage__overlay-layer" :style="overlayLayerStyle" aria-hidden="true">
+          <div
+            v-for="segment in fillPreviewOverlaySegments"
+            :key="segment.key"
+            class="datagrid-stage__selection-overlay datagrid-stage__selection-overlay--fill"
+            :style="segment.style"
+          ></div>
+
+          <div
+            v-for="segment in rangeMoveOverlaySegments"
+            :key="segment.key"
+            class="datagrid-stage__selection-overlay datagrid-stage__selection-overlay--move"
+            :style="segment.style"
+          ></div>
+
+          <div
+            v-for="segment in cellSelectionOverlaySegments"
+            :key="segment.key"
+            class="datagrid-stage__selection-overlay datagrid-stage__selection-overlay--main"
+            :style="segment.style"
+          ></div>
+        </div>
         <div :style="{ height: `${spacerTopHeight}px` }"></div>
 
         <div
@@ -3813,28 +3907,6 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 
         <div v-if="visibleRows.length === 0" class="datagrid-stage__empty">No rows matched current filters.</div>
         <div :style="{ height: `${spacerBottomHeight}px` }"></div>
-      </div>
-      <div class="datagrid-stage__overlay-layer" :style="overlayLayerStyle" aria-hidden="true">
-        <div
-          v-for="segment in fillPreviewOverlaySegments"
-          :key="segment.key"
-          class="datagrid-stage__selection-overlay datagrid-stage__selection-overlay--fill"
-          :style="segment.style"
-        ></div>
-
-        <div
-          v-for="segment in rangeMoveOverlaySegments"
-          :key="segment.key"
-          class="datagrid-stage__selection-overlay datagrid-stage__selection-overlay--move"
-          :style="segment.style"
-        ></div>
-
-        <div
-          v-for="segment in cellSelectionOverlaySegments"
-          :key="segment.key"
-          class="datagrid-stage__selection-overlay datagrid-stage__selection-overlay--main"
-          :style="segment.style"
-        ></div>
       </div>
       </div>
       <p :id="GRID_HINT_ID" class="datagrid-stage__hint">Visible columns: {{ visibleColumnsWindow.keys }} · Tip: drag selection border to move range.</p>
