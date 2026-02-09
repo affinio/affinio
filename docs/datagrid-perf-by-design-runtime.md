@@ -43,3 +43,13 @@ Row-model benchmark must pass both p95 and p99 limits:
 Harness source:
 - `/Users/anton/Projects/affinio/scripts/bench-datagrid-harness.mjs`
 - `/Users/anton/Projects/affinio/scripts/bench-datagrid-rowmodels.mjs`
+
+Interaction benchmark (selection/fill virtualization proxy) must pass:
+
+- `PERF_BUDGET_MAX_SELECTION_DRAG_P95_MS`
+- `PERF_BUDGET_MAX_SELECTION_DRAG_P99_MS`
+- `PERF_BUDGET_MAX_FILL_APPLY_P95_MS`
+- `PERF_BUDGET_MAX_FILL_APPLY_P99_MS`
+
+Harness source:
+- `/Users/anton/Projects/affinio/scripts/bench-datagrid-interactions.mjs`

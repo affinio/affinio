@@ -13,8 +13,36 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 - `useDataGridViewportBridge`
 - `useDataGridHeaderOrchestration`
 - `createDataGridHeaderBindings`
+- `useDataGridCellPointerDownRouter`
+- `useDataGridCellPointerHoverRouter`
+- `useDataGridDragSelectionLifecycle`
+- `useDataGridDragPointerSelection`
+- `useDataGridFillSelectionLifecycle`
+- `useDataGridRangeMoveLifecycle`
+- `useDataGridRangeMoveStart`
+- `useDataGridTabTargetResolver`
+- `useDataGridCellNavigation`
+- `useDataGridInlineEditorKeyRouter`
+- `useDataGridHeaderContextActions`
+- `useDataGridHeaderSortOrchestration`
+- `useDataGridHeaderResizeOrchestration`
+- `useDataGridContextMenuAnchor`
+- `useDataGridContextMenuActionRouter`
+- `useDataGridViewportContextMenuRouter`
+- `useDataGridViewportBlurHandler`
+- `useDataGridGlobalPointerLifecycle`
+- `useDataGridPointerAutoScroll`
+- `useDataGridPointerPreviewRouter`
+- `useDataGridPointerCellCoordResolver`
+- `useDataGridAxisAutoScrollDelta`
+- `useDataGridCellVisibilityScroller`
+- `useDataGridGlobalMouseDownContextMenuCloser`
+- `useDataGridKeyboardCommandRouter`
 - `useDataGridRowSelectionFacade`
 - `useDataGridFindReplaceFacade`
+- `useDataGridClipboardBridge`
+- `useDataGridClipboardMutations`
+- `useDataGridIntentHistory`
 
 ## Boundary Rule
 
@@ -25,4 +53,3 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 
 - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/__tests__/advancedApi.contract.spec.ts`
 - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/__tests__/publicApi.contract.spec.ts`
-

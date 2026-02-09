@@ -16,6 +16,8 @@ Legacy helper names `buildSelectionOverlayTransform*` are no longer exported fro
 
 - `useDataGridSettingsStore`
 - `createDataGridSettingsAdapter`
+- `createDataGridVueRuntime`
+- `useDataGridRuntime`
 - `buildDataGridOverlayTransform`
 - `buildDataGridOverlayTransformFromSnapshot`
 - `mapDataGridA11yGridAttributes`
@@ -30,6 +32,8 @@ Advanced hooks are available only via:
 
 ```ts
 import {
+  createDataGridVueRuntime,
+  useDataGridRuntime,
   useDataGridSettingsStore,
   createDataGridSettingsAdapter,
   buildDataGridOverlayTransformFromSnapshot,

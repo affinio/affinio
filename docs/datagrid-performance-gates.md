@@ -30,6 +30,7 @@ Harness script:
 Per-benchmark outputs (JSON):
 - `artifacts/performance/bench-vue-adapters.json`
 - `artifacts/performance/bench-livewire-morph.json`
+- `artifacts/performance/bench-datagrid-interactions.json`
 - `artifacts/performance/bench-datagrid-rowmodels.json`
 
 Harness summary:
@@ -59,6 +60,12 @@ CI harness (`DATAGRID_BENCH_MODE=ci`) applies:
   - `PERF_BUDGET_MAX_SERVER_RANGE_P99_MS=55`
   - `PERF_BUDGET_MAX_WINDOW_SHIFT_P95_MS=10`
   - `PERF_BUDGET_MAX_WINDOW_SHIFT_P99_MS=16`
+- Interaction models (selection/fill under virtualization proxy):
+  - `PERF_BUDGET_TOTAL_MS=3500`
+  - `PERF_BUDGET_MAX_SELECTION_DRAG_P95_MS=5`
+  - `PERF_BUDGET_MAX_SELECTION_DRAG_P99_MS=8`
+  - `PERF_BUDGET_MAX_FILL_APPLY_P95_MS=8`
+  - `PERF_BUDGET_MAX_FILL_APPLY_P99_MS=14`
 - Shared:
   - `PERF_BUDGET_MAX_VARIANCE_PCT=25`
   - `PERF_BUDGET_MAX_HEAP_DELTA_MB=80`
@@ -72,7 +79,7 @@ Fail-fast behavior:
 - Harness exits non-zero when any benchmark fails budget checks.
 - Runtime report gate (`scripts/check-datagrid-benchmark-report.mjs`) validates:
   - report freshness,
-  - required suites presence (`vue-adapters`, `laravel-morph`, `row-models`),
+  - required suites presence (`vue-adapters`, `laravel-morph`, `interaction-models`, `row-models`),
   - `ok=true` for harness summary and each required suite,
   - JSON artifact integrity for each suite.
 - CI `benchmark-regression` job is blocking for merge readiness.

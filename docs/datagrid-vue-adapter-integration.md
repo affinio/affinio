@@ -7,6 +7,8 @@ Package: `@affino/datagrid-vue`
 
 As of this baseline, the stable public adapter API covers settings persistence and deterministic overlay transforms:
 
+- `createDataGridVueRuntime`
+- `useDataGridRuntime`
 - `createDataGridSettingsAdapter`
 - `useDataGridSettingsStore`
 - `buildDataGridOverlayTransform`
@@ -27,11 +29,18 @@ Source: `/Users/anton/Projects/affinio/packages/datagrid-vue/src/public.ts`
 
 ```ts
 import {
+  createDataGridVueRuntime,
+  useDataGridRuntime,
   createDataGridSettingsAdapter,
   useDataGridSettingsStore,
   buildDataGridOverlayTransformFromSnapshot,
 } from "@affino/datagrid-vue"
 import { createDataGridViewportController } from "@affino/datagrid-core/advanced"
+
+const runtime = createDataGridVueRuntime({ rows, columns })
+await runtime.api.start()
+
+const { api, columnSnapshot } = useDataGridRuntime({ rows, columns })
 
 const store = useDataGridSettingsStore()
 const settingsAdapter = createDataGridSettingsAdapter(store)
