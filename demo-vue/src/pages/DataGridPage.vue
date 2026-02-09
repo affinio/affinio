@@ -16,11 +16,11 @@ import {
 import {
   useDataGridContextMenu,
   useDataGridRuntime,
-  type DataGridContextMenuActionId,
 } from "@affino/datagrid-vue"
 import {
   useDataGridCellNavigation,
   useDataGridClipboardValuePolicy,
+  useDataGridCopyRangeHelpers,
   useDataGridCellDatasetResolver,
   useDataGridCellRangeHelpers,
   useDataGridNavigationPrimitives,
@@ -34,16 +34,20 @@ import {
   useDataGridCellPointerDownRouter,
   useDataGridCellPointerHoverRouter,
   useDataGridColumnFilterOrchestration,
+  useDataGridEnumTrigger,
   useDataGridGroupValueLabelResolver,
   useDataGridGroupMetaOrchestration,
+  useDataGridGroupBadge,
   useDataGridGroupingSortOrchestration,
   useDataGridDragPointerSelection,
   useDataGridClipboardBridge,
   useDataGridClipboardMutations,
   useDataGridContextMenuAnchor,
   useDataGridContextMenuActionRouter,
+  useDataGridClearSelectionLifecycle,
   useDataGridDragSelectionLifecycle,
   useDataGridFillSelectionLifecycle,
+  useDataGridFillHandleStart,
   useDataGridRangeMoveLifecycle,
   useDataGridRangeMoveStart,
   useDataGridSelectionMoveHandle,
@@ -68,13 +72,20 @@ import {
   useDataGridColumnLayoutOrchestration,
   useDataGridSelectionOverlayOrchestration,
   useDataGridRowsProjection,
+  useDataGridRowSelectionInputHandlers,
+  useDataGridSelectionComparators,
+  useDataGridPointerModifierPolicy,
   useDataGridRowSelectionOrchestration,
   useDataGridVirtualRangeMetrics,
   useDataGridViewportMeasureScheduler,
   useDataGridVisibleRowsSyncScheduler,
+  useDataGridQuickFilterActions,
+  useDataGridCellCoordNormalizer,
+  useDataGridHistoryActionRunner,
+  useDataGridInlineEditorFocus,
   useDataGridViewportBlurHandler,
+  useDataGridViewportScrollLifecycle,
   useDataGridViewportContextMenuRouter,
-  type DataGridInlineEditorMode,
 } from "@affino/datagrid-vue/advanced"
 
 type Severity = "critical" | "high" | "medium" | "low"
@@ -276,6 +287,17 @@ const rangeMoveOrigin = ref<CellCoord | null>(null)
 const rangeMovePreviewRange = ref<CellSelectionRange | null>(null)
 
 let lastDragCoord: CellCoord | null = null
+const cellCoordNormalizer = useDataGridCellCoordNormalizer<CellCoord>({
+  resolveRowCount() {
+    return filteredAndSortedRows.value.length
+  },
+  resolveColumnCount() {
+    return orderedColumns.value.length
+  },
+})
+const {
+  normalizeCellCoordBase,
+} = cellCoordNormalizer
 
 const navigationPrimitives = useDataGridNavigationPrimitives<CellCoord, CellSelectionRange>({
   resolveColumns() {
@@ -287,9 +309,7 @@ const navigationPrimitives = useDataGridNavigationPrimitives<CellCoord, CellSele
   resolveNavigableColumnIndexes() {
     return navigableColumnIndexes.value
   },
-  normalizeCellCoord(coord) {
-    return normalizeCellCoord(coord)
-  },
+  normalizeCellCoord: normalizeCellCoordBase,
   resolveCellAnchor() {
     return cellAnchor.value
   },
@@ -308,7 +328,9 @@ const navigationPrimitives = useDataGridNavigationPrimitives<CellCoord, CellSele
   setActiveCell(coord) {
     activeCell.value = coord
   },
-  ensureCellVisible,
+  ensureCellVisible(coord) {
+    cellVisibilityScroller.ensureCellVisible(coord)
+  },
   coordsEqual(left, right) {
     if (!left || !right) {
       return false
@@ -356,6 +378,16 @@ const {
   isCellWithinRange,
   resolveCurrentCellCoord,
 } = cellRangeHelpers
+const copyRangeHelpers = useDataGridCopyRangeHelpers<CellCoord, CellSelectionRange>({
+  resolveSelectionRange() {
+    return cellSelectionRange.value
+  },
+  resolveCurrentCellCoord,
+})
+const {
+  isMultiCellSelection,
+  resolveCopyRange,
+} = copyRangeHelpers
 const cellDatasetResolver = useDataGridCellDatasetResolver<IncidentRow, CellCoord>({
   resolveRows() {
     return filteredAndSortedRows.value
@@ -603,17 +635,26 @@ const {
   onBeforeOpen: closeColumnFilterPanel,
 })
 
-function cloneCoord(coord: CellCoord | null): CellCoord | null {
-  return coord ? { ...coord } : null
-}
-
-function cloneRange(range: CellSelectionRange | null): CellSelectionRange | null {
-  return range ? { ...range } : null
-}
-
-function cloneRows(rows: readonly IncidentRow[]): IncidentRow[] {
-  return rows.map(row => ({ ...row }))
-}
+const selectionComparators = useDataGridSelectionComparators<CellCoord, CellSelectionRange>()
+const {
+  rangesEqual,
+  cellCoordsEqual,
+} = selectionComparators
+const pointerModifierPolicy = useDataGridPointerModifierPolicy()
+const {
+  isRangeMoveModifierActive,
+} = pointerModifierPolicy
+const inlineEditorFocus = useDataGridInlineEditorFocus({
+  resolveViewportElement() {
+    return viewportRef.value
+  },
+  beforeFocus() {
+    return nextTick()
+  },
+})
+const {
+  focusInlineEditorElement,
+} = inlineEditorFocus
 const mutationSnapshot = useDataGridMutationSnapshot<IncidentRow, CellCoord, CellSelectionRange>({
   resolveRows() {
     return sourceRows.value
@@ -648,8 +689,12 @@ const mutationSnapshot = useDataGridMutationSnapshot<IncidentRow, CellCoord, Cel
   cloneRow(row) {
     return { ...row }
   },
-  cloneCoord,
-  cloneRange,
+  cloneCoord(coord) {
+    return { ...coord }
+  },
+  cloneRange(range) {
+    return { ...range }
+  },
 })
 const {
   captureGridMutationSnapshot,
@@ -682,11 +727,12 @@ const clipboard = useDataGridClipboardBridge<IncidentRow, CellSelectionRange>({
   },
   closeContextMenu: closeCopyContextMenu,
 })
+const copySelection = (trigger: "keyboard" | "context-menu") => clipboard.copySelection(trigger)
 
-async function recordIntentTransaction(
+const recordIntentTransaction = async (
   descriptor: IntentTransactionDescriptor,
   beforeSnapshot: GridMutationSnapshot,
-): Promise<void> {
+): Promise<void> => {
   await history.recordIntentTransaction(
     {
       intent: descriptor.intent,
@@ -698,7 +744,7 @@ async function recordIntentTransaction(
 }
 const rangeMutationEngine = useDataGridRangeMutationEngine<
   IncidentRow,
-  DataGridRowNode<IncidentRow>,
+  IncidentRow,
   GridMutationSnapshot,
   CellSelectionRange
 >({
@@ -744,7 +790,12 @@ const rangeMutationEngine = useDataGridRangeMutationEngine<
   isEditableColumn,
   applyValueForMove,
   clearValueForMove,
-  applyEditedValue,
+  applyEditedValue(row, columnKey, draft) {
+    if (!isEditableColumn(columnKey)) {
+      return
+    }
+    applyEditedValue(row, columnKey, draft)
+  },
   shouldRecomputeDerivedForColumn(columnKey) {
     return columnKey === "latencyMs" || columnKey === "errorRate"
   },
@@ -786,7 +837,7 @@ const inlineEditOrchestration = useDataGridInlineEditOrchestration<
 >({
   sourceRows,
   setSourceRows(rows) {
-    sourceRows.value = cloneRows(rows)
+    sourceRows.value = rows.map(row => ({ ...row }))
   },
   cloneRow(row) {
     return { ...row }
@@ -842,6 +893,38 @@ const {
   onEditorInput,
   onEditorSelectChange: onEditorAffinoSelectChange,
 } = inlineEditOrchestration
+const enumTrigger = useDataGridEnumTrigger<DataGridRowNode<IncidentRow>, CellCoord, IncidentRow>({
+  isEnumColumn,
+  isInlineEditorOpen() {
+    return Boolean(inlineEditor.value)
+  },
+  isDragSelecting() {
+    return isDragSelecting.value
+  },
+  isFillDragging() {
+    return isFillDragging.value
+  },
+  isActiveCell(row, columnKey) {
+    if (!activeCell.value) {
+      return false
+    }
+    const coord = resolveCellCoord(row, columnKey)
+    if (!coord) {
+      return false
+    }
+    return coord.rowIndex === activeCell.value.rowIndex && coord.columnIndex === activeCell.value.columnIndex
+  },
+  resolveCellCoord,
+  applyCellSelection,
+  resolveRowData(row) {
+    return row.data
+  },
+  beginInlineEdit,
+})
+const {
+  shouldShowEnumTrigger,
+  onEnumTriggerMouseDown,
+} = enumTrigger
 
 const clipboardMutations = useDataGridClipboardMutations<
   IncidentRow,
@@ -852,7 +935,7 @@ const clipboardMutations = useDataGridClipboardMutations<
 >({
   sourceRows,
   setSourceRows(rows) {
-    sourceRows.value = cloneRows(rows)
+    sourceRows.value = rows.map(row => ({ ...row }))
   },
   cloneRow(row) {
     return { ...row }
@@ -1017,6 +1100,11 @@ const contextMenuAnchor = useDataGridContextMenuAnchor({
     return column.key !== "select"
   },
 })
+const openContextMenuFromCurrentCell = contextMenuAnchor.openContextMenuFromCurrentCell
+const clearCopiedSelectionFlash = clipboard.clearCopiedSelectionFlash
+const pasteSelection = clipboardMutations.pasteSelection
+const clearCurrentSelection = clipboardMutations.clearCurrentSelection
+const cutSelection = clipboardMutations.cutSelection
 const contextMenuActionRouter = useDataGridContextMenuActionRouter({
   resolveContextMenuState() {
     return {
@@ -1033,6 +1121,7 @@ const contextMenuActionRouter = useDataGridContextMenuActionRouter({
   clearCurrentSelection,
   closeContextMenu: closeCopyContextMenu,
 })
+const onContextMenuAction = contextMenuActionRouter.runContextMenuAction
 const viewportContextMenuRouter = useDataGridViewportContextMenuRouter({
   isInteractionBlocked() {
     return isDragSelecting.value || isFillDragging.value || isRangeMoving.value || isColumnResizing.value
@@ -1060,6 +1149,7 @@ const viewportContextMenuRouter = useDataGridViewportContextMenuRouter({
     return columnKey !== "select"
   },
 })
+const onViewportContextMenu = viewportContextMenuRouter.dispatchViewportContextMenu
 const viewportBlurHandler = useDataGridViewportBlurHandler({
   resolveViewportElement() {
     return viewportRef.value
@@ -1077,6 +1167,7 @@ const viewportBlurHandler = useDataGridViewportBlurHandler({
   },
   commitInlineEdit,
 })
+const onViewportBlur = viewportBlurHandler.handleViewportBlur
 const cellPointerDownRouter = useDataGridCellPointerDownRouter<DataGridRowNode<IncidentRow>, CellCoord, CellSelectionRange>({
   isSelectionColumn(columnKey) {
     return columnKey === "select"
@@ -1094,7 +1185,9 @@ const cellPointerDownRouter = useDataGridCellPointerDownRouter<DataGridRowNode<I
     return cellSelectionRange.value
   },
   isCoordInsideRange,
-  startRangeMove,
+  startRangeMove(coord, pointer) {
+    return rangeMoveStart.startRangeMove(coord, pointer)
+  },
   closeContextMenu: closeCopyContextMenu,
   focusViewport() {
     viewportRef.value?.focus()
@@ -1118,6 +1211,8 @@ const cellPointerDownRouter = useDataGridCellPointerDownRouter<DataGridRowNode<I
     lastAction.value = message
   },
 })
+const onDataCellMouseDown = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) =>
+  cellPointerDownRouter.dispatchCellPointerDown(row, columnKey, event)
 const cellPointerHoverRouter = useDataGridCellPointerHoverRouter<DataGridRowNode<IncidentRow>, CellCoord>({
   hasInlineEditor() {
     return inlineEditor.value !== null
@@ -1141,6 +1236,8 @@ const cellPointerHoverRouter = useDataGridCellPointerHoverRouter<DataGridRowNode
   },
   applyCellSelection,
 })
+const onDataCellMouseEnter = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) =>
+  cellPointerHoverRouter.dispatchCellPointerEnter(row, columnKey, event)
 const dragPointerSelection = useDataGridDragPointerSelection<CellCoord>({
   isDragSelecting() {
     return isDragSelecting.value
@@ -1426,6 +1523,12 @@ const globalPointerLifecycle = useDataGridGlobalPointerLifecycle({
   applyDragSelectionFromPointer,
   stopDragSelection,
 })
+const onGlobalMouseMove = globalPointerLifecycle.dispatchGlobalMouseMove
+const onGlobalMouseUp = globalPointerLifecycle.dispatchGlobalMouseUp
+const onGlobalPointerUp = globalPointerLifecycle.dispatchGlobalPointerUp
+const onGlobalPointerCancel = globalPointerLifecycle.dispatchGlobalPointerCancel
+const onGlobalContextMenuCapture = globalPointerLifecycle.dispatchGlobalContextMenuCapture
+const onGlobalWindowBlur = globalPointerLifecycle.dispatchGlobalWindowBlur
 const globalMouseDownContextMenuCloser = useDataGridGlobalMouseDownContextMenuCloser({
   isContextMenuVisible() {
     return copyContextMenu.value.visible
@@ -1435,6 +1538,34 @@ const globalMouseDownContextMenuCloser = useDataGridGlobalMouseDownContextMenuCl
   },
   closeContextMenu: closeCopyContextMenu,
 })
+const onGlobalMouseDown = globalMouseDownContextMenuCloser.dispatchGlobalMouseDown
+const canUndoHistory = history.canUndo
+const canRedoHistory = history.canRedo
+const historyActionRunner = useDataGridHistoryActionRunner({
+  hasInlineEditor() {
+    return Boolean(inlineEditor.value)
+  },
+  commitInlineEdit,
+  closeContextMenu: closeCopyContextMenu,
+  canUndo() {
+    return canUndoHistory.value
+  },
+  canRedo() {
+    return canRedoHistory.value
+  },
+  runHistoryAction(direction) {
+    return history.runHistoryAction(direction)
+  },
+  setLastAction(message) {
+    lastAction.value = message
+  },
+  onError(direction, error) {
+    console.error(`[DataGrid] ${direction} failed`, error)
+  },
+})
+const {
+  runHistoryAction,
+} = historyActionRunner
 const keyboardCommandRouter = useDataGridKeyboardCommandRouter({
   isRangeMoving: () => isRangeMoving.value,
   isContextMenuVisible: () => copyContextMenu.value.visible,
@@ -1477,6 +1608,7 @@ const inlineEditorKeyRouter = useDataGridInlineEditorKeyRouter({
   resolveNextEditableTarget: inlineEditorTargetNavigation.resolveNextEditableTarget,
   focusInlineEditorTarget: inlineEditorTargetNavigation.focusInlineEditorTarget,
 })
+const onEditorKeyDown = inlineEditorKeyRouter.dispatchEditorKeyDown
 const tabTargetResolver = useDataGridTabTargetResolver<CellCoord>({
   resolveNavigableColumnIndexes() {
     return navigableColumnIndexes.value
@@ -1604,6 +1736,14 @@ const {
   clearRowSelection,
   reconcileSelection: reconcileRowSelection,
 } = rowSelectionOrchestration
+const rowSelectionInputHandlers = useDataGridRowSelectionInputHandlers({
+  toggleSelectAllVisible: toggleSelectAllFiltered,
+  toggleRowSelection,
+})
+const {
+  onSelectAllChange,
+  onRowSelectChange,
+} = rowSelectionInputHandlers
 const { resolveGroupValueLabel } = useDataGridGroupValueLabelResolver<IncidentRow, GroupByColumnKey>({
   resolveCellValue(row, groupKey) {
     return getRowCellValue(row, groupKey)
@@ -1628,6 +1768,19 @@ const {
   isGroupStartRow: isGroupStartRowId,
   resolveGroupBadgeText: resolveGroupBadgeTextByRowId,
 } = groupMetaOrchestration
+const groupBadge = useDataGridGroupBadge<DataGridRowNode<IncidentRow>>({
+  resolveRowId(row) {
+    return String(row.rowId)
+  },
+  isGroupedByColumn,
+  isGroupStartRowId,
+  resolveGroupBadgeTextByRowId,
+})
+const {
+  isGroupStartRow,
+  shouldShowGroupBadge,
+  resolveGroupBadgeText,
+} = groupBadge
 const columnLayoutOrchestration = useDataGridColumnLayoutOrchestration({
   columns: computed(() => columnSnapshot.value.visibleColumns),
   resolveColumnWidth,
@@ -1780,6 +1933,20 @@ const quickFilterStatus = computed(() => {
   const displayQuery = query.value.trim()
   return `Quick filter: "${displayQuery}" · ${filteredAndSortedRows.value.length}/${sourceRows.value.length}`
 })
+const quickFilterActions = useDataGridQuickFilterActions({
+  resolveQuery() {
+    return query.value
+  },
+  setQuery(value) {
+    query.value = value
+  },
+  setLastAction(message) {
+    lastAction.value = message
+  },
+})
+const {
+  clearQuickFilter,
+} = quickFilterActions
 const gridRowCount = computed(() => filteredAndSortedRows.value.length + 1)
 const activeCellDescendantId = computed(() => {
   const active = activeCell.value
@@ -1808,27 +1975,6 @@ const activeCellLabel = computed(() => {
   return `R${activeCell.value.rowIndex + 1} · ${column.key}`
 })
 
-const canUndoHistory = history.canUndo
-const canRedoHistory = history.canRedo
-
-function rangesEqual(a: CellSelectionRange | null, b: CellSelectionRange | null): boolean {
-  if (!a || !b) {
-    return false
-  }
-  return (
-    a.startRow === b.startRow &&
-    a.endRow === b.endRow &&
-    a.startColumn === b.startColumn &&
-    a.endColumn === b.endColumn
-  )
-}
-
-function cellCoordsEqual(a: CellCoord | null, b: CellCoord | null): boolean {
-  if (!a || !b) {
-    return false
-  }
-  return a.rowIndex === b.rowIndex && a.columnIndex === b.columnIndex
-}
 const selectionOverlayOrchestration = useDataGridSelectionOverlayOrchestration({
   headerHeight,
   rowHeight: ROW_HEIGHT,
@@ -1851,158 +1997,8 @@ function isEditableColumn(columnKey: string): columnKey is EditableColumnKey {
   return hasEditablePolicy(columnKey)
 }
 
-function onSelectAllChange(event: Event) {
-  toggleSelectAllFiltered((event.target as HTMLInputElement).checked)
-}
-
-function onRowSelectChange(rowId: string, event: Event) {
-  toggleRowSelection(rowId, (event.target as HTMLInputElement).checked)
-}
-
-function clearQuickFilter() {
-  if (!query.value) {
-    return
-  }
-  query.value = ""
-  lastAction.value = "Quick filter cleared"
-}
-
-async function focusInlineEditorElement(
-  rowId: string,
-  columnKey: EditableColumnKey,
-  mode: DataGridInlineEditorMode,
-  openPicker: boolean,
-) {
-  await nextTick()
-  const viewport = viewportRef.value
-  if (!viewport) return
-  const selector = `[data-inline-editor-row-id="${rowId}"][data-inline-editor-column-key="${columnKey}"]`
-  const editorHost = viewport.querySelector(selector) as HTMLElement | null
-  if (!editorHost) return
-  const editor = editorHost.matches("input,textarea,select,button,[tabindex]")
-    ? editorHost
-    : (editorHost.querySelector("input,textarea,select,button,[tabindex]") as HTMLElement | null)
-  if (!editor) return
-  editor.focus()
-  if (editor instanceof HTMLInputElement) {
-    editor.select()
-    return
-  }
-  if (mode === "select" && openPicker) {
-    try {
-      editor.click()
-    } catch {
-      // Ignore click-open failures for synthetic editors.
-    }
-  }
-}
-
-function onEditorKeyDown(event: KeyboardEvent, rowId: string, columnKey: string) {
-  inlineEditorKeyRouter.dispatchEditorKeyDown(event, rowId, columnKey)
-}
-
-function shouldShowEnumTrigger(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
-  if (!isEnumColumn(columnKey) || inlineEditor.value || isDragSelecting.value || isFillDragging.value) {
-    return false
-  }
-  return isActiveCell(row, columnKey)
-}
-
-function onEnumTriggerMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) {
-  if (!isEnumColumn(columnKey)) {
-    return
-  }
-  event.preventDefault()
-  event.stopPropagation()
-  const coord = resolveCellCoord(row, columnKey)
-  if (coord) {
-    applyCellSelection(coord, false)
-  }
-  beginInlineEdit(row.data, columnKey, "select", true)
-}
-
 function clearCellSelection() {
-  cellAnchor.value = null
-  cellFocus.value = null
-  activeCell.value = null
-  isDragSelecting.value = false
-  isFillDragging.value = false
-  dragPointer.value = null
-  fillPointer.value = null
-  fillBaseRange.value = null
-  fillPreviewRange.value = null
-  lastDragCoord = null
-  closeCopyContextMenu()
-  stopRangeMove(false)
-  stopColumnResize()
-  stopAutoScrollFrameIfIdle()
-}
-
-function isRangeMoveModifierActive(event: MouseEvent | KeyboardEvent): boolean {
-  return event.altKey || event.ctrlKey || event.metaKey
-}
-
-function startRangeMove(coord: CellCoord, pointer: { clientX: number; clientY: number }) {
-  return rangeMoveStart.startRangeMove(coord, pointer)
-}
-
-function getSelectionEdgeSides(row: DataGridRowNode<IncidentRow>, columnKey: string): {
-  top: boolean
-  right: boolean
-  bottom: boolean
-  left: boolean
-} {
-  const range = cellSelectionRange.value
-  if (!range || columnKey === "select") {
-    return { top: false, right: false, bottom: false, left: false }
-  }
-  const rowIndex = resolveRowIndex(row)
-  const columnIndex = resolveColumnIndex(columnKey)
-  if (columnIndex < 0 || !isCellWithinRange(rowIndex, columnIndex, range)) {
-    return { top: false, right: false, bottom: false, left: false }
-  }
-  return {
-    top: rowIndex === range.startRow,
-    right: columnIndex === range.endColumn,
-    bottom: rowIndex === range.endRow,
-    left: columnIndex === range.startColumn,
-  }
-}
-
-function shouldShowSelectionMoveHandle(
-  row: DataGridRowNode<IncidentRow>,
-  columnKey: string,
-  side: "top" | "right" | "bottom" | "left",
-): boolean {
-  if (isRangeMoving.value || isFillDragging.value || inlineEditor.value) {
-    return false
-  }
-  const sides = getSelectionEdgeSides(row, columnKey)
-  return sides[side]
-}
-
-function onSelectionMoveHandleMouseDown(
-  row: DataGridRowNode<IncidentRow>,
-  columnKey: string,
-  event: MouseEvent,
-) {
-  if (event.button !== 0) {
-    return
-  }
-  const coord = resolveCellCoord(row, columnKey)
-  if (!coord) {
-    return
-  }
-  event.preventDefault()
-  event.stopPropagation()
-  startRangeMove(coord, event)
-}
-
-function isMultiCellSelection(range: CellSelectionRange | null): boolean {
-  if (!range) {
-    return false
-  }
-  return range.startRow !== range.endRow || range.startColumn !== range.endColumn
+  clearSelectionLifecycle.clearCellSelection()
 }
 
 function onCopyMenuKeyDown(event: KeyboardEvent) {
@@ -2011,51 +2007,6 @@ function onCopyMenuKeyDown(event: KeyboardEvent) {
       viewportRef.value?.focus()
     },
   })
-}
-
-function clearCopiedSelectionFlash() {
-  clipboard.clearCopiedSelectionFlash()
-}
-
-function resolveCopyRange(): CellSelectionRange | null {
-  const selected = cellSelectionRange.value
-  if (selected) {
-    return selected
-  }
-  const current = resolveCurrentCellCoord()
-  if (!current) {
-    return null
-  }
-  return {
-    startRow: current.rowIndex,
-    endRow: current.rowIndex,
-    startColumn: current.columnIndex,
-    endColumn: current.columnIndex,
-  }
-}
-
-async function copySelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
-  return clipboard.copySelection(trigger)
-}
-
-async function pasteSelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
-  return clipboardMutations.pasteSelection(trigger)
-}
-
-async function clearCurrentSelection(trigger: "context-menu" | "keyboard"): Promise<boolean> {
-  return clipboardMutations.clearCurrentSelection(trigger)
-}
-
-async function cutSelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
-  return clipboardMutations.cutSelection(trigger)
-}
-
-async function onContextMenuAction(action: DataGridContextMenuActionId) {
-  await contextMenuActionRouter.runContextMenuAction(action)
-}
-
-function ensureCellVisible(coord: CellCoord) {
-  cellVisibilityScroller.ensureCellVisible(coord)
 }
 
 function resolveCellCoordFromPointer(clientX: number, clientY: number): CellCoord | null {
@@ -2087,25 +2038,7 @@ function stopAutoScrollFrameIfIdle() {
 }
 
 function onSelectionHandleMouseDown(event: MouseEvent) {
-  if (event.button !== 0) {
-    return
-  }
-  const currentRange = cellSelectionRange.value
-  if (!currentRange) {
-    return
-  }
-  event.preventDefault()
-  event.stopPropagation()
-  viewportRef.value?.focus()
-  stopRangeMove(false)
-  isDragSelecting.value = false
-  dragPointer.value = null
-  isFillDragging.value = true
-  fillBaseRange.value = { ...currentRange }
-  fillPreviewRange.value = { ...currentRange }
-  fillPointer.value = { clientX: event.clientX, clientY: event.clientY }
-  startInteractionAutoScroll()
-  lastAction.value = "Fill handle active"
+  fillHandleStart.onSelectionHandleMouseDown(event)
 }
 
 function stopFillSelection(applyPreview: boolean) {
@@ -2116,56 +2049,8 @@ function stopRangeMove(applyPreview: boolean) {
   rangeMoveLifecycle.stopRangeMove(applyPreview)
 }
 
-function onGlobalMouseMove(event: MouseEvent) {
-  globalPointerLifecycle.dispatchGlobalMouseMove(event)
-}
-
-function onGlobalMouseDown(event: MouseEvent) {
-  globalMouseDownContextMenuCloser.dispatchGlobalMouseDown(event)
-}
-
-function onGlobalMouseUp(event: MouseEvent) {
-  globalPointerLifecycle.dispatchGlobalMouseUp(event)
-}
-
-function onGlobalPointerUp(event: PointerEvent) {
-  globalPointerLifecycle.dispatchGlobalPointerUp(event)
-}
-
-function onGlobalPointerCancel() {
-  globalPointerLifecycle.dispatchGlobalPointerCancel()
-}
-
-function onGlobalContextMenuCapture(event: MouseEvent) {
-  globalPointerLifecycle.dispatchGlobalContextMenuCapture(event)
-}
-
-function onGlobalWindowBlur() {
-  globalPointerLifecycle.dispatchGlobalWindowBlur()
-}
-
-function onDataCellMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) {
-  cellPointerDownRouter.dispatchCellPointerDown(row, columnKey, event)
-}
-
-function onViewportContextMenu(event: MouseEvent) {
-  viewportContextMenuRouter.dispatchViewportContextMenu(event)
-}
-
-function onDataCellMouseEnter(row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) {
-  cellPointerHoverRouter.dispatchCellPointerEnter(row, columnKey, event)
-}
-
 function stopDragSelection() {
   dragSelectionLifecycle.stopDragSelection()
-}
-
-function onViewportBlur(event: FocusEvent) {
-  viewportBlurHandler.handleViewportBlur(event)
-}
-
-function openContextMenuFromCurrentCell() {
-  contextMenuAnchor.openContextMenuFromCurrentCell()
 }
 
 function onViewportKeyDown(event: KeyboardEvent) {
@@ -2178,39 +2063,96 @@ function onViewportKeyDown(event: KeyboardEvent) {
   cellNavigation.dispatchNavigation(event)
 }
 
-function isGroupStartRow(row: DataGridRowNode<IncidentRow>): boolean {
-  return isGroupStartRowId(String(row.rowId))
-}
-
-function shouldShowGroupBadge(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
-  if (!isGroupedByColumn(columnKey)) {
-    return false
-  }
-  return isGroupStartRow(row)
-}
-
-function resolveGroupBadgeText(row: DataGridRowNode<IncidentRow>): string {
-  return resolveGroupBadgeTextByRowId(String(row.rowId))
-}
-
-function onViewportScroll(event: Event) {
-  const target = event.currentTarget as HTMLElement | null
-  if (!target) return
-  if (copyContextMenu.value.visible) {
-    closeCopyContextMenu()
-  }
-  const nextTop = target.scrollTop
-  const nextLeft = target.scrollLeft
-  if (nextTop !== scrollTop.value) {
-    scrollTop.value = nextTop
-  }
-  if (nextLeft !== scrollLeft.value) {
-    scrollLeft.value = nextLeft
-  }
-  if (inlineEditor.value) {
-    commitInlineEdit()
-  }
-}
+const clearSelectionLifecycle = useDataGridClearSelectionLifecycle<CellCoord, CellSelectionRange>({
+  setCellAnchor(coord) {
+    cellAnchor.value = coord
+  },
+  setCellFocus(coord) {
+    cellFocus.value = coord
+  },
+  setActiveCell(coord) {
+    activeCell.value = coord
+  },
+  setDragSelecting(value) {
+    isDragSelecting.value = value
+  },
+  setFillDragging(value) {
+    isFillDragging.value = value
+  },
+  setDragPointer(pointer) {
+    dragPointer.value = pointer
+  },
+  setFillPointer(pointer) {
+    fillPointer.value = pointer
+  },
+  setFillBaseRange(range) {
+    fillBaseRange.value = range
+  },
+  setFillPreviewRange(range) {
+    fillPreviewRange.value = range
+  },
+  clearLastDragCoord() {
+    lastDragCoord = null
+  },
+  closeContextMenu: closeCopyContextMenu,
+  stopRangeMove,
+  stopColumnResize,
+  stopAutoScrollFrameIfIdle,
+})
+const fillHandleStart = useDataGridFillHandleStart<CellSelectionRange>({
+  resolveSelectionRange() {
+    return cellSelectionRange.value
+  },
+  focusViewport() {
+    viewportRef.value?.focus()
+  },
+  stopRangeMove,
+  setDragSelecting(value) {
+    isDragSelecting.value = value
+  },
+  setDragPointer(pointer) {
+    dragPointer.value = pointer
+  },
+  setFillDragging(value) {
+    isFillDragging.value = value
+  },
+  setFillBaseRange(range) {
+    fillBaseRange.value = range
+  },
+  setFillPreviewRange(range) {
+    fillPreviewRange.value = range
+  },
+  setFillPointer(pointer) {
+    fillPointer.value = pointer
+  },
+  startInteractionAutoScroll,
+  setLastAction(message) {
+    lastAction.value = message
+  },
+})
+const viewportScrollLifecycle = useDataGridViewportScrollLifecycle({
+  isContextMenuVisible() {
+    return copyContextMenu.value.visible
+  },
+  closeContextMenu: closeCopyContextMenu,
+  resolveScrollTop() {
+    return scrollTop.value
+  },
+  resolveScrollLeft() {
+    return scrollLeft.value
+  },
+  setScrollTop(value) {
+    scrollTop.value = value
+  },
+  setScrollLeft(value) {
+    scrollLeft.value = value
+  },
+  hasInlineEditor() {
+    return Boolean(inlineEditor.value)
+  },
+  commitInlineEdit,
+})
+const onViewportScroll = viewportScrollLifecycle.onViewportScroll
 
 function randomizeRuntime() {
   if (inlineEditor.value) {
@@ -2229,36 +2171,6 @@ function randomizeRuntime() {
     }
   })
   lastAction.value = "Applied runtime shift"
-}
-
-async function runHistoryAction(direction: "undo" | "redo", trigger: "keyboard" | "control"): Promise<boolean> {
-  if (inlineEditor.value) {
-    commitInlineEdit()
-  }
-  closeCopyContextMenu()
-  if (direction === "undo" && !canUndoHistory.value) {
-    lastAction.value = "Nothing to undo"
-    return false
-  }
-  if (direction === "redo" && !canRedoHistory.value) {
-    lastAction.value = "Nothing to redo"
-    return false
-  }
-  try {
-    const committedId = await history.runHistoryAction(direction)
-    if (!committedId) {
-      lastAction.value = direction === "undo" ? "Nothing to undo" : "Nothing to redo"
-      return false
-    }
-    lastAction.value = direction === "undo"
-      ? `Undo ${committedId} (${trigger})`
-      : `Redo ${committedId} (${trigger})`
-    return true
-  } catch (error) {
-    console.error(`[DataGrid] ${direction} failed`, error)
-    lastAction.value = direction === "undo" ? "Undo failed" : "Redo failed"
-    return false
-  }
 }
 
 function resetDataset() {

@@ -1,6 +1,6 @@
 # DataGrid Vue Advanced Entrypoint
 
-Updated: `2026-02-08`
+Updated: `2026-02-09`
 
 This document defines the explicit advanced namespace for power-user hooks in `@affino/datagrid-vue`.
 
@@ -18,18 +18,52 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 - `useDataGridDragSelectionLifecycle`
 - `useDataGridDragPointerSelection`
 - `useDataGridFillSelectionLifecycle`
+- `useDataGridFillHandleStart`
 - `useDataGridRangeMoveLifecycle`
 - `useDataGridRangeMoveStart`
+- `useDataGridSelectionMoveHandle`
 - `useDataGridTabTargetResolver`
 - `useDataGridCellNavigation`
+- `useDataGridClipboardValuePolicy`
+- `useDataGridCellDatasetResolver`
+- `useDataGridCellRangeHelpers`
+- `useDataGridNavigationPrimitives`
+- `useDataGridMutationSnapshot`
+- `useDataGridCellVisualStatePredicates`
+- `useDataGridRangeMutationEngine`
+- `useDataGridA11yCellIds`
+- `useDataGridColumnUiPolicy`
+- `useDataGridEditableValuePolicy`
+- `useDataGridMoveMutationPolicy`
+- `useDataGridInlineEditorSchema`
+- `useDataGridInlineEditOrchestration`
+- `useDataGridInlineEditorTargetNavigation`
 - `useDataGridInlineEditorKeyRouter`
 - `useDataGridHeaderContextActions`
+- `useDataGridCopyRangeHelpers`
 - `useDataGridHeaderSortOrchestration`
 - `useDataGridHeaderResizeOrchestration`
+- `useDataGridHeaderInteractionRouter`
+- `useDataGridColumnFilterOrchestration`
+- `useDataGridEnumTrigger`
+- `useDataGridGroupValueLabelResolver`
+- `useDataGridGroupMetaOrchestration`
+- `useDataGridGroupBadge`
+- `useDataGridGroupingSortOrchestration`
+- `useDataGridViewportMeasureScheduler`
+- `useDataGridVisibleRowsSyncScheduler`
+- `useDataGridColumnLayoutOrchestration`
+- `useDataGridSelectionOverlayOrchestration`
+- `useDataGridRowsProjection`
+- `useDataGridRowSelectionOrchestration`
+- `useDataGridRowSelectionInputHandlers`
+- `useDataGridVirtualRangeMetrics`
 - `useDataGridContextMenuAnchor`
 - `useDataGridContextMenuActionRouter`
 - `useDataGridViewportContextMenuRouter`
 - `useDataGridViewportBlurHandler`
+- `useDataGridViewportScrollLifecycle`
+- `useDataGridClearSelectionLifecycle`
 - `useDataGridGlobalPointerLifecycle`
 - `useDataGridPointerAutoScroll`
 - `useDataGridPointerPreviewRouter`
@@ -38,6 +72,12 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 - `useDataGridCellVisibilityScroller`
 - `useDataGridGlobalMouseDownContextMenuCloser`
 - `useDataGridKeyboardCommandRouter`
+- `useDataGridQuickFilterActions`
+- `useDataGridCellCoordNormalizer`
+- `useDataGridSelectionComparators`
+- `useDataGridPointerModifierPolicy`
+- `useDataGridHistoryActionRunner`
+- `useDataGridInlineEditorFocus`
 - `useDataGridRowSelectionFacade`
 - `useDataGridFindReplaceFacade`
 - `useDataGridClipboardBridge`
