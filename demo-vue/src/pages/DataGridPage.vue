@@ -2394,10 +2394,9 @@ const columnLayoutOrchestration = useDataGridColumnLayoutOrchestration({
 const {
   orderedColumns,
   orderedColumnMetrics,
-  templateColumns,
+  columnLayers,
+  layerTrackTemplate,
   visibleColumnsWindow,
-  getCellStyle,
-  isStickyColumn,
 } = columnLayoutOrchestration
 const navigableColumnIndexes = computed(() =>
   orderedColumns.value
@@ -3361,28 +3360,34 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         @keydown="onViewportKeyDown"
         @blur="onViewportBlur"
       >
-        <div ref="headerRef" class="datagrid-stage__header" role="row" :style="{ gridTemplateColumns: templateColumns }">
+        <div ref="headerRef" class="datagrid-stage__header" role="row" :style="{ gridTemplateColumns: layerTrackTemplate }">
           <div
-            v-for="column in orderedColumns"
-            :key="`header-${column.key}`"
-            class="datagrid-stage__cell datagrid-stage__cell--header"
-            :class="{
-              'datagrid-stage__cell--sticky': isStickyColumn(column.key),
-              'datagrid-stage__cell--select': column.key === 'select',
-              'datagrid-stage__cell--sortable': isSortableColumn(column.key),
-              'datagrid-stage__cell--filtered': isColumnFilterActive(column.key),
-              'datagrid-stage__cell--filter-open': activeFilterColumnKey === column.key,
-            }"
-            :data-column-key="column.key"
-            :style="getCellStyle(column.key)"
-            :id="getHeaderCellId(column.key)"
-            role="columnheader"
-            :aria-colindex="getColumnAriaIndex(column.key)"
-            :tabindex="isSortableColumn(column.key) ? 0 : -1"
-            :aria-sort="getHeaderAriaSort(column.key)"
-            @click="onHeaderCellClick(column.key, $event)"
-            @keydown="onHeaderCellKeyDown(column.key, $event)"
+            v-for="layer in columnLayers"
+            :key="`header-layer-${layer.key}`"
+            class="datagrid-stage__layer datagrid-stage__layer--header"
+            :class="`datagrid-stage__layer--${layer.key}`"
+            :style="{ gridTemplateColumns: layer.templateColumns, width: `${layer.width}px` }"
           >
+            <div
+              v-for="column in layer.columns"
+              :key="`header-${layer.key}-${column.key}`"
+              class="datagrid-stage__cell datagrid-stage__cell--header"
+              :class="{
+                'datagrid-stage__cell--sticky': layer.key !== 'scroll',
+                'datagrid-stage__cell--select': column.key === 'select',
+                'datagrid-stage__cell--sortable': isSortableColumn(column.key),
+                'datagrid-stage__cell--filtered': isColumnFilterActive(column.key),
+                'datagrid-stage__cell--filter-open': activeFilterColumnKey === column.key,
+              }"
+              :data-column-key="column.key"
+              :id="getHeaderCellId(column.key)"
+              role="columnheader"
+              :aria-colindex="getColumnAriaIndex(column.key)"
+              :tabindex="isSortableColumn(column.key) ? 0 : -1"
+              :aria-sort="getHeaderAriaSort(column.key)"
+              @click="onHeaderCellClick(column.key, $event)"
+              @keydown="onHeaderCellKeyDown(column.key, $event)"
+            >
             <template v-if="column.key === 'select'">
               <input
                 type="checkbox"
@@ -3593,6 +3598,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
                 @dblclick="onHeaderResizeHandleDoubleClick(column.key, $event)"
               ></button>
             </template>
+            </div>
           </div>
         </div>
 
@@ -3608,11 +3614,18 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           }"
           role="row"
           :aria-rowindex="getRowAriaIndex(row)"
-          :style="{ gridTemplateColumns: templateColumns }"
+          :style="{ gridTemplateColumns: layerTrackTemplate }"
         >
           <div
-            v-for="column in orderedColumns"
-            :key="`${row.rowId}-${column.key}`"
+            v-for="layer in columnLayers"
+            :key="`${row.rowId}-${layer.key}`"
+            class="datagrid-stage__layer datagrid-stage__layer--row"
+            :class="`datagrid-stage__layer--${layer.key}`"
+            :style="{ gridTemplateColumns: layer.templateColumns, width: `${layer.width}px` }"
+          >
+          <div
+            v-for="column in layer.columns"
+            :key="`${row.rowId}-${layer.key}-${column.key}`"
             class="datagrid-stage__cell"
             :class="{
               'datagrid-stage__cell--numeric': ['latencyMs', 'errorRate', 'availabilityPct', 'mttrMin', 'cpuPct', 'memoryPct', 'queueDepth', 'throughputRps', 'sloBurnRate', 'incidents24h'].includes(column.key),
@@ -3628,14 +3641,13 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               'datagrid-stage__cell--move-preview': isCellInMovePreview(row, column.key),
               'datagrid-stage__cell--anchor': isAnchorCell(row, column.key),
               'datagrid-stage__cell--active': isActiveCell(row, column.key),
-              'datagrid-stage__cell--sticky': isStickyColumn(column.key),
+              'datagrid-stage__cell--sticky': layer.key !== 'scroll',
               'datagrid-stage__cell--range-end': isRangeEndCell(row, column.key),
               'datagrid-stage__cell--group-by': isGroupedByColumn(column.key),
               'datagrid-stage__cell--group-start': shouldShowGroupBadge(row, column.key),
             }"
             :data-column-key="column.key"
             :data-row-id="row.rowId"
-            :style="getCellStyle(column.key)"
             :id="getGridCellId(String(row.rowId), column.key)"
             role="gridcell"
             :aria-colindex="getColumnAriaIndex(column.key)"
@@ -3754,6 +3766,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               aria-hidden="true"
               @mousedown.stop.prevent="onSelectionMoveHandleMouseDown(row, column.key, $event)"
             ></span>
+          </div>
           </div>
         </div>
 

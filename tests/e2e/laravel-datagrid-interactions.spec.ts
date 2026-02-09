@@ -86,4 +86,121 @@ test.describe("laravel datagrid interactions", () => {
       return current !== "" && current !== initialActive
     }).toBe(true)
   })
+
+  test("range cut/paste applies matrix with undo support", async ({ page }) => {
+    await page.goto("http://127.0.0.1:4180/datagrid")
+
+    const ownerCells = page.locator('[data-datagrid-column-key="owner"]')
+    const regionCells = page.locator('[data-datagrid-column-key="region"]')
+    const undoButton = page.locator("[data-datagrid-undo]")
+
+    const ownerR1 = ownerCells.nth(0)
+    const ownerR2 = ownerCells.nth(1)
+    const ownerR3 = ownerCells.nth(2)
+    const regionR1 = regionCells.nth(0)
+    const regionR2 = regionCells.nth(1)
+    const regionR3 = regionCells.nth(2)
+
+    const ownerR1Before = ((await ownerR1.textContent()) ?? "").trim()
+    const ownerR2Before = ((await ownerR2.textContent()) ?? "").trim()
+    const regionR1Before = ((await regionR1.textContent()) ?? "").trim()
+    const regionR2Before = ((await regionR2.textContent()) ?? "").trim()
+
+    await ownerR1.click()
+    await page.keyboard.down("Shift")
+    await page.keyboard.press("ArrowDown")
+    await page.keyboard.press("ArrowRight")
+    await page.keyboard.up("Shift")
+
+    await expect(page.locator("[data-datagrid-selected]")).toHaveText("4")
+
+    await page.keyboard.press("ControlOrMeta+X")
+
+    await expect(ownerR1).toHaveText("")
+    await expect(ownerR2).toHaveText("")
+    await expect(regionR1).toHaveText("")
+    await expect(regionR2).toHaveText("")
+
+    await undoButton.click()
+
+    await expect(ownerR1).toHaveText(ownerR1Before)
+    await expect(ownerR2).toHaveText(ownerR2Before)
+    await expect(regionR1).toHaveText(regionR1Before)
+    await expect(regionR2).toHaveText(regionR2Before)
+
+    await ownerR3.click()
+    await page.keyboard.press("ControlOrMeta+V")
+
+    await expect(ownerR3).toHaveText(ownerR1Before)
+    await expect(regionR3).toHaveText(regionR1Before)
+  })
+
+  test("fill handle extends active cell value down the range", async ({ page }) => {
+    await page.goto("http://127.0.0.1:4180/datagrid")
+
+    const deploymentCells = page.locator('[data-datagrid-column-key="deployment"]')
+    const sourceCell = deploymentCells.nth(0)
+    const targetCell = deploymentCells.nth(2)
+    const middleCell = deploymentCells.nth(1)
+
+    const sourceValue = ((await sourceCell.textContent()) ?? "").trim()
+
+    await sourceCell.click()
+    await sourceCell.hover()
+
+    const handle = sourceCell.locator(".affino-datagrid-demo__fill-handle")
+    await expect(handle).toBeVisible()
+
+    const handleBox = await handle.boundingBox()
+    const targetBox = await targetCell.boundingBox()
+    if (!handleBox || !targetBox) {
+      throw new Error("Unable to resolve fill-handle drag coordinates")
+    }
+
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 })
+    await page.mouse.up()
+
+    await expect(middleCell).toHaveText(sourceValue)
+    await expect(targetCell).toHaveText(sourceValue)
+    await expect(page.locator("[data-datagrid-status]")).toContainText("Filled range")
+  })
+
+  test("fill handle autoscrolls viewport near bottom edge", async ({ page }) => {
+    await page.goto("http://127.0.0.1:4180/datagrid")
+
+    const viewport = page.locator("[data-datagrid-viewport]")
+    const deploymentCells = page.locator('[data-datagrid-column-key="deployment"]')
+    const sourceCell = deploymentCells.nth(0)
+
+    await sourceCell.click()
+    await sourceCell.hover()
+
+    const handle = sourceCell.locator(".affino-datagrid-demo__fill-handle")
+    await expect(handle).toBeVisible()
+
+    const handleBox = await handle.boundingBox()
+    const viewportBox = await viewport.boundingBox()
+    if (!handleBox || !viewportBox) {
+      throw new Error("Unable to resolve viewport/handle geometry for fill autoscroll")
+    }
+
+    await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBe(0)
+
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
+    await page.mouse.down()
+    for (let step = 0; step < 10; step += 1) {
+      await page.mouse.move(
+        viewportBox.x + viewportBox.width / 2,
+        viewportBox.y + viewportBox.height - 2,
+        { steps: 2 },
+      )
+      await page.waitForTimeout(24)
+    }
+    await page.mouse.up()
+
+    await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+    await expect(page.locator("[data-datagrid-status]")).toContainText("Filled range")
+  })
 })

@@ -4,6 +4,8 @@ const ROW_HEIGHT = 36;
 const OVERSCAN_ROWS = 8;
 const DEFAULT_SIZE = 3600;
 const MENU_ACTION_IDS = ["copy", "cut", "paste", "clear"];
+const FILL_AUTOSCROLL_EDGE_PX = 44;
+const FILL_AUTOSCROLL_MAX_STEP_PX = 26;
 
 const EDITABLE_COLUMNS = new Set([
     "owner",
@@ -21,6 +23,18 @@ const EDITABLE_COLUMNS = new Set([
 
 const NUMERIC_COLUMNS = new Set(["latencyMs", "errorRate", "availabilityPct", "throughputRps"]);
 const DECIMAL_COLUMNS = new Set(["availabilityPct"]);
+
+function resolveColumnPin(column) {
+    const directPin = column?.pin;
+    if (directPin === "left" || directPin === "right") {
+        return directPin;
+    }
+    const nestedPin = column?.column?.pin;
+    if (nestedPin === "left" || nestedPin === "right") {
+        return nestedPin;
+    }
+    return "none";
+}
 
 const teardownByRoot = new WeakMap();
 
@@ -64,6 +78,7 @@ function mountDatagridDemo(root) {
     const spacerTop = root.querySelector("[data-datagrid-spacer-top]");
     const spacerBottom = root.querySelector("[data-datagrid-spacer-bottom]");
     const selectionOverlay = root.querySelector("[data-datagrid-selection-overlay]");
+    const fillOverlay = root.querySelector("[data-datagrid-fill-overlay]");
 
     const searchInput = root.querySelector("[data-datagrid-search]");
     const sortSelect = root.querySelector("[data-datagrid-sort]");
@@ -111,6 +126,10 @@ function mountDatagridDemo(root) {
     let activeCellLabel = "None";
     let statusMessage = "Ready";
     let clipboardState = null;
+    let fillDragSession = null;
+    let fillPreviewRange = null;
+    let fillPointerClient = null;
+    let fillAutoScrollFrame = null;
 
     const undoStack = [];
     const redoStack = [];
@@ -176,8 +195,8 @@ function mountDatagridDemo(root) {
     const setViewportScroll = (nextTop, nextLeft, reason = "programmatic") => {
         const maxTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
         const maxLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
-        const resolvedTop = clamp(Math.round(Number(nextTop) || 0), 0, maxTop);
-        const resolvedLeft = clamp(Math.round(Number(nextLeft) || 0), 0, maxLeft);
+        const resolvedTop = clamp(Number(nextTop) || 0, 0, maxTop);
+        const resolvedLeft = clamp(Number(nextLeft) || 0, 0, maxLeft);
         const changed = resolvedTop !== viewport.scrollTop || resolvedLeft !== viewport.scrollLeft;
         if (!changed) {
             return false;
@@ -298,6 +317,21 @@ function mountDatagridDemo(root) {
         };
     };
 
+    const rangesEqual = (left, right) => {
+        if (!left && !right) {
+            return true;
+        }
+        if (!left || !right) {
+            return false;
+        }
+        return (
+            left.startRowIndex === right.startRowIndex &&
+            left.endRowIndex === right.endRowIndex &&
+            left.startColumnIndex === right.startColumnIndex &&
+            left.endColumnIndex === right.endColumnIndex
+        );
+    };
+
     const setSelectionFromActive = (extendSelection = false) => {
         if (!activeCell) {
             selectionAnchor = null;
@@ -362,7 +396,7 @@ function mountDatagridDemo(root) {
             }
 
             const targetColumn = resolveVisibleColumns().find((column) => column.key === activeCell.columnKey);
-            if (targetColumn && targetColumn.pin !== "left" && targetColumn.pin !== "right") {
+            if (targetColumn && resolveColumnPin(targetColumn) === "none") {
                 if (nodeRect.left < viewportRect.left) {
                     nextLeft -= viewportRect.left - nodeRect.left;
                 } else if (nodeRect.right > viewportRect.right) {
@@ -397,7 +431,7 @@ function mountDatagridDemo(root) {
             nextTop = rowBottom - viewport.clientHeight;
         }
 
-        if (targetColumn && targetColumn.pin !== "left" && targetColumn.pin !== "right") {
+        if (targetColumn && resolveColumnPin(targetColumn) === "none") {
             let leftOffset = 0;
             let targetWidth = resolveColumnWidth(targetColumn);
             orderedColumns.forEach((column, index) => {
@@ -446,6 +480,147 @@ function mountDatagridDemo(root) {
         const rowsCount = selectionRange.endRowIndex - selectionRange.startRowIndex + 1;
         const columnsCount = selectionRange.endColumnIndex - selectionRange.startColumnIndex + 1;
         return Math.max(0, rowsCount * columnsCount);
+    };
+
+    const resolveEffectiveSelectionRange = () => {
+        if (selectionRange) {
+            return selectionRange;
+        }
+        if (!activeCell) {
+            return null;
+        }
+        return {
+            startRowIndex: activeCell.rowIndex,
+            endRowIndex: activeCell.rowIndex,
+            startColumnIndex: activeCell.columnIndex,
+            endColumnIndex: activeCell.columnIndex,
+        };
+    };
+
+    const countCellsInRange = (range) => {
+        if (!range) {
+            return 0;
+        }
+        const rowsCount = Math.max(0, range.endRowIndex - range.startRowIndex + 1);
+        const columnsCount = Math.max(0, range.endColumnIndex - range.startColumnIndex + 1);
+        return rowsCount * columnsCount;
+    };
+
+    const resolveRangeCells = (range, columns = resolveVisibleColumns()) => {
+        if (!range) {
+            return [];
+        }
+        if (!activeRows.length || !columns.length) {
+            return [];
+        }
+
+        const startRowIndex = clamp(range.startRowIndex, 0, activeRows.length - 1);
+        const endRowIndex = clamp(range.endRowIndex, 0, activeRows.length - 1);
+        const startColumnIndex = clamp(range.startColumnIndex, 0, columns.length - 1);
+        const endColumnIndex = clamp(range.endColumnIndex, 0, columns.length - 1);
+        if (endRowIndex < startRowIndex || endColumnIndex < startColumnIndex) {
+            return [];
+        }
+
+        const cells = [];
+        for (let rowIndex = startRowIndex; rowIndex <= endRowIndex; rowIndex += 1) {
+            const row = activeRows[rowIndex];
+            if (!row) {
+                continue;
+            }
+            const rowKey = String(row.rowId);
+            for (let columnIndex = startColumnIndex; columnIndex <= endColumnIndex; columnIndex += 1) {
+                const column = columns[columnIndex];
+                if (!column) {
+                    continue;
+                }
+                cells.push({
+                    rowKey,
+                    columnKey: column.key,
+                    rowIndex,
+                    columnIndex,
+                });
+            }
+        }
+        return cells;
+    };
+
+    const isCoordInsideRange = (range, rowIndex, columnIndex) => {
+        if (!range) {
+            return false;
+        }
+        return (
+            rowIndex >= range.startRowIndex &&
+            rowIndex <= range.endRowIndex &&
+            columnIndex >= range.startColumnIndex &&
+            columnIndex <= range.endColumnIndex
+        );
+    };
+
+    const positiveModulo = (value, size) => {
+        if (size <= 0) {
+            return 0;
+        }
+        return ((value % size) + size) % size;
+    };
+
+    const resolveAxisAutoScrollDelta = (pointer, min, max) => {
+        const start = min + FILL_AUTOSCROLL_EDGE_PX;
+        const end = max - FILL_AUTOSCROLL_EDGE_PX;
+        if (pointer < start) {
+            const intensity = clamp((start - pointer) / FILL_AUTOSCROLL_EDGE_PX, 0, 1);
+            return -Math.max(1, Math.round(FILL_AUTOSCROLL_MAX_STEP_PX * intensity));
+        }
+        if (pointer > end) {
+            const intensity = clamp((pointer - end) / FILL_AUTOSCROLL_EDGE_PX, 0, 1);
+            return Math.max(1, Math.round(FILL_AUTOSCROLL_MAX_STEP_PX * intensity));
+        }
+        return 0;
+    };
+
+    const matrixToTsv = (matrix) => matrix.map((row) => row.join("\t")).join("\n");
+
+    const parseClipboardMatrix = (text) => {
+        const normalized = String(text ?? "")
+            .replace(/\r\n/g, "\n")
+            .replace(/\r/g, "\n");
+        const rows = normalized.split("\n");
+        if (rows.length > 1 && rows[rows.length - 1] === "") {
+            rows.pop();
+        }
+        if (!rows.length) {
+            return [[""]];
+        }
+        return rows.map((row) => row.split("\t"));
+    };
+
+    const buildClipboardMatrixFromRange = (range, columns = resolveVisibleColumns()) => {
+        if (!range || !activeRows.length || !columns.length) {
+            return [[""]];
+        }
+
+        const startRowIndex = clamp(range.startRowIndex, 0, activeRows.length - 1);
+        const endRowIndex = clamp(range.endRowIndex, 0, activeRows.length - 1);
+        const startColumnIndex = clamp(range.startColumnIndex, 0, columns.length - 1);
+        const endColumnIndex = clamp(range.endColumnIndex, 0, columns.length - 1);
+        const matrix = [];
+        for (let rowIndex = startRowIndex; rowIndex <= endRowIndex; rowIndex += 1) {
+            const row = activeRows[rowIndex];
+            if (!row) {
+                continue;
+            }
+            const values = [];
+            for (let columnIndex = startColumnIndex; columnIndex <= endColumnIndex; columnIndex += 1) {
+                const column = columns[columnIndex];
+                if (!column) {
+                    continue;
+                }
+                const value = readCellValue(row.rowId, column.key);
+                values.push(value == null ? "" : String(value));
+            }
+            matrix.push(values);
+        }
+        return matrix.length ? matrix : [[""]];
     };
 
     const formatCellLabel = (point) => {
@@ -606,16 +781,20 @@ function mountDatagridDemo(root) {
     };
 
     const copyCell = async () => {
-        if (!activeCell) {
+        const range = resolveEffectiveSelectionRange();
+        if (!range || !activeCell) {
             setStatus("No active cell");
             return;
         }
-        const value = readCellValue(activeCell.rowKey, activeCell.columnKey);
+        const matrix = buildClipboardMatrixFromRange(range);
+        const text = matrixToTsv(matrix);
         clipboardState = {
+            range: { ...range },
+            matrix,
+            text,
             columnKey: activeCell.columnKey,
-            value,
+            value: matrix[0]?.[0] ?? "",
         };
-        const text = value == null ? "" : String(value);
         if (navigator.clipboard?.writeText) {
             try {
                 await navigator.clipboard.writeText(text);
@@ -623,16 +802,45 @@ function mountDatagridDemo(root) {
                 // fall back to local clipboard state
             }
         }
-        setStatus(`Copied ${activeCell.columnKey}`);
+        const copiedCellsCount = countCellsInRange(range);
+        if (copiedCellsCount > 1) {
+            setStatus(`Copied range (${copiedCellsCount} cells)`);
+        } else {
+            setStatus(`Copied ${activeCell.columnKey}`);
+        }
     };
 
     const cutCell = async () => {
-        if (!activeCell) {
+        const range = resolveEffectiveSelectionRange();
+        if (!activeCell || !range) {
             setStatus("No active cell");
             return;
         }
         await copyCell();
-        applyCellEdit("Cut cell", activeCell.rowKey, activeCell.columnKey, "", { recordHistory: true });
+
+        const operations = resolveRangeCells(range)
+            .filter((cell) => isEditableColumn(cell.columnKey))
+            .map((cell) => {
+                const before = readCellValue(cell.rowKey, cell.columnKey);
+                return {
+                    rowKey: cell.rowKey,
+                    columnKey: cell.columnKey,
+                    before,
+                    after: "",
+                };
+            })
+            .filter((operation) => operation.before !== operation.after);
+
+        if (!operations.length) {
+            setStatus("Selection has no editable cells to cut");
+            return;
+        }
+
+        const label = operations.length > 1 ? "Cut range" : "Cut cell";
+        const applied = applyOperations(label, operations, { recordHistory: true });
+        if (applied) {
+            setStatus(`${label} (${operations.length} cells)`);
+        }
     };
 
     const readClipboardText = async () => {
@@ -645,6 +853,9 @@ function mountDatagridDemo(root) {
             } catch {
                 // ignore and use local state fallback
             }
+        }
+        if (typeof clipboardState?.text === "string") {
+            return clipboardState.text;
         }
         return clipboardState?.value == null ? "" : String(clipboardState.value);
     };
@@ -659,15 +870,357 @@ function mountDatagridDemo(root) {
             return;
         }
         const text = await readClipboardText();
-        applyCellEdit("Pasted cell", activeCell.rowKey, activeCell.columnKey, text, { recordHistory: true });
+        const matrix = parseClipboardMatrix(text);
+        const matrixHeight = Math.max(1, matrix.length);
+        const matrixWidth = Math.max(1, matrix[0]?.length ?? 1);
+        const columns = resolveVisibleColumns();
+        const operations = [];
+
+        const currentRange = resolveEffectiveSelectionRange();
+        const shouldFillSelection =
+            Boolean(currentRange) &&
+            countCellsInRange(currentRange) > 1 &&
+            matrixHeight === 1 &&
+            matrixWidth === 1;
+
+        if (shouldFillSelection && currentRange) {
+            resolveRangeCells(currentRange, columns).forEach((cell) => {
+                if (!isEditableColumn(cell.columnKey)) {
+                    return;
+                }
+                const before = readCellValue(cell.rowKey, cell.columnKey);
+                const after = coerceValue(cell.columnKey, matrix[0]?.[0] ?? "");
+                if (before === after) {
+                    return;
+                }
+                operations.push({
+                    rowKey: cell.rowKey,
+                    columnKey: cell.columnKey,
+                    before,
+                    after,
+                });
+            });
+        } else if (currentRange && countCellsInRange(currentRange) > 1) {
+            const targetRows = Math.max(1, currentRange.endRowIndex - currentRange.startRowIndex + 1);
+            const targetColumns = Math.max(1, currentRange.endColumnIndex - currentRange.startColumnIndex + 1);
+            for (let rowOffset = 0; rowOffset < targetRows; rowOffset += 1) {
+                const rowIndex = currentRange.startRowIndex + rowOffset;
+                const row = activeRows[rowIndex];
+                if (!row) {
+                    continue;
+                }
+                for (let columnOffset = 0; columnOffset < targetColumns; columnOffset += 1) {
+                    const columnIndex = currentRange.startColumnIndex + columnOffset;
+                    const column = columns[columnIndex];
+                    if (!column || !isEditableColumn(column.key)) {
+                        continue;
+                    }
+                    const sourceValue = matrix[rowOffset % matrixHeight]?.[columnOffset % matrixWidth] ?? "";
+                    const before = readCellValue(row.rowId, column.key);
+                    const after = coerceValue(column.key, sourceValue);
+                    if (before === after) {
+                        continue;
+                    }
+                    operations.push({
+                        rowKey: String(row.rowId),
+                        columnKey: column.key,
+                        before,
+                        after,
+                    });
+                }
+            }
+        } else {
+            for (let rowOffset = 0; rowOffset < matrixHeight; rowOffset += 1) {
+                const rowIndex = activeCell.rowIndex + rowOffset;
+                const row = activeRows[rowIndex];
+                if (!row) {
+                    continue;
+                }
+                for (let columnOffset = 0; columnOffset < matrixWidth; columnOffset += 1) {
+                    const columnIndex = activeCell.columnIndex + columnOffset;
+                    const column = columns[columnIndex];
+                    if (!column || !isEditableColumn(column.key)) {
+                        continue;
+                    }
+                    const sourceValue = matrix[rowOffset]?.[columnOffset] ?? "";
+                    const before = readCellValue(row.rowId, column.key);
+                    const after = coerceValue(column.key, sourceValue);
+                    if (before === after) {
+                        continue;
+                    }
+                    operations.push({
+                        rowKey: String(row.rowId),
+                        columnKey: column.key,
+                        before,
+                        after,
+                    });
+                }
+            }
+        }
+
+        if (!operations.length) {
+            setStatus("No editable target cells for paste");
+            return;
+        }
+
+        const label = operations.length > 1 ? "Pasted range" : "Pasted cell";
+        const applied = applyOperations(label, operations, { recordHistory: true });
+        if (applied) {
+            setStatus(`${label} (${operations.length} cells)`);
+        }
     };
 
     const clearCell = () => {
-        if (!activeCell) {
+        const range = resolveEffectiveSelectionRange();
+        if (!activeCell || !range) {
             setStatus("No active cell");
             return;
         }
-        applyCellEdit("Cleared cell", activeCell.rowKey, activeCell.columnKey, "", { recordHistory: true });
+
+        const operations = resolveRangeCells(range)
+            .filter((cell) => isEditableColumn(cell.columnKey))
+            .map((cell) => {
+                const before = readCellValue(cell.rowKey, cell.columnKey);
+                return {
+                    rowKey: cell.rowKey,
+                    columnKey: cell.columnKey,
+                    before,
+                    after: "",
+                };
+            })
+            .filter((operation) => operation.before !== operation.after);
+
+        if (!operations.length) {
+            setStatus("No editable cells to clear");
+            return;
+        }
+
+        const label = operations.length > 1 ? "Cleared range" : "Cleared cell";
+        const applied = applyOperations(label, operations, { recordHistory: true });
+        if (applied) {
+            setStatus(`${label} (${operations.length} cells)`);
+        }
+    };
+
+    const resolvePointerCellCoord = (clientX, clientY) => {
+        const target = document.elementFromPoint(clientX, clientY);
+        if (!(target instanceof Element)) {
+            return null;
+        }
+        const cell = target.closest("[data-datagrid-cell='true']");
+        if (!(cell instanceof HTMLElement)) {
+            return null;
+        }
+        const rowIndex = Number(cell.dataset.datagridRowIndex);
+        const columnIndex = Number(cell.dataset.datagridColumnIndex);
+        if (!Number.isFinite(rowIndex) || !Number.isFinite(columnIndex)) {
+            return null;
+        }
+        return {
+            rowIndex,
+            columnIndex,
+        };
+    };
+
+    const resolveFillPreviewRange = (originRange, coord) => {
+        if (!originRange || !coord) {
+            return null;
+        }
+        const candidate = {
+            startRowIndex: Math.min(originRange.startRowIndex, coord.rowIndex),
+            endRowIndex: Math.max(originRange.endRowIndex, coord.rowIndex),
+            startColumnIndex: Math.min(originRange.startColumnIndex, coord.columnIndex),
+            endColumnIndex: Math.max(originRange.endColumnIndex, coord.columnIndex),
+        };
+        if (rangesEqual(candidate, originRange)) {
+            return null;
+        }
+        return candidate;
+    };
+
+    const commitFillPreview = () => {
+        if (!fillDragSession || !fillPreviewRange) {
+            return false;
+        }
+        const originRange = fillDragSession.originRange;
+        const previewRange = fillPreviewRange;
+        const columns = resolveVisibleColumns();
+        if (!columns.length || !activeRows.length) {
+            return false;
+        }
+
+        const sourceRowCount = Math.max(1, originRange.endRowIndex - originRange.startRowIndex + 1);
+        const sourceColumnCount = Math.max(1, originRange.endColumnIndex - originRange.startColumnIndex + 1);
+
+        const sourceMatrix = Array.from({ length: sourceRowCount }, (_, rowOffset) => {
+            const sourceRow = activeRows[originRange.startRowIndex + rowOffset];
+            return Array.from({ length: sourceColumnCount }, (_, columnOffset) => {
+                const sourceColumn = columns[originRange.startColumnIndex + columnOffset];
+                if (!sourceRow || !sourceColumn) {
+                    return "";
+                }
+                return readCellValue(sourceRow.rowId, sourceColumn.key);
+            });
+        });
+
+        const operations = [];
+        for (let rowIndex = previewRange.startRowIndex; rowIndex <= previewRange.endRowIndex; rowIndex += 1) {
+            const row = activeRows[rowIndex];
+            if (!row) {
+                continue;
+            }
+            for (let columnIndex = previewRange.startColumnIndex; columnIndex <= previewRange.endColumnIndex; columnIndex += 1) {
+                if (isCoordInsideRange(originRange, rowIndex, columnIndex)) {
+                    continue;
+                }
+                const column = columns[columnIndex];
+                if (!column || !isEditableColumn(column.key)) {
+                    continue;
+                }
+
+                const sourceRowOffset = positiveModulo(rowIndex - originRange.startRowIndex, sourceRowCount);
+                const sourceColumnOffset = positiveModulo(columnIndex - originRange.startColumnIndex, sourceColumnCount);
+                const sourceValue = sourceMatrix[sourceRowOffset]?.[sourceColumnOffset] ?? "";
+
+                const before = readCellValue(row.rowId, column.key);
+                const after = coerceValue(column.key, sourceValue);
+                if (before === after) {
+                    continue;
+                }
+                operations.push({
+                    rowKey: String(row.rowId),
+                    columnKey: column.key,
+                    before,
+                    after,
+                });
+            }
+        }
+
+        if (!operations.length) {
+            return false;
+        }
+
+        const applied = applyOperations("Filled range", operations, { recordHistory: true });
+        if (applied) {
+            setStatus(`Filled range (${operations.length} cells)`);
+        }
+        return applied;
+    };
+
+    const stopFillDrag = (apply) => {
+        if (!fillDragSession) {
+            return;
+        }
+        window.removeEventListener("pointermove", onFillDragPointerMove, true);
+        window.removeEventListener("pointerup", onFillDragPointerUp, true);
+        window.removeEventListener("pointercancel", onFillDragPointerCancel, true);
+        if (fillAutoScrollFrame !== null) {
+            window.cancelAnimationFrame(fillAutoScrollFrame);
+            fillAutoScrollFrame = null;
+        }
+        fillPointerClient = null;
+
+        root.classList.remove("is-fill-dragging");
+
+        if (apply) {
+            commitFillPreview();
+        }
+
+        fillDragSession = null;
+        fillPreviewRange = null;
+        requestRender();
+    };
+
+    const onFillDragPointerMove = (event) => {
+        if (!fillDragSession) {
+            return;
+        }
+        fillPointerClient = {
+            x: event.clientX,
+            y: event.clientY,
+        };
+        const coord = resolvePointerCellCoord(event.clientX, event.clientY);
+        const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
+        if (!rangesEqual(nextPreview, fillPreviewRange)) {
+            fillPreviewRange = nextPreview;
+            requestRender();
+        }
+        if (fillAutoScrollFrame === null) {
+            fillAutoScrollFrame = window.requestAnimationFrame(runFillAutoScrollStep);
+        }
+    };
+
+    const onFillDragPointerUp = (event) => {
+        if (!fillDragSession) {
+            return;
+        }
+        event.preventDefault();
+        stopFillDrag(true);
+    };
+
+    const onFillDragPointerCancel = () => {
+        stopFillDrag(false);
+    };
+
+    const startFillDrag = (event) => {
+        if (event.button !== 0) {
+            return;
+        }
+        const originRange = resolveEffectiveSelectionRange();
+        if (!originRange) {
+            return;
+        }
+        fillDragSession = {
+            originRange: { ...originRange },
+        };
+        fillPreviewRange = null;
+        fillPointerClient = {
+            x: event.clientX,
+            y: event.clientY,
+        };
+        closeContextMenu();
+        root.classList.add("is-fill-dragging");
+
+        window.addEventListener("pointermove", onFillDragPointerMove, true);
+        window.addEventListener("pointerup", onFillDragPointerUp, true);
+        window.addEventListener("pointercancel", onFillDragPointerCancel, true);
+        if (fillAutoScrollFrame === null) {
+            fillAutoScrollFrame = window.requestAnimationFrame(runFillAutoScrollStep);
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+    };
+
+    const runFillAutoScrollStep = () => {
+        fillAutoScrollFrame = null;
+        if (!fillDragSession || !fillPointerClient) {
+            return;
+        }
+        const viewportRect = viewport.getBoundingClientRect();
+        const deltaX = resolveAxisAutoScrollDelta(fillPointerClient.x, viewportRect.left, viewportRect.right);
+        const deltaY = resolveAxisAutoScrollDelta(fillPointerClient.y, viewportRect.top, viewportRect.bottom);
+        if (deltaX === 0 && deltaY === 0) {
+            return;
+        }
+
+        const changed = setViewportScroll(
+            viewport.scrollTop + deltaY,
+            viewport.scrollLeft + deltaX,
+            "fill-autoscroll",
+        );
+        if (changed) {
+            const coord = resolvePointerCellCoord(fillPointerClient.x, fillPointerClient.y);
+            const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
+            if (!rangesEqual(nextPreview, fillPreviewRange)) {
+                fillPreviewRange = nextPreview;
+            }
+            requestRender();
+        }
+
+        if (fillDragSession) {
+            fillAutoScrollFrame = window.requestAnimationFrame(runFillAutoScrollStep);
+        }
     };
 
     const closeContextMenu = () => {
@@ -799,6 +1352,11 @@ function mountDatagridDemo(root) {
     };
 
     const onRootKeydown = (event) => {
+        if (fillDragSession && event.key === "Escape") {
+            event.preventDefault();
+            stopFillDrag(false);
+            return;
+        }
         if (menuState.open) {
             onContextMenuKeydown(event);
             return;
@@ -912,6 +1470,9 @@ function mountDatagridDemo(root) {
     };
 
     const onGlobalPointerDown = (event) => {
+        if (fillDragSession) {
+            return;
+        }
         if (!menuState.open || !contextMenu) {
             return;
         }
@@ -937,6 +1498,13 @@ function mountDatagridDemo(root) {
         }
         lastScrollTop = nextTop;
         lastScrollLeft = nextLeft;
+        if (fillDragSession && fillPointerClient) {
+            const coord = resolvePointerCellCoord(fillPointerClient.x, fillPointerClient.y);
+            const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
+            if (!rangesEqual(nextPreview, fillPreviewRange)) {
+                fillPreviewRange = nextPreview;
+            }
+        }
         closeContextMenu();
         requestRender();
     };
@@ -1139,23 +1707,82 @@ function mountDatagridDemo(root) {
         requestRender();
     }
 
-    function renderHeader(columns, templateColumns, stickyOffsets) {
-        header.innerHTML = "";
-        header.style.gridTemplateColumns = templateColumns;
-        const fragment = document.createDocumentFragment();
+    function buildColumnLayers(columns) {
+        const left = [];
+        const scroll = [];
+        const right = [];
         columns.forEach((column) => {
-            const cell = document.createElement("div");
-            cell.className = "affino-datagrid-demo__cell affino-datagrid-demo__cell--header";
-            cell.textContent = column.column.label || column.key;
-            applyStickyStyles(cell, column.key, stickyOffsets);
-            fragment.appendChild(cell);
+            const pin = resolveColumnPin(column);
+            if (pin === "left") {
+                left.push(column);
+            } else if (pin === "right") {
+                right.push(column);
+            } else {
+                scroll.push(column);
+            }
+        });
+
+        const resolveLayerTemplate = (layerColumns) => layerColumns.map((column) => `${resolveColumnWidth(column)}px`).join(" ");
+        const resolveLayerWidth = (layerColumns) => layerColumns.reduce((total, column) => total + resolveColumnWidth(column), 0);
+
+        return [
+            {
+                key: "left",
+                columns: left,
+                templateColumns: resolveLayerTemplate(left),
+                width: resolveLayerWidth(left),
+            },
+            {
+                key: "scroll",
+                columns: scroll,
+                templateColumns: resolveLayerTemplate(scroll),
+                width: resolveLayerWidth(scroll),
+            },
+            {
+                key: "right",
+                columns: right,
+                templateColumns: resolveLayerTemplate(right),
+                width: resolveLayerWidth(right),
+            },
+        ].filter((layer) => layer.key === "scroll" || layer.columns.length > 0);
+    }
+
+    function resolveLayerTrackTemplate(layers) {
+        return layers.map((layer) => `${Math.max(0, layer.width)}px`).join(" ");
+    }
+
+    function renderHeader(layers, layerTrackTemplate) {
+        header.innerHTML = "";
+        header.style.gridTemplateColumns = layerTrackTemplate;
+        const fragment = document.createDocumentFragment();
+        layers.forEach((layer) => {
+            const layerNode = document.createElement("div");
+            layerNode.className = `affino-datagrid-demo__layer affino-datagrid-demo__layer--header affino-datagrid-demo__layer--${layer.key}`;
+            layerNode.style.gridTemplateColumns = layer.templateColumns;
+            layerNode.style.width = `${Math.max(0, layer.width)}px`;
+
+            layer.columns.forEach((column) => {
+                const cell = document.createElement("div");
+                cell.className = "affino-datagrid-demo__cell affino-datagrid-demo__cell--header";
+                if (layer.key !== "scroll") {
+                    cell.classList.add("affino-datagrid-demo__cell--sticky");
+                }
+                cell.textContent = column.column.label || column.key;
+                layerNode.appendChild(cell);
+            });
+            fragment.appendChild(layerNode);
         });
         header.appendChild(fragment);
     }
 
-    function renderRows(columns, templateColumns, stickyOffsets, start, end) {
+    function renderRows(columns, layers, layerTrackTemplate, start, end) {
         rowsHost.innerHTML = "";
+        const handleRange = resolveEffectiveSelectionRange();
         const rows = start <= end ? api.getRowsInRange({ start, end }) : [];
+        const columnIndexByKey = new Map();
+        columns.forEach((column, index) => {
+            columnIndexByKey.set(column.key, index);
+        });
         if (!rows.length) {
             const emptyState = document.createElement("p");
             emptyState.className = "affino-datagrid-demo__empty";
@@ -1169,13 +1796,13 @@ function mountDatagridDemo(root) {
             if (entry.kind === "group") {
                 const row = document.createElement("div");
                 row.className = "affino-datagrid-demo__row affino-datagrid-demo__row--group";
-                row.style.gridTemplateColumns = templateColumns;
+                row.style.gridTemplateColumns = layerTrackTemplate;
 
                 const meta = entry.groupMeta;
                 const groupCell = document.createElement("button");
                 groupCell.type = "button";
                 groupCell.className = "affino-datagrid-demo__cell affino-datagrid-demo__cell--group";
-                groupCell.style.gridColumn = `1 / span ${Math.max(columns.length, 1)}`;
+                groupCell.style.gridColumn = "1 / -1";
                 const expanded = Boolean(entry.state?.expanded);
                 const field = String(meta?.groupField || groupMode || "group");
                 const value = String(meta?.groupValue ?? "Unknown");
@@ -1194,7 +1821,7 @@ function mountDatagridDemo(root) {
 
             const row = document.createElement("div");
             row.className = "affino-datagrid-demo__row";
-            row.style.gridTemplateColumns = templateColumns;
+            row.style.gridTemplateColumns = layerTrackTemplate;
 
             const rowKey = String(entry.rowKey ?? entry.rowId ?? "");
             const rowIndex = resolveActiveRowIndex(rowKey);
@@ -1202,104 +1829,128 @@ function mountDatagridDemo(root) {
                 row.classList.add("is-selected");
             }
 
-            columns.forEach((column, columnIndex) => {
-                const value = entry.data?.[column.key];
-                const currentlyEditing = isEditingCell(rowKey, column.key);
-                const cell = document.createElement(currentlyEditing ? "div" : "button");
-                cell.dataset.datagridRowKey = rowKey;
-                cell.dataset.datagridColumnKey = column.key;
-                cell.dataset.datagridCell = "true";
-                cell.dataset.datagridRowIndex = String(rowIndex);
-                cell.dataset.datagridColumnIndex = String(columnIndex);
-                cell.className = "affino-datagrid-demo__cell";
+            layers.forEach((layer) => {
+                const layerNode = document.createElement("div");
+                layerNode.className = `affino-datagrid-demo__layer affino-datagrid-demo__layer--row affino-datagrid-demo__layer--${layer.key}`;
+                layerNode.style.gridTemplateColumns = layer.templateColumns;
+                layerNode.style.width = `${Math.max(0, layer.width)}px`;
 
-                if (currentlyEditing) {
-                    cell.classList.add("affino-datagrid-demo__cell--editing");
-                } else {
-                    cell.type = "button";
-                    cell.textContent = formatCellValue(column.key, value);
-                }
+                layer.columns.forEach((column) => {
+                    const columnIndex = columnIndexByKey.get(column.key) ?? 0;
+                    const value = entry.data?.[column.key];
+                    const currentlyEditing = isEditingCell(rowKey, column.key);
+                    const cell = document.createElement(currentlyEditing ? "div" : "button");
+                    cell.dataset.datagridRowKey = rowKey;
+                    cell.dataset.datagridColumnKey = column.key;
+                    cell.dataset.datagridCell = "true";
+                    cell.dataset.datagridRowIndex = String(rowIndex);
+                    cell.dataset.datagridColumnIndex = String(columnIndex);
+                    cell.className = "affino-datagrid-demo__cell";
+                    if (layer.key !== "scroll") {
+                        cell.classList.add("affino-datagrid-demo__cell--sticky");
+                    }
 
-                if (column.key === "latencyMs" || column.key === "errorRate" || column.key === "throughputRps") {
-                    cell.classList.add("affino-datagrid-demo__cell--numeric");
-                }
-                if (column.key === "status") {
-                    cell.classList.add("affino-datagrid-demo__cell--status");
-                }
-                if (activeCell && activeCell.rowKey === rowKey && activeCell.columnKey === column.key) {
-                    cell.classList.add("is-active-cell");
-                }
-                if (isCellInSelectionRange(rowIndex, columnIndex)) {
-                    cell.classList.add("is-in-range");
-                }
+                    if (currentlyEditing) {
+                        cell.classList.add("affino-datagrid-demo__cell--editing");
+                    } else {
+                        cell.type = "button";
+                        cell.textContent = formatCellValue(column.key, value);
+                    }
 
-                applyStickyStyles(cell, column.key, stickyOffsets);
+                    if (column.key === "latencyMs" || column.key === "errorRate" || column.key === "throughputRps") {
+                        cell.classList.add("affino-datagrid-demo__cell--numeric");
+                    }
+                    if (column.key === "status") {
+                        cell.classList.add("affino-datagrid-demo__cell--status");
+                    }
+                    if (activeCell && activeCell.rowKey === rowKey && activeCell.columnKey === column.key) {
+                        cell.classList.add("is-active-cell");
+                    }
+                    if (isCellInSelectionRange(rowIndex, columnIndex)) {
+                        cell.classList.add("is-in-range");
+                    }
 
-                if (currentlyEditing) {
-                    const input = document.createElement("input");
-                    input.type = "text";
-                    input.className = "affino-datagrid-demo__editor";
-                    input.value = String(editingCell?.draft ?? "");
-                    input.dataset.datagridInlineEditor = "true";
-                    input.dataset.datagridRowKey = rowKey;
-                    input.dataset.datagridColumnKey = column.key;
-                    input.setAttribute("aria-label", `${column.key} editor`);
-                    input.addEventListener("input", () => {
-                        if (editingCell && editingCell.rowKey === rowKey && editingCell.columnKey === column.key) {
-                            editingCell.draft = input.value;
-                        }
-                    });
-                    input.addEventListener("keydown", (event) => {
-                        if (event.key === "Enter") {
-                            event.preventDefault();
-                            commitInlineEdit();
-                            return;
-                        }
-                        if (event.key === "Escape") {
-                            event.preventDefault();
-                            cancelInlineEdit();
-                            return;
-                        }
-                        if (event.key === "Tab") {
-                            event.preventDefault();
-                            commitInlineEdit();
-                            moveActiveCell(0, event.shiftKey ? -1 : 1);
-                        }
-                    });
-                    input.addEventListener("blur", () => {
-                        commitInlineEdit();
-                    });
-                    cell.appendChild(input);
-                } else {
-                    cell.addEventListener("mousedown", (event) => {
-                        if (event.button !== 0) {
-                            return;
-                        }
-                        updateActiveCell(rowKey, column.key, rowIndex, {
-                            extendSelection: event.shiftKey && Boolean(selectionAnchor),
+                    if (currentlyEditing) {
+                        const input = document.createElement("input");
+                        input.type = "text";
+                        input.className = "affino-datagrid-demo__editor";
+                        input.value = String(editingCell?.draft ?? "");
+                        input.dataset.datagridInlineEditor = "true";
+                        input.dataset.datagridRowKey = rowKey;
+                        input.dataset.datagridColumnKey = column.key;
+                        input.setAttribute("aria-label", `${column.key} editor`);
+                        input.addEventListener("input", () => {
+                            if (editingCell && editingCell.rowKey === rowKey && editingCell.columnKey === column.key) {
+                                editingCell.draft = input.value;
+                            }
                         });
-                        requestRender();
-                    });
-
-                    cell.addEventListener("click", (event) => {
-                        updateActiveCell(rowKey, column.key, rowIndex, {
-                            extendSelection: event.shiftKey && Boolean(selectionAnchor),
+                        input.addEventListener("keydown", (event) => {
+                            if (event.key === "Enter") {
+                                event.preventDefault();
+                                commitInlineEdit();
+                                return;
+                            }
+                            if (event.key === "Escape") {
+                                event.preventDefault();
+                                cancelInlineEdit();
+                                return;
+                            }
+                            if (event.key === "Tab") {
+                                event.preventDefault();
+                                commitInlineEdit();
+                                moveActiveCell(0, event.shiftKey ? -1 : 1);
+                            }
                         });
-                        setStatus(`Active cell ${activeCellLabel}`);
-                        requestRender();
-                    });
+                        input.addEventListener("blur", () => {
+                            commitInlineEdit();
+                        });
+                        cell.appendChild(input);
+                    } else {
+                        cell.addEventListener("mousedown", (event) => {
+                            if (event.button !== 0) {
+                                return;
+                            }
+                            updateActiveCell(rowKey, column.key, rowIndex, {
+                                extendSelection: event.shiftKey && Boolean(selectionAnchor),
+                            });
+                            requestRender();
+                        });
 
-                    cell.addEventListener("dblclick", () => {
-                        beginInlineEdit(rowKey, column.key, resolveActiveRowIndex(rowKey));
-                    });
+                        cell.addEventListener("click", (event) => {
+                            updateActiveCell(rowKey, column.key, rowIndex, {
+                                extendSelection: event.shiftKey && Boolean(selectionAnchor),
+                            });
+                            setStatus(`Active cell ${activeCellLabel}`);
+                            requestRender();
+                        });
 
-                    cell.addEventListener("contextmenu", (event) => {
-                        event.preventDefault();
-                        openContextMenu(event.clientX, event.clientY, rowKey, column.key, resolveActiveRowIndex(rowKey));
-                    });
-                }
+                        cell.addEventListener("dblclick", () => {
+                            beginInlineEdit(rowKey, column.key, resolveActiveRowIndex(rowKey));
+                        });
 
-                row.appendChild(cell);
+                        cell.addEventListener("contextmenu", (event) => {
+                            event.preventDefault();
+                            openContextMenu(event.clientX, event.clientY, rowKey, column.key, resolveActiveRowIndex(rowKey));
+                        });
+
+                        const shouldRenderFillHandle =
+                            Boolean(handleRange) &&
+                            isEditableColumn(column.key) &&
+                            handleRange.endRowIndex === rowIndex &&
+                            handleRange.endColumnIndex === columnIndex &&
+                            !fillDragSession;
+                        if (shouldRenderFillHandle) {
+                            const handle = document.createElement("span");
+                            handle.className = "affino-datagrid-demo__fill-handle";
+                            handle.dataset.datagridFillHandle = "true";
+                            handle.addEventListener("pointerdown", startFillDrag);
+                            cell.appendChild(handle);
+                        }
+                    }
+
+                    layerNode.appendChild(cell);
+                });
+                row.appendChild(layerNode);
             });
 
             fragment.appendChild(row);
@@ -1307,55 +1958,129 @@ function mountDatagridDemo(root) {
         rowsHost.appendChild(fragment);
     }
 
-    function renderSelectionOverlay() {
-        if (!(selectionOverlay instanceof HTMLElement)) {
-            return;
+    function buildColumnMetrics(columns) {
+        let mainStart = 0;
+        return columns.map((column) => {
+            const width = resolveColumnWidth(column);
+            const metric = {
+                key: column.key,
+                pin: column.pin,
+                width,
+                mainStart,
+            };
+            mainStart += width;
+            return metric;
+        });
+    }
+
+    function buildOverlaySegmentsForRange(range, columns) {
+        if (!range || !columns.length || activeRows.length === 0) {
+            return [];
         }
-        if (!selectionRange) {
-            selectionOverlay.hidden = true;
-            return;
+        const maxRowIndex = Math.max(0, activeRows.length - 1);
+        const rowStart = clamp(range.startRowIndex, 0, maxRowIndex);
+        const rowEnd = clamp(range.endRowIndex, 0, maxRowIndex);
+        const columnStart = clamp(range.startColumnIndex, 0, columns.length - 1);
+        const columnEnd = clamp(range.endColumnIndex, 0, columns.length - 1);
+        if (rowEnd < rowStart || columnEnd < columnStart) {
+            return [];
         }
 
-        const cells = rowsHost.querySelectorAll("[data-datagrid-cell='true']");
-        const stageRect = stage.getBoundingClientRect();
-        let minLeft = Number.POSITIVE_INFINITY;
-        let minTop = Number.POSITIVE_INFINITY;
-        let maxRight = Number.NEGATIVE_INFINITY;
-        let maxBottom = Number.NEGATIVE_INFINITY;
+        const headerHeight = header instanceof HTMLElement ? header.offsetHeight : ROW_HEIGHT;
+        const metrics = buildColumnMetrics(columns);
+        const top = Math.max(headerHeight, headerHeight + rowStart * ROW_HEIGHT);
+        const bottom = Math.max(top + 1, headerHeight + (rowEnd + 1) * ROW_HEIGHT);
+        const height = bottom - top;
 
-        cells.forEach((node) => {
-            if (!(node instanceof HTMLElement)) {
-                return;
+        const parts = [];
+        let partStart = columnStart;
+        let partMode = resolveColumnPin(columns[columnStart]) || "none";
+
+        for (let columnIndex = columnStart + 1; columnIndex <= columnEnd; columnIndex += 1) {
+            const column = columns[columnIndex];
+            const mode = resolveColumnPin(column) || "none";
+            if (mode === partMode) {
+                continue;
             }
-            const rowIndex = Number(node.dataset.datagridRowIndex);
-            const columnIndex = Number(node.dataset.datagridColumnIndex);
-            if (!Number.isFinite(rowIndex) || !Number.isFinite(columnIndex)) {
-                return;
-            }
-            if (!isCellInSelectionRange(rowIndex, columnIndex)) {
-                return;
-            }
-            const rect = node.getBoundingClientRect();
-            const left = rect.left - stageRect.left;
-            const top = rect.top - stageRect.top;
-            const right = left + rect.width;
-            const bottom = top + rect.height;
-            minLeft = Math.min(minLeft, left);
-            minTop = Math.min(minTop, top);
-            maxRight = Math.max(maxRight, right);
-            maxBottom = Math.max(maxBottom, bottom);
+            parts.push({
+                startColumnIndex: partStart,
+                endColumnIndex: columnIndex - 1,
+                mode: partMode,
+            });
+            partStart = columnIndex;
+            partMode = mode;
+        }
+        parts.push({
+            startColumnIndex: partStart,
+            endColumnIndex: columnEnd,
+            mode: partMode,
         });
 
-        if (!Number.isFinite(minLeft) || !Number.isFinite(minTop)) {
-            selectionOverlay.hidden = true;
+        return parts.map((part, index) => {
+            const startMetric = metrics[part.startColumnIndex];
+            const endMetric = metrics[part.endColumnIndex];
+            if (!startMetric || !endMetric) {
+                return null;
+            }
+
+            const scrollCompensatedLeft = part.mode === "none"
+                ? startMetric.mainStart
+                : startMetric.mainStart + viewport.scrollLeft;
+            const right = endMetric.mainStart + endMetric.width + (part.mode === "none" ? 0 : viewport.scrollLeft);
+            const width = Math.max(1, right - scrollCompensatedLeft);
+
+            return {
+                key: `${part.mode}-${rowStart}-${rowEnd}-${part.startColumnIndex}-${part.endColumnIndex}-${index}`,
+                mode: part.mode,
+                left: Math.max(0, scrollCompensatedLeft),
+                top,
+                width,
+                height,
+            };
+        }).filter(Boolean);
+    }
+
+    function renderOverlaySegments(rootNode, segments, mode = "main") {
+        if (!(rootNode instanceof HTMLElement)) {
             return;
         }
+        if (!segments.length) {
+            rootNode.hidden = true;
+            rootNode.innerHTML = "";
+            return;
+        }
+        rootNode.hidden = false;
+        rootNode.innerHTML = "";
 
-        selectionOverlay.hidden = false;
-        selectionOverlay.style.left = `${Math.round(minLeft)}px`;
-        selectionOverlay.style.top = `${Math.round(minTop)}px`;
-        selectionOverlay.style.width = `${Math.max(1, Math.round(maxRight - minLeft))}px`;
-        selectionOverlay.style.height = `${Math.max(1, Math.round(maxBottom - minTop))}px`;
+        const fragment = document.createDocumentFragment();
+        segments.forEach((segment) => {
+            const node = document.createElement("div");
+            node.className = "affino-datagrid-demo__selection-overlay-segment";
+            if (mode === "fill") {
+                node.classList.add("affino-datagrid-demo__selection-overlay-segment--fill");
+            }
+            if (segment.mode === "left") {
+                node.classList.add("affino-datagrid-demo__selection-overlay-segment--left");
+            } else if (segment.mode === "right") {
+                node.classList.add("affino-datagrid-demo__selection-overlay-segment--right");
+            } else {
+                node.classList.add("affino-datagrid-demo__selection-overlay-segment--scroll");
+            }
+            node.style.left = `${segment.left}px`;
+            node.style.top = `${segment.top}px`;
+            node.style.width = `${segment.width}px`;
+            node.style.height = `${segment.height}px`;
+            fragment.appendChild(node);
+        });
+        rootNode.appendChild(fragment);
+    }
+
+    function renderSelectionOverlay(columns) {
+        renderOverlaySegments(selectionOverlay, buildOverlaySegmentsForRange(selectionRange, columns), "main");
+    }
+
+    function renderFillOverlay(columns) {
+        renderOverlaySegments(fillOverlay, buildOverlaySegmentsForRange(fillPreviewRange, columns), "fill");
     }
 
     function renderMeta(rowCount, start, end) {
@@ -1404,13 +2129,14 @@ function mountDatagridDemo(root) {
 
         const visibleColumns = api.getColumnModelSnapshot().visibleColumns;
         const orderedColumns = orderColumns(visibleColumns);
-        const templateColumns = orderedColumns.map((column) => `${resolveColumnWidth(column)}px`).join(" ");
+        const columnLayers = buildColumnLayers(orderedColumns);
+        const layerTrackTemplate = resolveLayerTrackTemplate(columnLayers);
         const tableWidth = orderedColumns.reduce((total, column) => total + resolveColumnWidth(column), 0);
-        const stickyOffsets = createStickyOffsets(orderedColumns);
 
-        renderHeader(orderedColumns, templateColumns, stickyOffsets);
-        renderRows(orderedColumns, templateColumns, stickyOffsets, start, end);
-        renderSelectionOverlay();
+        renderHeader(columnLayers, layerTrackTemplate);
+        renderRows(orderedColumns, columnLayers, layerTrackTemplate, start, end);
+        renderSelectionOverlay(orderedColumns);
+        renderFillOverlay(orderedColumns);
 
         const tableWidthCss = `${Math.max(tableWidth, viewport.clientWidth)}px`;
         header.style.width = tableWidthCss;
@@ -1436,6 +2162,7 @@ function mountDatagridDemo(root) {
     applyProjection({ resetScroll: true });
 
     return () => {
+        stopFillDrag(false);
         viewport.removeEventListener("scroll", onScroll);
         searchInput?.removeEventListener("input", onSearch);
         sortSelect?.removeEventListener("change", onSort);
@@ -1561,58 +2288,16 @@ function orderColumns(columns) {
     const center = [];
     const right = [];
     columns.forEach((column) => {
-        if (column.pin === "left") {
+        const pin = resolveColumnPin(column);
+        if (pin === "left") {
             left.push(column);
-        } else if (column.pin === "right") {
+        } else if (pin === "right") {
             right.push(column);
         } else {
             center.push(column);
         }
     });
     return [...left, ...center, ...right];
-}
-
-function createStickyOffsets(columns) {
-    const leftOffsets = new Map();
-    const rightOffsets = new Map();
-
-    let left = 0;
-    columns.forEach((column) => {
-        if (column.pin !== "left") {
-            return;
-        }
-        leftOffsets.set(column.key, left);
-        left += Math.max(110, column.width ?? 160);
-    });
-
-    let right = 0;
-    for (let index = columns.length - 1; index >= 0; index -= 1) {
-        const column = columns[index];
-        if (!column || column.pin !== "right") {
-            continue;
-        }
-        rightOffsets.set(column.key, right);
-        right += Math.max(110, column.width ?? 160);
-    }
-
-    return {
-        leftOffsets,
-        rightOffsets,
-    };
-}
-
-function applyStickyStyles(cell, key, stickyOffsets) {
-    if (stickyOffsets.leftOffsets.has(key)) {
-        cell.classList.add("affino-datagrid-demo__cell--sticky");
-        cell.style.left = `${stickyOffsets.leftOffsets.get(key)}px`;
-        cell.style.right = "auto";
-        return;
-    }
-    if (stickyOffsets.rightOffsets.has(key)) {
-        cell.classList.add("affino-datagrid-demo__cell--sticky");
-        cell.style.right = `${stickyOffsets.rightOffsets.get(key)}px`;
-        cell.style.left = "auto";
-    }
 }
 
 function formatCellValue(key, value) {
