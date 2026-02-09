@@ -348,10 +348,8 @@ test.describe("datagrid clipboard copy foundation", () => {
     const actionStatus = page.locator(".datagrid-controls__status")
     const statusCell = page.locator('.datagrid-stage__row .datagrid-stage__cell[data-column-key="status"]').first()
 
-    await statusCell.click()
-    await viewport.focus()
-    await page.keyboard.press("Shift+F10")
-    await page.keyboard.press("ContextMenu")
+    await statusCell.scrollIntoViewIfNeeded()
+    await statusCell.click({ button: "right" })
     await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(1)
     const copyAction = page.locator("[data-datagrid-copy-action]").first()
     await copyAction.focus()

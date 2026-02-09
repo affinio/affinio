@@ -18,7 +18,7 @@ Migration path: `.tmp/ui-table` -> `@affino/datagrid-core` + `@affino/datagrid-v
 | `.tmp/ui-table/core/*` | `@affino/datagrid-core` (root public API for stable usage) |
 | `.tmp/ui-table/core/viewport/*` and runtime internals | `@affino/datagrid-core/advanced` |
 | `.tmp/ui-table/vue/*` | `@affino/datagrid-vue` |
-| `UiTable*` naming | `DataGrid*` naming (shims kept for migration period) |
+| `UiTable*` naming | `DataGrid*` naming (legacy aliases removed) |
 
 ## Naming Migration (Vue)
 
@@ -26,20 +26,17 @@ Migration path: `.tmp/ui-table` -> `@affino/datagrid-core` + `@affino/datagrid-v
 - `UiTableViewportSimple.vue` -> `DataGridViewport.vue`
 - `UiTableOverlayLayer.vue` -> `DataGridOverlayLayer.vue`
 
-Compatibility shims still exist in `packages/datagrid-vue/src/components/legacy.ts`, but new integration should use `DataGrid*` names.
-Deprecation window for `UiTable*` shims: supported through `2026-08-31`, scheduled removal on `2026-09-01`.
+Compatibility shims are removed from current package surface.
+Use `DataGrid*` names only.
 
 ## Pinning Migration (Required)
 
 Runtime canonical pin contract:
 - `pin: "left" | "right" | "none"`
 
-Legacy fields supported only at adapter normalization boundary:
-- `pinned`, `sticky`, `stickyLeft`, `stickyRight`, `lock`, `locked`
-
 Migration rule:
-- Convert legacy pin fields at data ingestion point.
-- Do not carry legacy fields into runtime column models.
+- Use canonical `pin` only.
+- Do not rely on legacy pin fields in runtime or adapter input.
 
 ## Recommended Migration Steps
 
@@ -79,5 +76,5 @@ Codemod script:
 
 ## Rollback Strategy
 
-- Keep compatibility shims (`UiTable*`) only through `2026-08-31`.
-- Gate removal of legacy shims only after integration consumers fully switch to `DataGrid*` imports.
+- Roll back only by reverting migration commit(s).
+- No compatibility shim window is maintained in package code.

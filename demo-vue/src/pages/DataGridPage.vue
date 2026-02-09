@@ -1847,7 +1847,6 @@ const rowSelectionOrchestration = useDataGridRowSelectionOrchestration({
   },
 })
 const {
-  selectedRowIds,
   selectedCount,
   allVisibleSelected: allFilteredSelected,
   someVisibleSelected: someFilteredSelected,

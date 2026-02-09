@@ -75,9 +75,13 @@ import { useAffinoDataGridUi } from "@affino/datagrid-vue"
 - Root/stable parity is validated by:
   - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/__tests__/publicApi.contract.spec.ts`
 
-## Legacy Mapping
+## Removed Legacy Aliases
 
-- `useTableSettingsStore` -> `useDataGridSettingsStore`
-- `createPiniaTableSettingsAdapter` -> `createDataGridSettingsAdapter`
-- `buildSelectionOverlayTransform` -> `buildDataGridOverlayTransform`
-- `buildSelectionOverlayTransformFromSnapshot` -> `buildDataGridOverlayTransformFromSnapshot`
+Legacy aliases were removed from package code and are no longer supported:
+
+- `useTableSettingsStore`
+- `createPiniaTableSettingsAdapter`
+- `buildSelectionOverlayTransform`
+- `buildSelectionOverlayTransformFromSnapshot`
+
+Use only canonical names from the stable surface.

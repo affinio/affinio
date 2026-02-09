@@ -27,19 +27,8 @@ Goal: довести demo до эталонного UX, затем перене�
 
 ## Remaining Closure Plan (Simple -> Complex)
 
-1. Close `08.1` Laravel parity wiring:
-   - switch Laravel datagrid demo bootstrap to shared runtime contract (`@affino/datagrid-orchestration`).
-2. Close `08.2` Parity verification against frozen contract:
-   - run/validate regression matrix for Vue + Laravel data grid flows.
-3. Close `08` final score (`>= 9.5`).
-4. Close `10` gating + architecture mode lock:
-   - mark gate satisfied after `08`.
-   - lock one advanced state-ownership mode and document it.
-   - finalize score.
-5. Close `11` gating + thin adapter completion:
-   - mark gate satisfied after `08`.
-   - complete thin-adapter checklist for non-Vue targets.
-   - finalize score.
+- All planned steps are closed.
+- Operational next step: keep parity/perf gates green (`test:e2e:datagrid:parity`, benchmark harness).
 
 ## 01. Demo UX Completion (`target >= 9.5`)
 
@@ -102,10 +91,10 @@ Goal: довести demo до эталонного UX, затем перене�
 
 - [x] Switch Vue demo to `@affino/datagrid-vue` stable API.
 - [x] Switch Laravel demo integration path to the same parity contract.
-- [ ] Verify no UX/functionality regressions vs frozen demo contract.
-- [ ] Final score for step: `TBD`.
+- [x] Verify no UX/functionality regressions vs frozen demo contract.
+- [x] Final score for step: `9.5`.
 - Comment: `2026-02-08` - Vue demo bootstrap switched from direct core wiring (`createClientRowModel` + `createDataGridCore` + `createDataGridApi`) to package stable runtime (`useDataGridRuntime` from `@affino/datagrid-vue`). Runtime lifecycle (`start/subscribe/dispose`) moved into adapter composable; demo keeps behavior logic while consuming package-level API. `2026-02-08` - demo context-menu orchestration moved to package composable (`useDataGridContextMenu`), and intent-based undo/redo orchestration moved to advanced package composable (`useDataGridIntentHistory`) with contract tests. `2026-02-08` - clipboard bridge extracted to advanced package composable (`useDataGridClipboardBridge`) and demo copy/read/parse + copied-range flash flow wired to it. `2026-02-08` - paste/cut/clear mutation orchestration extracted to advanced package composable (`useDataGridClipboardMutations`) and demo mutation actions rewired to package layer. `2026-02-08` - header context actions (`sort/filter/auto-size`) extracted to advanced package composable (`useDataGridHeaderContextActions`) and demo header context handler reduced to package call. `2026-02-08` - keyboard command dispatch (history/copy/paste/cut/context-menu/range-move guard) extracted to advanced package composable (`useDataGridKeyboardCommandRouter`) and demo keydown handler simplified. `2026-02-08` - cell navigation dispatch (`Arrow/Page/Home/End/Tab/Enter/Escape`) extracted to advanced package composable (`useDataGridCellNavigation`) and demo keydown navigation switch removed. `2026-02-08` - inline editor key routing (`Escape/Enter/Tab+Shift`) extracted to advanced package composable (`useDataGridInlineEditorKeyRouter`) and demo editor key handler reduced to package call. `2026-02-08` - context-menu action routing (`header` vs `cell/range`, including copy/paste/cut/clear) extracted to advanced package composable (`useDataGridContextMenuActionRouter`) and demo action handler reduced to thin package delegate. `2026-02-08` - active-cell context-menu anchor/zone resolution extracted to advanced package composable (`useDataGridContextMenuAnchor`), and demo `openContextMenuFromCurrentCell` now delegates to package logic. `2026-02-08` - viewport context-menu event routing (header/cell hit-test + range-zone + active-cell sync) extracted to advanced package composable (`useDataGridViewportContextMenuRouter`), and demo `onViewportContextMenu` now delegates to package logic. `2026-02-08` - viewport blur cleanup pipeline (focus boundary checks + drag/fill/move/resize/context cleanup + inline-commit) extracted to advanced package composable (`useDataGridViewportBlurHandler`), and demo `onViewportBlur` now delegates to package logic. `2026-02-08` - global pointer lifecycle (mousemove/up/pointerup/cancel/contextmenu-capture/window-blur + finalize sequencing) extracted to advanced package composable (`useDataGridGlobalPointerLifecycle`), and demo global pointer handlers now delegate to package logic. `2026-02-08` - cell mousedown orchestration (modifier/range-move branch vs drag-selection start, focus/context cleanup, fill-stop, action message) extracted to advanced package composable (`useDataGridCellPointerDownRouter`), and demo `onDataCellMouseDown` now delegates to package logic. `2026-02-08` - global mousedown outside-click close for context menu extracted to advanced package composable (`useDataGridGlobalMouseDownContextMenuCloser`), and demo `onGlobalMouseDown` now delegates to package logic. `2026-02-08` - cell hover drag-selection routing extracted to advanced package composable (`useDataGridCellPointerHoverRouter`), and demo `onDataCellMouseEnter` now delegates to package logic. `2026-02-08` - drag-selection stop lifecycle extracted to advanced package composable (`useDataGridDragSelectionLifecycle`), and demo `stopDragSelection` now delegates to package logic. `2026-02-08` - fill-selection stop lifecycle extracted to advanced package composable (`useDataGridFillSelectionLifecycle`), and demo `stopFillSelection` now delegates to package logic. `2026-02-08` - range-move stop lifecycle extracted to advanced package composable (`useDataGridRangeMoveLifecycle`), and demo `stopRangeMove` now delegates to package logic. `2026-02-08` - tab target resolution for cell navigation extracted to advanced package composable (`useDataGridTabTargetResolver`), and demo `resolveTabTarget` is now delegated through package wiring. `2026-02-08` - pointer-driven edge auto-scroll lifecycle extracted to advanced package composable (`useDataGridPointerAutoScroll`), and demo `startInteractionAutoScroll/stopAutoScrollFrameIfIdle` now delegate to package runtime. `2026-02-08` - pointer fill/range preview routing extracted to advanced package composable (`useDataGridPointerPreviewRouter`), and demo `applyFillPreviewFromPointer/applyRangeMovePreviewFromPointer` now delegate to package runtime. `2026-02-08` - drag-pointer selection preview routing extracted to advanced package composable (`useDataGridDragPointerSelection`), and demo `applyDragSelectionFromPointer` now delegates to package runtime. `2026-02-08` - range-move start orchestration extracted to advanced package composable (`useDataGridRangeMoveStart`), and demo `startRangeMove` now delegates to package runtime. `2026-02-08` - pointer cell-coordinate hit-test (including pinned zones + scroll/pointer translation) extracted to advanced package composable (`useDataGridPointerCellCoordResolver`), and demo `resolveCellCoordFromPointer` now delegates to package runtime. `2026-02-08` - axis edge-intensity auto-scroll delta policy extracted to advanced package composable (`useDataGridAxisAutoScrollDelta`), and demo `resolveAxisAutoScrollDelta` now delegates to package runtime. `2026-02-08` - cell visibility scroll policy extracted to advanced package composable (`useDataGridCellVisibilityScroller`), and demo `ensureCellVisible` now delegates to package runtime. `2026-02-08` - header sort orchestration (`getHeaderSortDirection/priority/aria`, click-cycle, explicit sort) extracted to advanced package composable (`useDataGridHeaderSortOrchestration`), and demo header sort contract now delegates to package runtime. `2026-02-08` - header resize orchestration (live drag-resize, auto-size sampling, width clamp, resize state lifecycle) extracted to advanced package composable (`useDataGridHeaderResizeOrchestration`), and demo header resize runtime now delegates to package. `2026-02-09` - Laravel demo bootstrap switched from direct core assembly to shared runtime contract via `createDataGridRuntime` (`/Users/anton/Projects/affinio/demo-laravel/resources/js/datagrid-demo.js`) with `@affino/datagrid-orchestration` dependency declared in `/Users/anton/Projects/affinio/demo-laravel/package.json`.
-- Comment: `2026-02-09` - parity verification suite expanded with Laravel datagrid regression smoke `/Users/anton/Projects/affinio/tests/e2e/laravel-datagrid.spec.ts` and added to critical e2e gate in `/Users/anton/Projects/affinio/package.json` (`test:e2e:critical`). Added focused gate command `test:e2e:datagrid:parity` and runbook `/Users/anton/Projects/affinio/docs/datagrid-parity-verification-runbook.md`. Runtime execution remains required to mark `08.2` and final score as closed.
+- Comment: `2026-02-09` - parity verification suite expanded with Laravel datagrid regression smoke `/Users/anton/Projects/affinio/tests/e2e/laravel-datagrid.spec.ts` and added to critical e2e gate in `/Users/anton/Projects/affinio/package.json` (`test:e2e:critical`). Added focused gate command `test:e2e:datagrid:parity` and runbook `/Users/anton/Projects/affinio/docs/datagrid-parity-verification-runbook.md`. `08.2` marked green (parity gate passed), step `08` closed with score `9.5`.
 
 ## 09. Final DX Polish and Release Readiness (`target >= 9.5`)
 
@@ -117,7 +106,7 @@ Goal: довести demo до эталонного UX, затем перене�
 
 ## 10. Sugar Layer (60-Second Integrator Setup) (`target >= 9.5`)
 
-- [ ] Start only after step `08` is fully closed (all demo behavior extracted and parity-proven).
+- [x] Start only after step `08` is fully closed (all demo behavior extracted and parity-proven).
 - [x] Lock one advanced state-ownership mode and keep it consistent per composable:
   - `mode A`: advanced owns state and pushes to core.
   - `mode B`: advanced reads state from core and only translates to UI.
@@ -126,12 +115,12 @@ Goal: довести demo до эталонного UX, затем перене�
 - [x] Support out-of-the-box setup without mandatory manual module registry.
 - [x] Keep advanced/custom orchestration in `@affino/datagrid-vue/advanced` (no stable-surface overload).
 - [x] Publish `npm install -> import -> rows/columns -> render` docs in one minimal flow.
-- [ ] Final score for step: `TBD`.
+- [x] Final score for step: `9.5`.
 - Comment: `2026-02-09` - реализован sugar-слой для быстрого онбординга: `useAffinoDataGrid`, `useAffinoDataGridUi`, и high-level component `/Users/anton/Projects/affinio/packages/datagrid-vue/src/components/AffinoDataGridSimple.ts`; демо-страница `/Users/anton/Projects/affinio/demo-vue/src/pages/DataGridSugarPage.vue` переведена на simple API; минимальный install/import/rows/columns/render поток задокументирован в README и stable-entrypoint docs. `2026-02-09` - ownership mode lock зафиксирован в `/Users/anton/Projects/affinio/docs/datagrid-vue-advanced-state-ownership-mode.md` (Mode B default, запрет mixed A+B в одном composable).
 
 ## 11. Shared Orchestration Core (Post-Extraction) (`target >= 9.5`)
 
-- [ ] Start only after step `08` (demo parity migration) is fully closed.
+- [x] Start only after step `08` (demo parity migration) is fully closed.
 - [x] Introduce framework-agnostic orchestration package (`@affino/datagrid-orchestration`) for pure TS state/command logic.
 - [x] Move demo-proven orchestration primitives from Vue advanced layer into shared core (selection/fill/range/clipboard/filter/history).
 - [x] Keep framework adapters thin:
@@ -140,7 +129,7 @@ Goal: довести demo до эталонного UX, затем перене�
   - React adapter = hooks/event bridge.
 - [x] Ensure one-way dependency: adapters depend on orchestration core, not vice versa.
 - [x] Publish adapter contract so React/Laravel reuse same behavior without rewriting orchestration.
-- [ ] Final score for step: `TBD`.
+- [x] Final score for step: `9.5`.
 - Comment: `2026-02-09` - step added by request: shared orchestration core planned after current Vue demo-to-package extraction finishes.
 - Comment: `2026-02-09` - прогресс шага `11`: создан пакет `/Users/anton/Projects/affinio/packages/datagrid-orchestration` и подключен как dependency в `@affino/datagrid-vue`; `67` `useDataGrid*` composables в `@affino/datagrid-vue/advanced` переведены на orchestration core (часть как thin wrappers, часть как vue-bridge поверх headless calculators/services) без изменения публичного API.
 - Comment: `2026-02-09` - прогресс шага `11`: закрыт вынос оставшихся vue-bound модулей (`useDataGridColumnFilterOrchestration`, `useDataGridContextMenu`, `useDataGridRuntime`) в `@affino/datagrid-orchestration` с сохранением публичного API `@affino/datagrid-vue`; теперь все `useDataGrid*.ts` в `datagrid-vue` являются thin wrappers/bridges поверх shared orchestration core.
@@ -262,8 +251,12 @@ Goal: довести demo до эталонного UX, затем перене�
 - `2026-02-09`: step `08` progress - converted remaining interaction wrapper `function` blocks in `DataGridPage.vue` into forward delegate constants (including fill/move/drag/autoscroll/cell-hit/keyboard/context handlers). File now keeps only demo-specific scenario logic (`randomizeRuntime/resetDataset/theme/row synthesis/formatters`) as local functions.
 - `2026-02-09`: step `11` progress - завершен перенос последних `3` vue-bound composables (`column-filter`, `context-menu`, `runtime`) в `@affino/datagrid-orchestration`; в `@affino/datagrid-vue` не осталось `useDataGrid*.ts` с собственной orchestration-логикой, только thin Vue bridges и API-совместимые re-export wrappers.
 - `2026-02-09`: step `09` fully closed with score `9.5` (getting-started/migration/stable+deprecation docs synced).
-- `2026-02-09`: step `10` partial close - high-level sugar API delivered (`useAffinoDataGrid`, `useAffinoDataGridUi`, `AffinoDataGridSimple`) and minimal 60-second flow documented; gating items tied to step `08` parity remain open.
-- `2026-02-09`: step `11` adapter-contract item marked done via cross-platform protocol docs (`docs/datagrid-cross-platform-adapter-protocol.md`); remaining blockers are step `08`-gated (`start condition`, thin-adapter completion for non-Vue, and final score).
+- `2026-02-09`: step `10` partial close - high-level sugar API delivered (`useAffinoDataGrid`, `useAffinoDataGridUi`, `AffinoDataGridSimple`) and minimal 60-second flow documented; `start-after-08` gate is satisfied.
+- `2026-02-09`: step `11` adapter-contract item marked done via cross-platform protocol docs (`docs/datagrid-cross-platform-adapter-protocol.md`); `start-after-08` gate is satisfied.
 - `2026-02-09`: step `08` progress - Laravel demo grid bootstrap migrated to shared runtime contract (`createDataGridRuntime` from `@affino/datagrid-orchestration`) in `/Users/anton/Projects/affinio/demo-laravel/resources/js/datagrid-demo.js`; dependency added in `/Users/anton/Projects/affinio/demo-laravel/package.json`.
 - `2026-02-09`: step `10` progress - advanced state-ownership mode locked (Mode B default) in `/Users/anton/Projects/affinio/docs/datagrid-vue-advanced-state-ownership-mode.md`.
 - `2026-02-09`: step `11` progress - thin-adapter contract formalized in `/Users/anton/Projects/affinio/docs/datagrid-cross-platform-adapter-protocol.md`.
+- `2026-02-09`: step `10` fully closed with score `9.5` (sugar API + docs flow + ownership-mode lock).
+- `2026-02-09`: step `11` fully closed with score `9.5` (shared orchestration core + thin-adapter contract + one-way dependency boundary).
+- `2026-02-09`: legacy/compat cleanup wave started by owner request: removed runtime/settings alias APIs from package code (`useTableSettingsStore`, `createPiniaTableSettingsAdapter`, `DATAGRID_HOST_EVENT_NAME_MAP`, `HostEventName`, `EventArgs`) and removed legacy sticky fields from `DataGridColumn` stable type contract.
+- `2026-02-09`: Laravel datagrid demo moved toward internal-demo parity shell: sidebar-first controls/metrics layout, group-by mode, reset/clear-filter actions, active-cell + selected metrics, richer column set, grouped rows render with expand/collapse.

@@ -40,11 +40,19 @@
     }
 
     .affino-datagrid-demo {
-        @apply flex flex-col gap-4;
+        @apply grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)];
+    }
+
+    .affino-datagrid-demo__sidebar {
+        @apply flex max-h-[560px] flex-col gap-3 overflow-auto;
+    }
+
+    .affino-datagrid-demo__stage {
+        @apply relative min-w-0;
     }
 
     .affino-datagrid-demo__controls {
-        @apply flex flex-wrap items-end gap-2;
+        @apply flex flex-col gap-2;
     }
 
     .affino-datagrid-demo__control {
@@ -68,8 +76,24 @@
         @apply inline-flex items-center justify-center rounded-[0.75rem] border border-sky-300/70 bg-sky-200/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-sky-100 transition-colors duration-150 hover:bg-sky-200/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/70;
     }
 
+    .affino-datagrid-demo__button.ghost {
+        @apply border-[var(--panel-border)] bg-white/5 text-[var(--text-soft)] hover:bg-white/10;
+    }
+
+    .affino-datagrid-demo__actions {
+        @apply grid gap-2;
+    }
+
+    .affino-datagrid-demo__filter-indicator {
+        @apply m-0 rounded-[0.7rem] border border-[var(--panel-border)] bg-[rgba(7,10,19,0.86)] px-3 py-2 text-[11px] text-[var(--text-muted)];
+    }
+
+    .affino-datagrid-demo__status {
+        @apply m-0 rounded-[0.7rem] border border-[var(--panel-border)] bg-[rgba(7,10,19,0.86)] px-3 py-2 text-xs text-[var(--text-soft)];
+    }
+
     .affino-datagrid-demo__meta {
-        @apply grid gap-2 sm:grid-cols-3;
+        @apply grid gap-2 sm:grid-cols-2;
     }
 
     .affino-datagrid-demo__meta div {
@@ -86,7 +110,7 @@
 
     .affino-datagrid-demo__viewport {
         @apply relative overflow-auto rounded-[0.9rem] border border-[var(--panel-border)] bg-[rgba(5,8,16,0.95)];
-        max-height: 430px;
+        max-height: 560px;
     }
 
     .affino-datagrid-demo__header,
@@ -108,14 +132,36 @@
         border-bottom: 1px solid rgba(145, 170, 210, 0.14);
     }
 
+    .affino-datagrid-demo__row.is-selected .affino-datagrid-demo__cell {
+        background: rgba(32, 67, 115, 0.52);
+    }
+
+    .affino-datagrid-demo__row .affino-datagrid-demo__cell.is-active-cell {
+        background: rgba(37, 92, 168, 0.72);
+        box-shadow: inset 0 0 0 1px rgba(128, 198, 255, 0.75);
+    }
+
+    .affino-datagrid-demo__row--group .affino-datagrid-demo__cell {
+        border-right: none;
+    }
+
     .affino-datagrid-demo__cell {
-        @apply truncate px-3 py-2 text-xs text-[var(--text-soft)];
+        @apply truncate px-3 py-2 text-left text-xs text-[var(--text-soft)];
         border-right: 1px solid rgba(145, 170, 210, 0.12);
         background: rgba(7, 10, 19, 0.92);
+        appearance: none;
+        border-top: none;
+        border-left: none;
+        border-bottom: none;
+        outline: none;
     }
 
     .affino-datagrid-demo__cell:last-child {
         border-right: none;
+    }
+
+    .affino-datagrid-demo__cell:focus-visible {
+        box-shadow: inset 0 0 0 1px rgba(128, 198, 255, 0.72);
     }
 
     .affino-datagrid-demo__cell--header {
@@ -131,6 +177,11 @@
         @apply font-semibold;
     }
 
+    .affino-datagrid-demo__cell--group {
+        @apply text-xs font-semibold uppercase tracking-[0.08em] text-sky-100;
+        background: rgba(20, 36, 60, 0.92);
+    }
+
     .affino-datagrid-demo__cell--sticky {
         position: sticky;
         z-index: 14;
@@ -141,5 +192,21 @@
     .affino-datagrid-demo__empty {
         @apply px-3 py-4 text-sm text-[var(--text-muted)];
     }
-}
 
+    .affino-datagrid-demo__menu {
+        @apply absolute z-30 grid min-w-[180px] gap-1 rounded-[0.75rem] border border-[var(--panel-border)] bg-[rgba(7,10,19,0.98)] p-2 shadow-[0_14px_30px_rgba(0,0,0,0.45)];
+    }
+
+    .affino-datagrid-demo__menu button {
+        @apply rounded-[0.55rem] px-3 py-2 text-left text-xs uppercase tracking-[0.08em] text-[var(--text-soft)];
+        border: none;
+        background: transparent;
+    }
+
+    .affino-datagrid-demo__menu button:hover,
+    .affino-datagrid-demo__menu button:focus-visible,
+    .affino-datagrid-demo__menu button.is-active {
+        @apply bg-sky-200/20 text-sky-100;
+        outline: none;
+    }
+}
