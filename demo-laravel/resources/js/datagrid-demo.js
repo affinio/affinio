@@ -63,6 +63,7 @@ function mountDatagridDemo(root) {
     const rowsHost = root.querySelector("[data-datagrid-rows]");
     const spacerTop = root.querySelector("[data-datagrid-spacer-top]");
     const spacerBottom = root.querySelector("[data-datagrid-spacer-bottom]");
+    const selectionOverlay = root.querySelector("[data-datagrid-selection-overlay]");
 
     const searchInput = root.querySelector("[data-datagrid-search]");
     const sortSelect = root.querySelector("[data-datagrid-sort]");
@@ -84,6 +85,7 @@ function mountDatagridDemo(root) {
     const filteredNode = root.querySelector("[data-datagrid-filtered]");
     const windowNode = root.querySelector("[data-datagrid-window]");
     const selectedNode = root.querySelector("[data-datagrid-selected]");
+    const anchorNode = root.querySelector("[data-datagrid-anchor]");
     const activeCellNode = root.querySelector("[data-datagrid-active-cell]");
     const groupedNode = root.querySelector("[data-datagrid-grouped]");
     const statusNode = root.querySelector("[data-datagrid-status]");
@@ -103,6 +105,8 @@ function mountDatagridDemo(root) {
 
     let selectedRowKey = null;
     let activeCell = null;
+    let selectionAnchor = null;
+    let selectionRange = null;
     let editingCell = null;
     let activeCellLabel = "None";
     let statusMessage = "Ready";
@@ -233,21 +237,66 @@ function mountDatagridDemo(root) {
         return activeRows.findIndex((row) => String(row.rowId) === String(rowKey));
     };
 
-    const updateActiveCell = (rowKey, columnKey, explicitRowIndex = null) => {
+    const resolveVisibleColumns = () => orderColumns(api.getColumnModelSnapshot().visibleColumns);
+
+    const resolveColumnIndex = (columnKey, columns = resolveVisibleColumns()) =>
+        columns.findIndex((column) => column.key === String(columnKey));
+
+    const normalizeSelectionRange = (anchorPoint, activePoint) => {
+        if (!anchorPoint || !activePoint) {
+            return null;
+        }
+        const startRowIndex = Math.min(anchorPoint.rowIndex, activePoint.rowIndex);
+        const endRowIndex = Math.max(anchorPoint.rowIndex, activePoint.rowIndex);
+        const startColumnIndex = Math.min(anchorPoint.columnIndex, activePoint.columnIndex);
+        const endColumnIndex = Math.max(anchorPoint.columnIndex, activePoint.columnIndex);
+        return {
+            startRowIndex,
+            endRowIndex,
+            startColumnIndex,
+            endColumnIndex,
+        };
+    };
+
+    const setSelectionFromActive = (extendSelection = false) => {
+        if (!activeCell) {
+            selectionAnchor = null;
+            selectionRange = null;
+            return;
+        }
+        if (!extendSelection || !selectionAnchor) {
+            selectionAnchor = {
+                rowKey: activeCell.rowKey,
+                columnKey: activeCell.columnKey,
+                rowIndex: activeCell.rowIndex,
+                columnIndex: activeCell.columnIndex,
+            };
+        }
+        selectionRange = normalizeSelectionRange(selectionAnchor, activeCell);
+    };
+
+    const updateActiveCell = (rowKey, columnKey, explicitRowIndex = null, options = {}) => {
+        const extendSelection = Boolean(options.extendSelection);
         if (!rowKey || !columnKey) {
             activeCell = null;
             activeCellLabel = "None";
             selectedRowKey = null;
+            selectionAnchor = null;
+            selectionRange = null;
             return;
         }
+        const columns = resolveVisibleColumns();
         const rowIndex = explicitRowIndex === null ? resolveActiveRowIndex(rowKey) : explicitRowIndex;
+        const columnIndex = resolveColumnIndex(columnKey, columns);
         selectedRowKey = String(rowKey);
         activeCell = {
             rowKey: String(rowKey),
             columnKey: String(columnKey),
             rowIndex: rowIndex >= 0 ? rowIndex : 0,
+            columnIndex: columnIndex >= 0 ? columnIndex : 0,
         };
         activeCellLabel = `R${activeCell.rowIndex + 1} · ${String(columnKey)}`;
+        setSelectionFromActive(extendSelection);
     };
 
     const ensureActiveCellVisible = () => {
@@ -260,6 +309,34 @@ function mountDatagridDemo(root) {
             node.focus({ preventScroll: true });
             node.scrollIntoView({ block: "nearest", inline: "nearest" });
         }
+    };
+
+    const isCellInSelectionRange = (rowIndex, columnIndex) => {
+        if (!selectionRange) {
+            return false;
+        }
+        return (
+            rowIndex >= selectionRange.startRowIndex &&
+            rowIndex <= selectionRange.endRowIndex &&
+            columnIndex >= selectionRange.startColumnIndex &&
+            columnIndex <= selectionRange.endColumnIndex
+        );
+    };
+
+    const getSelectedCellCount = () => {
+        if (!selectionRange) {
+            return 0;
+        }
+        const rowsCount = selectionRange.endRowIndex - selectionRange.startRowIndex + 1;
+        const columnsCount = selectionRange.endColumnIndex - selectionRange.startColumnIndex + 1;
+        return Math.max(0, rowsCount * columnsCount);
+    };
+
+    const formatCellLabel = (point) => {
+        if (!point) {
+            return "None";
+        }
+        return `R${point.rowIndex + 1} · ${point.columnKey}`;
     };
 
     const isEditingCell = (rowKey, columnKey) =>
@@ -572,8 +649,8 @@ function mountDatagridDemo(root) {
         }
     };
 
-    const moveActiveCell = (rowDelta, columnDelta) => {
-        const columns = orderColumns(api.getColumnModelSnapshot().visibleColumns);
+    const moveActiveCell = (rowDelta, columnDelta, extendSelection = false) => {
+        const columns = resolveVisibleColumns();
         if (!columns.length || !activeRows.length) {
             return;
         }
@@ -582,7 +659,7 @@ function mountDatagridDemo(root) {
             if (!firstRow) {
                 return;
             }
-            updateActiveCell(firstRow.rowId, columns[0].key, 0);
+            updateActiveCell(firstRow.rowId, columns[0].key, 0, { extendSelection });
             requestRender();
             return;
         }
@@ -597,7 +674,7 @@ function mountDatagridDemo(root) {
         if (!nextRow || !nextColumn) {
             return;
         }
-        updateActiveCell(nextRow.rowId, nextColumn.key, nextRowIndex);
+        updateActiveCell(nextRow.rowId, nextColumn.key, nextRowIndex, { extendSelection });
         setStatus(`Active cell ${activeCellLabel}`);
         requestRender();
         requestAnimationFrame(() => {
@@ -699,22 +776,22 @@ function mountDatagridDemo(root) {
 
         if (event.key === "ArrowDown") {
             event.preventDefault();
-            moveActiveCell(1, 0);
+            moveActiveCell(1, 0, event.shiftKey);
             return;
         }
         if (event.key === "ArrowUp") {
             event.preventDefault();
-            moveActiveCell(-1, 0);
+            moveActiveCell(-1, 0, event.shiftKey);
             return;
         }
         if (event.key === "ArrowRight") {
             event.preventDefault();
-            moveActiveCell(0, 1);
+            moveActiveCell(0, 1, event.shiftKey);
             return;
         }
         if (event.key === "ArrowLeft") {
             event.preventDefault();
-            moveActiveCell(0, -1);
+            moveActiveCell(0, -1, event.shiftKey);
         }
     };
 
@@ -764,6 +841,8 @@ function mountDatagridDemo(root) {
         sourceRows = buildRows(size, generation);
         selectedRowKey = null;
         activeCell = null;
+        selectionAnchor = null;
+        selectionRange = null;
         activeCellLabel = "None";
         clearHistory();
         setStatus(`Dataset resized: ${size} rows`);
@@ -824,6 +903,8 @@ function mountDatagridDemo(root) {
         groupMode = "none";
         selectedRowKey = null;
         activeCell = null;
+        selectionAnchor = null;
+        selectionRange = null;
         activeCellLabel = "None";
         clearHistory();
         if (searchInput) {
@@ -894,8 +975,31 @@ function mountDatagridDemo(root) {
         } else if (activeCell) {
             const normalizedIndex = resolveActiveRowIndex(activeCell.rowKey);
             activeCell.rowIndex = normalizedIndex >= 0 ? normalizedIndex : 0;
+            const normalizedColumnIndex = resolveColumnIndex(activeCell.columnKey);
+            activeCell.columnIndex = normalizedColumnIndex >= 0 ? normalizedColumnIndex : 0;
             activeCellLabel = `R${activeCell.rowIndex + 1} · ${activeCell.columnKey}`;
         }
+        if (!activeCell) {
+            selectionAnchor = null;
+        }
+        if (selectionAnchor && !activeRows.some((row) => String(row.rowId) === selectionAnchor.rowKey)) {
+            selectionAnchor = null;
+        }
+        if (selectionAnchor) {
+            const normalizedAnchorRowIndex = resolveActiveRowIndex(selectionAnchor.rowKey);
+            const normalizedAnchorColumnIndex = resolveColumnIndex(selectionAnchor.columnKey);
+            selectionAnchor.rowIndex = normalizedAnchorRowIndex >= 0 ? normalizedAnchorRowIndex : 0;
+            selectionAnchor.columnIndex = normalizedAnchorColumnIndex >= 0 ? normalizedAnchorColumnIndex : 0;
+        }
+        if (activeCell && !selectionAnchor) {
+            selectionAnchor = {
+                rowKey: activeCell.rowKey,
+                columnKey: activeCell.columnKey,
+                rowIndex: activeCell.rowIndex,
+                columnIndex: activeCell.columnIndex,
+            };
+        }
+        selectionRange = normalizeSelectionRange(selectionAnchor, activeCell);
         if (editingCell && !activeRows.some((row) => String(row.rowId) === editingCell.rowKey)) {
             editingCell = null;
         }
@@ -965,16 +1069,20 @@ function mountDatagridDemo(root) {
             row.style.gridTemplateColumns = templateColumns;
 
             const rowKey = String(entry.rowKey ?? entry.rowId ?? "");
+            const rowIndex = resolveActiveRowIndex(rowKey);
             if (rowKey && selectedRowKey === rowKey) {
                 row.classList.add("is-selected");
             }
 
-            columns.forEach((column) => {
+            columns.forEach((column, columnIndex) => {
                 const value = entry.data?.[column.key];
                 const currentlyEditing = isEditingCell(rowKey, column.key);
                 const cell = document.createElement(currentlyEditing ? "div" : "button");
                 cell.dataset.datagridRowKey = rowKey;
                 cell.dataset.datagridColumnKey = column.key;
+                cell.dataset.datagridCell = "true";
+                cell.dataset.datagridRowIndex = String(rowIndex);
+                cell.dataset.datagridColumnIndex = String(columnIndex);
                 cell.className = "affino-datagrid-demo__cell";
 
                 if (currentlyEditing) {
@@ -992,6 +1100,9 @@ function mountDatagridDemo(root) {
                 }
                 if (activeCell && activeCell.rowKey === rowKey && activeCell.columnKey === column.key) {
                     cell.classList.add("is-active-cell");
+                }
+                if (isCellInSelectionRange(rowIndex, columnIndex)) {
+                    cell.classList.add("is-in-range");
                 }
 
                 applyStickyStyles(cell, column.key, stickyOffsets);
@@ -1032,8 +1143,20 @@ function mountDatagridDemo(root) {
                     });
                     cell.appendChild(input);
                 } else {
-                    cell.addEventListener("click", () => {
-                        updateActiveCell(rowKey, column.key, resolveActiveRowIndex(rowKey));
+                    cell.addEventListener("mousedown", (event) => {
+                        if (event.button !== 0) {
+                            return;
+                        }
+                        updateActiveCell(rowKey, column.key, rowIndex, {
+                            extendSelection: event.shiftKey && Boolean(selectionAnchor),
+                        });
+                        requestRender();
+                    });
+
+                    cell.addEventListener("click", (event) => {
+                        updateActiveCell(rowKey, column.key, rowIndex, {
+                            extendSelection: event.shiftKey && Boolean(selectionAnchor),
+                        });
                         setStatus(`Active cell ${activeCellLabel}`);
                         requestRender();
                     });
@@ -1056,6 +1179,57 @@ function mountDatagridDemo(root) {
         rowsHost.appendChild(fragment);
     }
 
+    function renderSelectionOverlay() {
+        if (!(selectionOverlay instanceof HTMLElement)) {
+            return;
+        }
+        if (!selectionRange) {
+            selectionOverlay.hidden = true;
+            return;
+        }
+
+        const cells = rowsHost.querySelectorAll("[data-datagrid-cell='true']");
+        const stageRect = stage.getBoundingClientRect();
+        let minLeft = Number.POSITIVE_INFINITY;
+        let minTop = Number.POSITIVE_INFINITY;
+        let maxRight = Number.NEGATIVE_INFINITY;
+        let maxBottom = Number.NEGATIVE_INFINITY;
+
+        cells.forEach((node) => {
+            if (!(node instanceof HTMLElement)) {
+                return;
+            }
+            const rowIndex = Number(node.dataset.datagridRowIndex);
+            const columnIndex = Number(node.dataset.datagridColumnIndex);
+            if (!Number.isFinite(rowIndex) || !Number.isFinite(columnIndex)) {
+                return;
+            }
+            if (!isCellInSelectionRange(rowIndex, columnIndex)) {
+                return;
+            }
+            const rect = node.getBoundingClientRect();
+            const left = rect.left - stageRect.left;
+            const top = rect.top - stageRect.top;
+            const right = left + rect.width;
+            const bottom = top + rect.height;
+            minLeft = Math.min(minLeft, left);
+            minTop = Math.min(minTop, top);
+            maxRight = Math.max(maxRight, right);
+            maxBottom = Math.max(maxBottom, bottom);
+        });
+
+        if (!Number.isFinite(minLeft) || !Number.isFinite(minTop)) {
+            selectionOverlay.hidden = true;
+            return;
+        }
+
+        selectionOverlay.hidden = false;
+        selectionOverlay.style.left = `${Math.round(minLeft)}px`;
+        selectionOverlay.style.top = `${Math.round(minTop)}px`;
+        selectionOverlay.style.width = `${Math.max(1, Math.round(maxRight - minLeft))}px`;
+        selectionOverlay.style.height = `${Math.max(1, Math.round(maxBottom - minTop))}px`;
+    }
+
     function renderMeta(rowCount, start, end) {
         if (totalNode) totalNode.textContent = String(sourceRows.length);
         if (filteredNode) filteredNode.textContent = String(activeRows.length);
@@ -1065,7 +1239,10 @@ function mountDatagridDemo(root) {
                 : "0-0";
         }
         if (selectedNode) {
-            selectedNode.textContent = selectedRowKey ? "1" : "0";
+            selectedNode.textContent = String(getSelectedCellCount());
+        }
+        if (anchorNode) {
+            anchorNode.textContent = formatCellLabel(selectionAnchor);
         }
         if (activeCellNode) {
             activeCellNode.textContent = activeCellLabel;
@@ -1098,10 +1275,21 @@ function mountDatagridDemo(root) {
         const visibleColumns = api.getColumnModelSnapshot().visibleColumns;
         const orderedColumns = orderColumns(visibleColumns);
         const templateColumns = orderedColumns.map((column) => `${Math.max(110, column.width ?? 160)}px`).join(" ");
+        const tableWidth = orderedColumns.reduce(
+            (total, column) => total + Math.max(110, column.width ?? 160),
+            0,
+        );
         const stickyOffsets = createStickyOffsets(orderedColumns);
 
         renderHeader(orderedColumns, templateColumns, stickyOffsets);
         renderRows(orderedColumns, templateColumns, stickyOffsets, start, end);
+        renderSelectionOverlay();
+
+        const tableWidthCss = `${Math.max(tableWidth, viewport.clientWidth)}px`;
+        header.style.width = tableWidthCss;
+        rowsHost.style.width = tableWidthCss;
+        spacerTop.style.width = tableWidthCss;
+        spacerBottom.style.width = tableWidthCss;
 
         spacerTop.style.height = `${Math.max(0, start * ROW_HEIGHT)}px`;
         spacerBottom.style.height = `${Math.max(0, (rowCount - Math.max(end + 1, 0)) * ROW_HEIGHT)}px`;
