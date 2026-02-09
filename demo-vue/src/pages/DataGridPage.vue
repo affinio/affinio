@@ -287,9 +287,14 @@ const rangeMoveOrigin = ref<CellCoord | null>(null)
 const rangeMovePreviewRange = ref<CellSelectionRange | null>(null)
 
 let lastDragCoord: CellCoord | null = null
+let ensureCellVisibleByCoord: ((coord: CellCoord) => void) | null = null
+let resolveDisplayRowCount: () => number = () => 0
+let resolveDisplayNodeAtIndex: (rowIndex: number) => DataGridRowNode<IncidentRow> | undefined = () => undefined
+let resolveDisplayLeafRowAtIndex: (rowIndex: number) => IncidentRow | undefined = () => undefined
+let materializeDisplayRows: () => readonly DataGridRowNode<IncidentRow>[] = () => []
 const cellCoordNormalizer = useDataGridCellCoordNormalizer<CellCoord>({
   resolveRowCount() {
-    return filteredAndSortedRows.value.length
+    return resolveDisplayRowCount()
   },
   resolveColumnCount() {
     return orderedColumns.value.length
@@ -304,7 +309,7 @@ const navigationPrimitives = useDataGridNavigationPrimitives<CellCoord, CellSele
     return orderedColumns.value
   },
   resolveRowsLength() {
-    return filteredAndSortedRows.value.length
+    return resolveDisplayRowCount()
   },
   resolveNavigableColumnIndexes() {
     return navigableColumnIndexes.value
@@ -329,7 +334,7 @@ const navigationPrimitives = useDataGridNavigationPrimitives<CellCoord, CellSele
     activeCell.value = coord
   },
   ensureCellVisible(coord) {
-    cellVisibilityScroller.ensureCellVisible(coord)
+    ensureCellVisibleByCoord?.(coord)
   },
   coordsEqual(left, right) {
     if (!left || !right) {
@@ -356,7 +361,7 @@ const cellRangeHelpers = useDataGridCellRangeHelpers<
   CellSelectionRange
 >({
   resolveRowsLength() {
-    return filteredAndSortedRows.value.length
+    return resolveDisplayRowCount()
   },
   resolveFirstNavigableColumnIndex: getFirstNavigableColumnIndex,
   resolveCandidateCurrentCell() {
@@ -619,7 +624,6 @@ const {
   applyActiveColumnFilter,
   resetActiveColumnFilter,
   clearAllColumnFilters,
-  buildFilterSnapshot,
   rowMatchesColumnFilters,
 } = columnFilterOrchestration
 const {
@@ -714,7 +718,7 @@ const clipboard = useDataGridClipboardBridge<IncidentRow, CellSelectionRange>({
   lastCopiedPayload,
   resolveCopyRange,
   getRowAtIndex(rowIndex) {
-    return filteredAndSortedRows.value[rowIndex]
+    return resolveDisplayLeafRowAtIndex(rowIndex)
   },
   getColumnKeyAtIndex(columnIndex) {
     return orderedColumns.value[columnIndex]?.key ?? null
@@ -744,7 +748,7 @@ const recordIntentTransaction = async (
 }
 const rangeMutationEngine = useDataGridRangeMutationEngine<
   IncidentRow,
-  IncidentRow,
+  DataGridRowNode<IncidentRow>,
   GridMutationSnapshot,
   CellSelectionRange
 >({
@@ -772,16 +776,19 @@ const rangeMutationEngine = useDataGridRangeMutationEngine<
     sourceRows.value = rows
   },
   resolveDisplayedRows() {
-    return filteredAndSortedRows.value
+    return materializeDisplayRows()
   },
   resolveDisplayedRowId(row) {
-    return String(row.rowId)
+    return String(row.rowId ?? row.rowKey)
   },
   resolveColumnKeyAtIndex(columnIndex) {
     return orderedColumns.value[columnIndex]?.key ?? null
   },
   resolveDisplayedCellValue(row, columnKey) {
-    return getRowCellValue(row, columnKey)
+    if (row.kind === "group") {
+      return ""
+    }
+    return getRowCellValue(row.data, columnKey)
   },
   resolveSourceCellValue(row, columnKey) {
     return getRowCellValue(row, columnKey)
@@ -948,7 +955,7 @@ const clipboardMutations = useDataGridClipboardMutations<
   normalizeCellCoord,
   normalizeSelectionRange,
   resolveRowAtViewIndex(rowIndex) {
-    return filteredAndSortedRows.value[rowIndex]
+    return resolveDisplayLeafRowAtIndex(rowIndex)
   },
   resolveColumnKeyAtIndex(columnIndex) {
     const column = orderedColumns.value[columnIndex]
@@ -1083,7 +1090,7 @@ const contextMenuAnchor = useDataGridContextMenuAnchor({
     return viewportRef.value
   },
   resolveRowAtIndex(rowIndex) {
-    return filteredAndSortedRows.value[rowIndex]
+    return resolveDisplayNodeAtIndex(rowIndex)
   },
   resolveColumnAtIndex(columnIndex) {
     return orderedColumns.value[columnIndex]
@@ -1242,6 +1249,27 @@ const cellPointerHoverRouter = useDataGridCellPointerHoverRouter<DataGridRowNode
 })
 const onDataCellMouseEnter = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) =>
   cellPointerHoverRouter.dispatchCellPointerEnter(row, columnKey, event)
+const onDataCellClick = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) => {
+  const isDoubleClick = event.type === "dblclick" || event.detail >= 2
+  if (!isDoubleClick || event.button !== 0) {
+    return
+  }
+  if (columnKey === "select") {
+    return
+  }
+  if (row.kind !== "leaf") {
+    return
+  }
+  if (event.shiftKey || isRangeMoveModifierActive(event)) {
+    return
+  }
+  // Dblclick should always enter edit mode even if a stale pointer interaction
+  // flag remained set from the preceding click sequence.
+  stopDragSelection()
+  stopFillSelection(false)
+  stopRangeMove(false)
+  beginInlineEdit(row.data, columnKey)
+}
 const dragPointerSelection = useDataGridDragPointerSelection<CellCoord>({
   isDragSelecting() {
     return isDragSelecting.value
@@ -1381,7 +1409,7 @@ const pointerCellCoordResolver = useDataGridPointerCellCoordResolver<CellCoord>(
     return viewportRef.value
   },
   resolveRowCount() {
-    return filteredAndSortedRows.value.length
+    return resolveDisplayRowCount()
   },
   resolveColumnMetrics() {
     return orderedColumnMetrics.value
@@ -1420,6 +1448,7 @@ const cellVisibilityScroller = useDataGridCellVisibilityScroller<CellCoord>({
     scrollLeft.value = position.left
   },
 })
+ensureCellVisibleByCoord = cellVisibilityScroller.ensureCellVisible
 const pointerPreviewRouter = useDataGridPointerPreviewRouter<CellCoord, CellSelectionRange>({
   isFillDragging() {
     return isFillDragging.value
@@ -1627,7 +1656,7 @@ const cellNavigation = useDataGridCellNavigation<CellCoord>({
   getFirstNavigableColumnIndex,
   getLastNavigableColumnIndex,
   getLastRowIndex() {
-    return Math.max(0, filteredAndSortedRows.value.length - 1)
+    return Math.max(0, resolveDisplayRowCount() - 1)
   },
   resolveStepRows() {
     return Math.max(1, Math.floor((viewportHeight.value - headerHeight.value) / ROW_HEIGHT))
@@ -1652,6 +1681,35 @@ const {
     transaction: history.transactionService,
   },
 })
+resolveDisplayRowCount = () => Math.max(0, rowModel.getRowCount())
+resolveDisplayNodeAtIndex = (rowIndex: number) => {
+  if (!Number.isFinite(rowIndex)) {
+    return undefined
+  }
+  const normalized = Math.trunc(rowIndex)
+  const count = resolveDisplayRowCount()
+  if (normalized < 0 || normalized >= count) {
+    return undefined
+  }
+  return rowModel.getRow(normalized) as DataGridRowNode<IncidentRow> | undefined
+}
+resolveDisplayLeafRowAtIndex = (rowIndex: number) => {
+  const node = resolveDisplayNodeAtIndex(rowIndex)
+  if (!node || node.kind === "group") {
+    return undefined
+  }
+  return node.data
+}
+materializeDisplayRows = () => {
+  const count = resolveDisplayRowCount()
+  if (count <= 0) {
+    return []
+  }
+  return rowModel.getRowsInRange({
+    start: 0,
+    end: count - 1,
+  }) as readonly DataGridRowNode<IncidentRow>[]
+}
 const visibleRows = ref<readonly DataGridRowNode<IncidentRow>[]>([])
 const viewportMeasureScheduler = useDataGridViewportMeasureScheduler({
   resolveViewportElement() {
@@ -1849,7 +1907,7 @@ const cellSelectionRange = computed<CellSelectionRange | null>(() => {
   if (!cellAnchor.value || !cellFocus.value) {
     return null
   }
-  const rowMax = filteredAndSortedRows.value.length - 1
+  const rowMax = resolveDisplayRowCount() - 1
   const columnMax = orderedColumns.value.length - 1
   if (rowMax < 0 || columnMax < 0) {
     return null
@@ -1957,12 +2015,12 @@ const activeCellDescendantId = computed(() => {
   if (!active) {
     return null
   }
-  const row = filteredAndSortedRows.value[active.rowIndex]
+  const row = resolveDisplayNodeAtIndex(active.rowIndex)
   const column = orderedColumns.value[active.columnIndex]
   if (!row || !column) {
     return null
   }
-  return getGridCellId(String(row.rowId), column.key)
+  return getGridCellId(String(row.rowId ?? row.rowKey), column.key)
 })
 
 const cellAnchorLabel = computed(() => {
@@ -2156,7 +2214,14 @@ const viewportScrollLifecycle = useDataGridViewportScrollLifecycle({
   },
   commitInlineEdit,
 })
-const onViewportScroll = viewportScrollLifecycle.onViewportScroll
+let isViewportBootstrapping = true
+const onViewportScroll = (event: Event) => {
+  if (isViewportBootstrapping) {
+    resetViewportScrollPosition()
+    return
+  }
+  viewportScrollLifecycle.onViewportScroll(event)
+}
 
 function randomizeRuntime() {
   if (inlineEditor.value) {
@@ -2224,7 +2289,6 @@ watch(sortPreset, value => {
 })
 
 watch(sortState, value => {
-  rowModel.setSortModel(effectiveSortModel.value)
   const presetEntry = Object.entries(SORT_PRESETS).find(([, preset]) => {
     if (preset.length !== value.length) {
       return false
@@ -2244,13 +2308,8 @@ watch(sortState, value => {
 }, { immediate: true, deep: true })
 
 watch(groupBy, value => {
-  rowModel.setSortModel(effectiveSortModel.value)
   lastAction.value = value === "none" ? "Grouping disabled" : `Grouped by ${value}`
 })
-
-watch(appliedColumnFilters, value => {
-  rowModel.setFilterModel(buildFilterSnapshot(value))
-}, { immediate: true, deep: true })
 
 watch([query, sortState, appliedColumnFilters, groupBy], () => {
   resetVisibleRowsSyncCache()
@@ -2289,6 +2348,15 @@ function applyDemoTheme() {
   applyGridTheme(themeRootRef.value, resolveDemoThemeTokens())
 }
 
+function resetViewportScrollPosition() {
+  if (viewportRef.value) {
+    viewportRef.value.scrollTop = 0
+    viewportRef.value.scrollLeft = 0
+  }
+  scrollTop.value = 0
+  scrollLeft.value = 0
+}
+
 onMounted(() => {
   applyDemoTheme()
   if (typeof document !== "undefined") {
@@ -2301,7 +2369,21 @@ onMounted(() => {
     })
   }
   syncViewportHeight()
+  resetViewportScrollPosition()
   syncVisibleRows()
+  void nextTick(() => {
+    resetViewportScrollPosition()
+    syncVisibleRows()
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        resetViewportScrollPosition()
+        syncVisibleRows()
+        isViewportBootstrapping = false
+      })
+      return
+    }
+    isViewportBootstrapping = false
+  })
   window.addEventListener("resize", scheduleViewportMeasure)
   window.addEventListener("mousedown", onGlobalMouseDown)
   window.addEventListener("mouseup", onGlobalMouseUp, true)
@@ -2770,7 +2852,8 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             :aria-labelledby="getHeaderCellId(column.key)"
             @mousedown="onDataCellMouseDown(row, column.key, $event)"
             @mouseenter="onDataCellMouseEnter(row, column.key, $event)"
-            @dblclick="beginInlineEdit(row.data, column.key)"
+            @click="onDataCellClick(row, column.key, $event)"
+            @dblclick="onDataCellClick(row, column.key, $event)"
           >
             <template v-if="column.key === 'select'">
               <input
@@ -2882,7 +2965,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         <div
           v-for="segment in cellSelectionOverlaySegments"
           :key="segment.key"
-          class="datagrid-stage__selection-overlay"
+          class="datagrid-stage__selection-overlay datagrid-stage__selection-overlay--main"
           :style="segment.style"
         ></div>
 

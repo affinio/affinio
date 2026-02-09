@@ -20,8 +20,8 @@ Scope: `/datagrid` demo baseline and `@affino/datagrid-core` integration contrac
 - Double-click editable cell: inline edit mode.
 - Enum-like cells: open value picker from in-cell trigger.
 - `Enter`: commit edit; `Escape`: cancel; `Tab`: commit and move.
-- Fill handle: drag from range-end handle to repeat source pattern.
-- Move range: drag selection border to move values (with source clear where allowed).
+- Fill handle: drag from range-end handle to repeat source pattern (editable columns only; non-editable cells are skipped).
+- Move range: drag selection border to move values (editable columns only; non-editable cells are blocked).
 
 ### Clipboard and context menu
 
