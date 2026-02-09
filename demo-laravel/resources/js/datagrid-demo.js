@@ -103,6 +103,7 @@ function mountDatagridDemo(root) {
 
     let selectedRowKey = null;
     let activeCell = null;
+    let editingCell = null;
     let activeCellLabel = "None";
     let statusMessage = "Ready";
     let clipboardState = null;
@@ -259,6 +260,74 @@ function mountDatagridDemo(root) {
             node.focus({ preventScroll: true });
             node.scrollIntoView({ block: "nearest", inline: "nearest" });
         }
+    };
+
+    const isEditingCell = (rowKey, columnKey) =>
+        Boolean(editingCell) &&
+        editingCell.rowKey === String(rowKey) &&
+        editingCell.columnKey === String(columnKey);
+
+    const focusInlineEditor = () => {
+        if (!editingCell) {
+            return;
+        }
+        const selector =
+            `[data-datagrid-inline-editor="true"]` +
+            `[data-datagrid-row-key="${escapeCssToken(editingCell.rowKey)}"]` +
+            `[data-datagrid-column-key="${escapeCssToken(editingCell.columnKey)}"]`;
+        const input = rowsHost.querySelector(selector);
+        if (!(input instanceof HTMLInputElement)) {
+            return;
+        }
+        if (document.activeElement !== input) {
+            input.focus({ preventScroll: true });
+            input.select();
+        }
+    };
+
+    const beginInlineEdit = (rowKey, columnKey, rowIndex = null) => {
+        if (!isEditableColumn(columnKey)) {
+            return;
+        }
+        updateActiveCell(rowKey, columnKey, rowIndex);
+        editingCell = {
+            rowKey: String(rowKey),
+            columnKey: String(columnKey),
+            draft: String(readCellValue(rowKey, columnKey) ?? ""),
+        };
+        closeContextMenu();
+        setStatus(`Editing ${editingCell.columnKey}`);
+        requestAnimationFrame(() => {
+            focusInlineEditor();
+        });
+    };
+
+    const commitInlineEdit = () => {
+        if (!editingCell) {
+            return false;
+        }
+        const session = editingCell;
+        editingCell = null;
+        const applied = applyCellEdit(
+            "Edited cell",
+            session.rowKey,
+            session.columnKey,
+            session.draft,
+            { recordHistory: true },
+        );
+        if (!applied) {
+            requestRender();
+        }
+        return applied;
+    };
+
+    const cancelInlineEdit = () => {
+        if (!editingCell) {
+            return;
+        }
+        editingCell = null;
+        setStatus("Edit cancelled");
+        requestRender();
     };
 
     const pushHistory = (label, operations) => {
@@ -541,6 +610,25 @@ function mountDatagridDemo(root) {
             onContextMenuKeydown(event);
             return;
         }
+        if (editingCell) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                commitInlineEdit();
+                return;
+            }
+            if (event.key === "Escape") {
+                event.preventDefault();
+                cancelInlineEdit();
+                return;
+            }
+            if (event.key === "Tab") {
+                event.preventDefault();
+                commitInlineEdit();
+                moveActiveCell(0, event.shiftKey ? -1 : 1);
+                return;
+            }
+            return;
+        }
         if (event.defaultPrevented) {
             return;
         }
@@ -597,6 +685,15 @@ function mountDatagridDemo(root) {
                     openContextMenu(rect.left + 12, rect.top + 12, activeCell.rowKey, activeCell.columnKey, activeCell.rowIndex);
                 }
             }
+            return;
+        }
+        if (
+            (event.key === "F2" || event.key === "Enter") &&
+            activeCell &&
+            isEditableColumn(activeCell.columnKey)
+        ) {
+            event.preventDefault();
+            beginInlineEdit(activeCell.rowKey, activeCell.columnKey, activeCell.rowIndex);
             return;
         }
 
@@ -799,6 +896,9 @@ function mountDatagridDemo(root) {
             activeCell.rowIndex = normalizedIndex >= 0 ? normalizedIndex : 0;
             activeCellLabel = `R${activeCell.rowIndex + 1} · ${activeCell.columnKey}`;
         }
+        if (editingCell && !activeRows.some((row) => String(row.rowId) === editingCell.rowKey)) {
+            editingCell = null;
+        }
 
         if (options.resetScroll !== false) {
             viewport.scrollTop = 0;
@@ -870,14 +970,19 @@ function mountDatagridDemo(root) {
             }
 
             columns.forEach((column) => {
-                const cell = document.createElement("button");
-                cell.type = "button";
+                const value = entry.data?.[column.key];
+                const currentlyEditing = isEditingCell(rowKey, column.key);
+                const cell = document.createElement(currentlyEditing ? "div" : "button");
                 cell.dataset.datagridRowKey = rowKey;
                 cell.dataset.datagridColumnKey = column.key;
-
-                const value = entry.data?.[column.key];
-                cell.textContent = formatCellValue(column.key, value);
                 cell.className = "affino-datagrid-demo__cell";
+
+                if (currentlyEditing) {
+                    cell.classList.add("affino-datagrid-demo__cell--editing");
+                } else {
+                    cell.type = "button";
+                    cell.textContent = formatCellValue(column.key, value);
+                }
 
                 if (column.key === "latencyMs" || column.key === "errorRate" || column.key === "throughputRps") {
                     cell.classList.add("affino-datagrid-demo__cell--numeric");
@@ -891,16 +996,57 @@ function mountDatagridDemo(root) {
 
                 applyStickyStyles(cell, column.key, stickyOffsets);
 
-                cell.addEventListener("click", () => {
-                    updateActiveCell(rowKey, column.key, resolveActiveRowIndex(rowKey));
-                    setStatus(`Active cell ${activeCellLabel}`);
-                    requestRender();
-                });
+                if (currentlyEditing) {
+                    const input = document.createElement("input");
+                    input.type = "text";
+                    input.className = "affino-datagrid-demo__editor";
+                    input.value = String(editingCell?.draft ?? "");
+                    input.dataset.datagridInlineEditor = "true";
+                    input.dataset.datagridRowKey = rowKey;
+                    input.dataset.datagridColumnKey = column.key;
+                    input.setAttribute("aria-label", `${column.key} editor`);
+                    input.addEventListener("input", () => {
+                        if (editingCell && editingCell.rowKey === rowKey && editingCell.columnKey === column.key) {
+                            editingCell.draft = input.value;
+                        }
+                    });
+                    input.addEventListener("keydown", (event) => {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            commitInlineEdit();
+                            return;
+                        }
+                        if (event.key === "Escape") {
+                            event.preventDefault();
+                            cancelInlineEdit();
+                            return;
+                        }
+                        if (event.key === "Tab") {
+                            event.preventDefault();
+                            commitInlineEdit();
+                            moveActiveCell(0, event.shiftKey ? -1 : 1);
+                        }
+                    });
+                    input.addEventListener("blur", () => {
+                        commitInlineEdit();
+                    });
+                    cell.appendChild(input);
+                } else {
+                    cell.addEventListener("click", () => {
+                        updateActiveCell(rowKey, column.key, resolveActiveRowIndex(rowKey));
+                        setStatus(`Active cell ${activeCellLabel}`);
+                        requestRender();
+                    });
 
-                cell.addEventListener("contextmenu", (event) => {
-                    event.preventDefault();
-                    openContextMenu(event.clientX, event.clientY, rowKey, column.key, resolveActiveRowIndex(rowKey));
-                });
+                    cell.addEventListener("dblclick", () => {
+                        beginInlineEdit(rowKey, column.key, resolveActiveRowIndex(rowKey));
+                    });
+
+                    cell.addEventListener("contextmenu", (event) => {
+                        event.preventDefault();
+                        openContextMenu(event.clientX, event.clientY, rowKey, column.key, resolveActiveRowIndex(rowKey));
+                    });
+                }
 
                 row.appendChild(cell);
             });
@@ -961,6 +1107,11 @@ function mountDatagridDemo(root) {
         spacerBottom.style.height = `${Math.max(0, (rowCount - Math.max(end + 1, 0)) * ROW_HEIGHT)}px`;
 
         renderMeta(rowCount, start, end);
+        if (editingCell) {
+            requestAnimationFrame(() => {
+                focusInlineEditor();
+            });
+        }
     }
 
     applyProjection({ resetScroll: true });

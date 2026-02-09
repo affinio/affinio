@@ -16,6 +16,15 @@ test.describe("laravel datagrid interactions", () => {
     const targetCell = ownerCells.nth(1)
     const sourceBefore = (await sourceCell.textContent())?.trim() ?? ""
 
+    await sourceCell.dblclick()
+    const editor = page
+      .locator('[data-datagrid-inline-editor="true"][data-datagrid-column-key="owner"]')
+      .first()
+    await expect(editor).toBeVisible()
+    await editor.fill("qa-owner-laravel")
+    await editor.press("Enter")
+    await expect(sourceCell).toHaveText("qa-owner-laravel")
+
     await sourceCell.click()
     await sourceCell.click({ button: "right" })
     await page.locator('[data-datagrid-menu-action="clear"]').click()

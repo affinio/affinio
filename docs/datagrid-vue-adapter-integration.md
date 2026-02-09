@@ -104,7 +104,7 @@ Adapter interface is defined in:
 - Group state
 
 Store implementation:
-`/Users/anton/Projects/affinio/packages/datagrid-vue/src/tableSettingsStore.ts`
+`/Users/anton/Projects/affinio/packages/datagrid-vue/src/dataGridSettingsStore.ts`
 
 ## Integration Rules
 
