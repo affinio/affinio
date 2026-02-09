@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import AffinoSelect from "@/components/AffinoSelect.vue"
+import ThemeToggle from "@/components/ThemeToggle.vue"
 import {
+  applyGridTheme,
+  defaultThemeTokens,
+  industrialNeutralTheme,
+  resolveGridThemeTokens,
   type DataGridColumnDef,
   type DataGridColumnSnapshot,
-  type DataGridFilterSnapshot,
   type DataGridRowNode,
   type DataGridSortState,
 } from "@affino/datagrid-core"
@@ -15,8 +19,14 @@ import {
 } from "@affino/datagrid-vue"
 import {
   useDataGridCellNavigation,
+  useDataGridCellRangeHelpers,
+  useDataGridEditableValuePolicy,
+  useDataGridMoveMutationPolicy,
   useDataGridCellPointerDownRouter,
   useDataGridCellPointerHoverRouter,
+  useDataGridColumnFilterOrchestration,
+  useDataGridGroupMetaOrchestration,
+  useDataGridGroupingSortOrchestration,
   useDataGridDragPointerSelection,
   useDataGridClipboardBridge,
   useDataGridClipboardMutations,
@@ -29,8 +39,11 @@ import {
   useDataGridGlobalMouseDownContextMenuCloser,
   useDataGridGlobalPointerLifecycle,
   useDataGridHeaderContextActions,
+  useDataGridInlineEditorSchema,
+  useDataGridInlineEditOrchestration,
   useDataGridHeaderResizeOrchestration,
   useDataGridHeaderSortOrchestration,
+  useDataGridInlineEditorTargetNavigation,
   useDataGridInlineEditorKeyRouter,
   useDataGridIntentHistory,
   useDataGridKeyboardCommandRouter,
@@ -40,8 +53,17 @@ import {
   useDataGridPointerCellCoordResolver,
   useDataGridPointerPreviewRouter,
   useDataGridTabTargetResolver,
+  useDataGridColumnLayoutOrchestration,
+  useDataGridSelectionOverlayOrchestration,
+  useDataGridRowsProjection,
+  useDataGridRowSelectionOrchestration,
+  useDataGridVirtualRangeMetrics,
+  useDataGridViewportMeasureScheduler,
+  useDataGridVisibleRowsSyncScheduler,
   useDataGridViewportBlurHandler,
   useDataGridViewportContextMenuRouter,
+  type DataGridInlineEditorMode,
+  type DataGridColumnFilterKind,
 } from "@affino/datagrid-vue/advanced"
 import {
   type DataGridTransactionAffectedRange,
@@ -94,15 +116,6 @@ type EditableColumnKey =
   | "runbook"
   | "status"
 
-type InlineEditorMode = "text" | "select"
-
-interface InlineEditorState {
-  rowId: string
-  columnKey: EditableColumnKey
-  draft: string
-  mode: InlineEditorMode
-}
-
 interface CellCoord {
   rowIndex: number
   columnIndex: number
@@ -113,34 +126,6 @@ interface CellSelectionRange {
   endRow: number
   startColumn: number
   endColumn: number
-}
-
-interface SelectionOverlaySegment {
-  key: string
-  mode: "scroll"
-  style: {
-    top: string
-    left: string
-    width: string
-    height: string
-  }
-}
-
-type ColumnFilterKind = "text" | "enum" | "number"
-
-interface AppliedColumnFilter {
-  kind: ColumnFilterKind
-  operator: string
-  value: string
-  value2?: string
-}
-
-interface ColumnFilterDraft {
-  columnKey: string
-  kind: ColumnFilterKind
-  operator: string
-  value: string
-  value2: string
 }
 
 interface GridMutationSnapshot {
@@ -218,27 +203,12 @@ const NUMERIC_COLUMN_KEYS = new Set<string>([
   "incidents24h",
 ])
 
-const ENUM_COLUMN_KEYS = new Set<string>(["severity", "status", "environment", "region"])
-
-const TEXT_FILTER_OPERATOR_OPTIONS = [
-  { value: "contains", label: "Contains" },
-  { value: "equals", label: "Equals" },
-  { value: "starts-with", label: "Starts with" },
-] as const
-
-const ENUM_FILTER_OPERATOR_OPTIONS = [
-  { value: "is", label: "Is" },
-  { value: "is-not", label: "Is not" },
-] as const
-
-const NUMBER_FILTER_OPERATOR_OPTIONS = [
-  { value: "equals", label: "=" },
-  { value: "gt", label: ">" },
-  { value: "gte", label: ">=" },
-  { value: "lt", label: "<" },
-  { value: "lte", label: "<=" },
-  { value: "between", label: "Between" },
-] as const
+const INLINE_EDITOR_ENUM_OPTIONS = {
+  severity: ["critical", "high", "medium", "low"],
+  status: ["stable", "watch", "degraded"],
+  environment: ["prod", "staging", "dev"],
+  region: ["us-east", "us-west", "eu-central", "ap-south"],
+} as const
 
 const SORT_PRESETS: Record<string, readonly DataGridSortState[]> = {
   "latency-desc": [{ key: "latencyMs", direction: "desc" }],
@@ -273,19 +243,15 @@ const DATA_GRID_COLUMNS: readonly DataGridColumnDef[] = [
 
 const viewportRef = ref<HTMLDivElement | null>(null)
 const headerRef = ref<HTMLDivElement | null>(null)
+const themeRootRef = ref<HTMLElement | null>(null)
 const scrollTop = ref(0)
 const scrollLeft = ref(0)
 const viewportHeight = ref(420)
 const viewportWidth = ref(960)
 const headerHeight = ref(ROW_HEIGHT)
-const selectedRowIds = ref<Set<string>>(new Set())
-const inlineEditor = ref<InlineEditorState | null>(null)
 const cellAnchor = ref<CellCoord | null>(null)
 const cellFocus = ref<CellCoord | null>(null)
 const activeCell = ref<CellCoord | null>(null)
-const activeFilterColumnKey = ref<string | null>(null)
-const columnFilterDraft = ref<ColumnFilterDraft | null>(null)
-const appliedColumnFilters = ref<Record<string, AppliedColumnFilter>>({})
 const columnWidthOverrides = ref<Record<string, number>>({})
 const copiedSelectionRange = ref<CellSelectionRange | null>(null)
 const lastCopiedPayload = ref("")
@@ -301,17 +267,226 @@ const rangeMoveBaseRange = ref<CellSelectionRange | null>(null)
 const rangeMoveOrigin = ref<CellCoord | null>(null)
 const rangeMovePreviewRange = ref<CellSelectionRange | null>(null)
 
-let syncVisibleRowsFrame: number | null = null
-let syncVisibleRowsPending = false
-let viewportMeasureFrame: number | null = null
-let viewportMeasurePending = false
-let cachedVirtualRange = { start: 0, end: -1 }
-let lastSyncedRowsRef: readonly IncidentRow[] | null = null
-let lastSyncedRangeStart = Number.NaN
-let lastSyncedRangeEnd = Number.NaN
 let lastDragCoord: CellCoord | null = null
 
+const cellRangeHelpers = useDataGridCellRangeHelpers<
+  DataGridRowNode<IncidentRow>,
+  CellCoord,
+  CellSelectionRange
+>({
+  resolveRowsLength() {
+    return filteredAndSortedRows.value.length
+  },
+  resolveFirstNavigableColumnIndex: getFirstNavigableColumnIndex,
+  resolveCandidateCurrentCell() {
+    return activeCell.value ?? cellFocus.value ?? cellAnchor.value
+  },
+  resolveColumnIndex,
+  resolveNearestNavigableColumnIndex,
+  clampRowIndex,
+  resolveRowIndex,
+  isColumnSelectable(columnKey) {
+    return columnKey !== "select"
+  },
+})
+const {
+  resolveCellCoord,
+  normalizeCellCoord,
+  normalizeSelectionRange,
+  buildExtendedRange,
+  isCellWithinRange,
+  resolveCurrentCellCoord,
+} = cellRangeHelpers
+
 const sourceRows = ref<IncidentRow[]>(buildRows(rowCount.value, seed.value))
+const inlineEditorSchema = useDataGridInlineEditorSchema({
+  enumOptionsByColumn: INLINE_EDITOR_ENUM_OPTIONS,
+})
+const {
+  getEditorOptions,
+  isEnumColumn,
+  hasEditorOption,
+} = inlineEditorSchema
+const editableValuePolicy = useDataGridEditableValuePolicy<IncidentRow, EditableColumnKey>({
+  strategies: {
+    owner: {
+      kind: "text",
+      apply(row, draft) {
+        row.owner = draft || row.owner
+      },
+    },
+    deployment: {
+      kind: "text",
+      apply(row, draft) {
+        row.deployment = draft || row.deployment
+      },
+    },
+    channel: {
+      kind: "text",
+      apply(row, draft) {
+        row.channel = draft || row.channel
+      },
+    },
+    runbook: {
+      kind: "text",
+      apply(row, draft) {
+        row.runbook = draft || row.runbook
+      },
+    },
+    region: {
+      kind: "enum",
+      isAllowed: draft => hasEditorOption("region", draft),
+      apply(row, draft) {
+        row.region = draft as IncidentRow["region"]
+      },
+      clearable: false,
+    },
+    environment: {
+      kind: "enum",
+      isAllowed: draft => hasEditorOption("environment", draft),
+      apply(row, draft) {
+        row.environment = draft as IncidentRow["environment"]
+      },
+      clearable: false,
+    },
+    severity: {
+      kind: "enum",
+      isAllowed: draft => hasEditorOption("severity", draft),
+      apply(row, draft) {
+        row.severity = draft as Severity
+      },
+      clearable: false,
+    },
+    status: {
+      kind: "enum",
+      isAllowed: draft => hasEditorOption("status", draft),
+      apply(row, draft) {
+        row.status = draft as Status
+      },
+      clearable: false,
+    },
+    latencyMs: {
+      kind: "number",
+      apply(row, value) {
+        row.latencyMs = Math.max(1, Math.round(value))
+      },
+    },
+    errorRate: {
+      kind: "number",
+      apply(row, value) {
+        row.errorRate = Math.max(0, Math.round(value))
+      },
+    },
+    availabilityPct: {
+      kind: "number",
+      apply(row, value) {
+        row.availabilityPct = Math.min(100, Math.max(0, value))
+      },
+    },
+    mttrMin: {
+      kind: "number",
+      apply(row, value) {
+        row.mttrMin = Math.max(0, Math.round(value))
+      },
+    },
+    cpuPct: {
+      kind: "number",
+      apply(row, value) {
+        row.cpuPct = Math.min(100, Math.max(0, Math.round(value)))
+      },
+    },
+    memoryPct: {
+      kind: "number",
+      apply(row, value) {
+        row.memoryPct = Math.min(100, Math.max(0, Math.round(value)))
+      },
+    },
+    queueDepth: {
+      kind: "number",
+      apply(row, value) {
+        row.queueDepth = Math.max(0, Math.round(value))
+      },
+    },
+    throughputRps: {
+      kind: "number",
+      apply(row, value) {
+        row.throughputRps = Math.max(0, Math.round(value))
+      },
+    },
+    sloBurnRate: {
+      kind: "number",
+      apply(row, value) {
+        row.sloBurnRate = Math.max(0, Number(value.toFixed(2)))
+      },
+    },
+    incidents24h: {
+      kind: "number",
+      apply(row, value) {
+        row.incidents24h = Math.max(0, Math.round(value))
+      },
+    },
+  },
+})
+const {
+  hasEditablePolicy,
+  applyEditedValue,
+  canApplyPastedValue,
+  clearEditedValue,
+} = editableValuePolicy
+const moveMutationPolicy = useDataGridMoveMutationPolicy<IncidentRow, EditableColumnKey>({
+  isEditableColumn,
+  applyEditedValue,
+  clearEditedValue,
+  isBlockedColumn(columnKey) {
+    return columnKey === "select"
+  },
+})
+const {
+  applyValueForMove,
+  clearValueForMove,
+} = moveMutationPolicy
+const columnFilterOrchestration = useDataGridColumnFilterOrchestration<IncidentRow>({
+  resolveColumnFilterKind,
+  resolveEnumFilterOptions,
+  resolveColumnLabel(columnKey) {
+    const column = DATA_GRID_COLUMNS.find(entry => entry.key === columnKey)
+    return column?.label ? String(column.label) : columnKey
+  },
+  resolveCellValue(row, columnKey) {
+    return getRowCellValue(row, columnKey)
+  },
+  isFilterableColumn(columnKey) {
+    return columnKey !== "select"
+  },
+  setLastAction(message) {
+    lastAction.value = message
+  },
+})
+const {
+  activeFilterColumnKey,
+  columnFilterDraft,
+  appliedColumnFilters,
+  activeColumnFilterCount,
+  hasColumnFilters,
+  activeFilterColumnLabel,
+  columnFilterOperatorOptions,
+  activeColumnFilterEnumOptions,
+  canApplyActiveColumnFilter,
+  isColumnFilterActive,
+  openColumnFilter,
+  onHeaderFilterTriggerClick,
+  closeColumnFilterPanel,
+  onFilterOperatorChange,
+  onFilterEnumValueChange,
+  onFilterValueInput,
+  onFilterSecondValueInput,
+  doesOperatorNeedSecondValue,
+  applyActiveColumnFilter,
+  resetActiveColumnFilter,
+  clearAllColumnFilters,
+  buildFilterSnapshot,
+  rowMatchesColumnFilters,
+} = columnFilterOrchestration
 const {
   contextMenu: copyContextMenu,
   contextMenuRef: copyMenuRef,
@@ -418,6 +593,71 @@ async function recordIntentTransaction(
   )
 }
 
+const inlineEditOrchestration = useDataGridInlineEditOrchestration<
+  IncidentRow,
+  EditableColumnKey,
+  CellSelectionRange,
+  GridMutationSnapshot
+>({
+  sourceRows,
+  setSourceRows(rows) {
+    sourceRows.value = cloneRows(rows)
+  },
+  cloneRow(row) {
+    return { ...row }
+  },
+  resolveRowId(row) {
+    return row.rowId
+  },
+  resolveCellValue(row, columnKey) {
+    return getRowCellValue(row, columnKey)
+  },
+  isEditableColumn,
+  isSelectColumn(columnKey) {
+    return isEnumColumn(columnKey)
+  },
+  resolveRowLabel(row) {
+    return row.service
+  },
+  applyEditedValue,
+  finalizeEditedRow(row, columnKey) {
+    if (columnKey === "latencyMs" || columnKey === "errorRate") {
+      row.status = resolveStatus(row.latencyMs, row.errorRate)
+    }
+  },
+  focusInlineEditor(rowId, columnKey, mode, openPicker) {
+    return focusInlineEditorElement(rowId, columnKey, mode, openPicker)
+  },
+  setLastAction(message) {
+    lastAction.value = message
+  },
+  captureBeforeSnapshot: captureGridMutationSnapshot,
+  resolveAffectedRange(target) {
+    return toSingleCellRange(resolveCellCoordFromDataset(target.rowId, target.columnKey))
+  },
+  async recordIntentTransaction(descriptor, beforeSnapshot) {
+    await recordIntentTransaction(
+      {
+        intent: descriptor.intent,
+        label: descriptor.label,
+        affectedRange: descriptor.affectedRange,
+      },
+      beforeSnapshot,
+    )
+  },
+})
+const {
+  inlineEditor,
+  isEditingCell,
+  isSelectEditorCell,
+  beginInlineEdit,
+  cancelInlineEdit,
+  commitInlineEdit,
+  updateEditorDraft,
+  onEditorInput,
+  onEditorSelectChange: onEditorAffinoSelectChange,
+} = inlineEditOrchestration
+
 const clipboardMutations = useDataGridClipboardMutations<
   IncidentRow,
   EditableColumnKey,
@@ -452,7 +692,7 @@ const clipboardMutations = useDataGridClipboardMutations<
   isEditableColumn,
   canApplyPastedValue,
   applyEditedValue,
-  clearValueForCut,
+  clearValueForCut: clearEditedValue,
   finalizeMutableRows(rowsById) {
     for (const row of rowsById.values()) {
       row.status = resolveStatus(row.latencyMs, row.errorRate)
@@ -987,12 +1227,30 @@ const keyboardCommandRouter = useDataGridKeyboardCommandRouter({
     lastAction.value = message
   },
 })
+const inlineEditorTargetNavigation = useDataGridInlineEditorTargetNavigation<IncidentRow, EditableColumnKey>({
+  resolveRows() {
+    return filteredAndSortedRows.value
+  },
+  resolveOrderedColumns() {
+    return orderedColumns.value
+  },
+  resolveRowId(row) {
+    return row.rowId
+  },
+  resolveColumnIndex,
+  isEditableColumn,
+  isSelectColumn(columnKey) {
+    return isEnumColumn(columnKey)
+  },
+  applyCellSelection,
+  beginInlineEdit,
+})
 const inlineEditorKeyRouter = useDataGridInlineEditorKeyRouter({
   isEditableColumn,
   cancelInlineEdit,
   commitInlineEdit,
-  resolveNextEditableTarget,
-  focusInlineEditorTarget,
+  resolveNextEditableTarget: inlineEditorTargetNavigation.resolveNextEditableTarget,
+  focusInlineEditorTarget: inlineEditorTargetNavigation.focusInlineEditorTarget,
 })
 const tabTargetResolver = useDataGridTabTargetResolver<CellCoord>({
   resolveNavigableColumnIndexes() {
@@ -1025,8 +1283,8 @@ const {
   rowModel,
   api,
   columnSnapshot,
-  setRows,
-  syncRowsInRange,
+  setRows: setRuntimeRows,
+  syncRowsInRange: syncRuntimeRowsInRange,
 } = useDataGridRuntime<IncidentRow>({
   columns: DATA_GRID_COLUMNS,
   services: {
@@ -1034,39 +1292,95 @@ const {
   },
 })
 const visibleRows = ref<readonly DataGridRowNode<IncidentRow>[]>([])
+const viewportMeasureScheduler = useDataGridViewportMeasureScheduler({
+  resolveViewportElement() {
+    return viewportRef.value
+  },
+  resolveHeaderElement() {
+    return headerRef.value
+  },
+  resolveCurrentState() {
+    return {
+      viewportHeight: viewportHeight.value,
+      viewportWidth: viewportWidth.value,
+      headerHeight: headerHeight.value,
+    }
+  },
+  applyMeasuredState(next) {
+    viewportHeight.value = next.viewportHeight
+    viewportWidth.value = next.viewportWidth
+    headerHeight.value = next.headerHeight
+  },
+  rowHeight: ROW_HEIGHT,
+  minViewportBodyHeight: 200,
+})
+const {
+  syncViewportHeight,
+  scheduleViewportMeasure,
+  dispose: disposeViewportMeasureScheduler,
+} = viewportMeasureScheduler
 
-const normalizedQuickFilter = computed(() => query.value.trim().toLowerCase())
 const searchableColumnKeys = computed(() =>
   columnSnapshot.value.visibleColumns
     .map(column => column.key)
     .filter(key => key !== "select"),
 )
-const activeColumnFilterCount = computed(() => Object.keys(appliedColumnFilters.value).length)
-const hasColumnFilters = computed(() => activeColumnFilterCount.value > 0)
-
-function withGroupingSortPriority(
-  model: readonly DataGridSortState[],
-  groupByKey: GroupByColumnKey,
-): readonly DataGridSortState[] {
-  if (groupByKey === "none") {
-    return model
-  }
-  const withoutGroupKey = model.filter(entry => entry.key !== groupByKey)
-  const groupEntry = model.find(entry => entry.key === groupByKey)
-  return [{ key: groupByKey, direction: groupEntry?.direction ?? "asc" }, ...withoutGroupKey]
-}
-
-const filteredAndSortedRows = computed<IncidentRow[]>(() => {
-  const quickFilteredRows = normalizedQuickFilter.value
-    ? sourceRows.value.filter(row => matchesQuery(row, normalizedQuickFilter.value, searchableColumnKeys.value))
-    : sourceRows.value
-  const columnFilteredRows = hasColumnFilters.value
-    ? quickFilteredRows.filter(row => rowMatchesColumnFilters(row, appliedColumnFilters.value))
-    : quickFilteredRows
-  return sortRows(columnFilteredRows, withGroupingSortPriority(sortState.value, groupBy.value))
+const groupingSortOrchestration = useDataGridGroupingSortOrchestration<GroupByColumnKey>({
+  sortState,
+  groupBy,
 })
+const {
+  effectiveSortModel,
+  sortSummary,
+} = groupingSortOrchestration
 
-function resolveGroupValue(row: IncidentRow, columnKey: GroupByColumnKey): string {
+const rowsProjection = useDataGridRowsProjection({
+  rows: sourceRows,
+  query,
+  searchableColumnKeys,
+  hasColumnFilters,
+  appliedColumnFilters,
+  sortModel: effectiveSortModel,
+  resolveCellValue(row, columnKey) {
+    return getRowCellValue(row, columnKey)
+  },
+  rowMatchesColumnFilters,
+  fallbackQueryColumnKeys: [
+    "service",
+    "owner",
+    "region",
+    "environment",
+    "deployment",
+    "severity",
+    "status",
+    "channel",
+    "runbook",
+  ],
+})
+const {
+  normalizedQuickFilter,
+  filteredAndSortedRows,
+} = rowsProjection
+const rowSelectionOrchestration = useDataGridRowSelectionOrchestration({
+  allRows: sourceRows,
+  visibleRows: filteredAndSortedRows,
+  resolveRowId(row) {
+    return row.rowId
+  },
+})
+const {
+  selectedRowIds,
+  selectedCount,
+  allVisibleSelected: allFilteredSelected,
+  someVisibleSelected: someFilteredSelected,
+  isRowSelected,
+  toggleRowSelection,
+  toggleSelectAllVisible: toggleSelectAllFiltered,
+  clearRowSelection,
+  reconcileSelection: reconcileRowSelection,
+} = rowSelectionOrchestration
+
+function resolveGroupValueLabel(row: IncidentRow, columnKey: GroupByColumnKey): string {
   if (columnKey === "none") {
     return ""
   }
@@ -1075,137 +1389,81 @@ function resolveGroupValue(row: IncidentRow, columnKey: GroupByColumnKey): strin
   return normalized.length > 0 ? normalized : "(empty)"
 }
 
-const groupMeta = computed(() => {
-  const starts = new Set<string>()
-  const values = new Map<string, string>()
-  const counts = new Map<string, number>()
-
-  if (groupBy.value === "none") {
-    return { starts, values, counts, groups: 0 }
-  }
-
-  let previousGroupValue: string | null = null
-  let currentStartRowId: string | null = null
-
-  for (const row of filteredAndSortedRows.value) {
-    const rowId = String(row.rowId)
-    const currentGroupValue = resolveGroupValue(row, groupBy.value)
-    if (previousGroupValue === null || currentGroupValue !== previousGroupValue) {
-      starts.add(rowId)
-      values.set(rowId, currentGroupValue)
-      counts.set(rowId, 1)
-      previousGroupValue = currentGroupValue
-      currentStartRowId = rowId
-      continue
-    }
-    if (!currentStartRowId) {
-      continue
-    }
-    counts.set(currentStartRowId, (counts.get(currentStartRowId) ?? 0) + 1)
-  }
-
-  return { starts, values, counts, groups: starts.size }
+const groupMetaOrchestration = useDataGridGroupMetaOrchestration<IncidentRow, GroupByColumnKey>({
+  rows: filteredAndSortedRows,
+  groupBy,
+  resolveRowId(row) {
+    return row.rowId
+  },
+  resolveGroupValue(row, groupKey) {
+    return resolveGroupValueLabel(row, groupKey)
+  },
 })
-const groupCount = computed(() => groupMeta.value.groups)
-const groupBySummary = computed(() => {
-  if (groupBy.value === "none") {
-    return "none"
-  }
-  return `${groupBy.value}`
+const {
+  groupCount,
+  groupBySummary,
+  isGroupStartRow: isGroupStartRowId,
+  resolveGroupBadgeText: resolveGroupBadgeTextByRowId,
+} = groupMetaOrchestration
+const columnLayoutOrchestration = useDataGridColumnLayoutOrchestration({
+  columns: computed(() => columnSnapshot.value.visibleColumns),
+  resolveColumnWidth,
+  viewportWidth,
+  scrollLeft,
 })
-
-const selectedCount = computed(() => selectedRowIds.value.size)
-const allFilteredSelected = computed(() => {
-  if (filteredAndSortedRows.value.length === 0) return false
-  return filteredAndSortedRows.value.every(row => selectedRowIds.value.has(row.rowId))
-})
-const someFilteredSelected = computed(() => {
-  if (filteredAndSortedRows.value.length === 0) return false
-  return filteredAndSortedRows.value.some(row => selectedRowIds.value.has(row.rowId))
-})
-
-const orderedColumns = computed(() => orderColumns(columnSnapshot.value.visibleColumns))
+const {
+  orderedColumns,
+  orderedColumnMetrics,
+  templateColumns,
+  visibleColumnsWindow,
+  getCellStyle,
+  isStickyColumn,
+} = columnLayoutOrchestration
 const navigableColumnIndexes = computed(() =>
   orderedColumns.value
     .map((column, index) => ({ column, index }))
     .filter(entry => entry.column.key !== "select")
     .map(entry => entry.index),
 )
-const orderedColumnMetrics = computed(() => {
-  let start = 0
-  return orderedColumns.value.map((column, columnIndex) => {
-    const width = resolveColumnWidth(column)
-    const metric = {
-      key: column.key,
-      columnIndex,
-      start,
-      width,
-      end: start + width,
-    }
-    start += width
-    return metric
-  })
+const virtualRangeMetrics = useDataGridVirtualRangeMetrics({
+  totalRows: computed(() => filteredAndSortedRows.value.length),
+  scrollTop,
+  viewportHeight,
+  rowHeight: ROW_HEIGHT,
+  overscan: OVERSCAN,
 })
-const templateColumns = computed(() => orderedColumnMetrics.value.map(metric => `${metric.width}px`).join(" "))
-
-const stickyLeftOffsets = computed(() => {
-  const offsets = new Map<string, number>()
-  let offset = 0
-  for (const column of orderedColumns.value) {
-    if (column.pin !== "left") continue
-    offsets.set(column.key, offset)
-    offset += resolveColumnWidth(column)
-  }
-  return offsets
+const {
+  virtualRange,
+  spacerTopHeight,
+  spacerBottomHeight,
+  rangeLabel,
+} = virtualRangeMetrics
+const visibleRowsSyncScheduler = useDataGridVisibleRowsSyncScheduler<IncidentRow, DataGridRowNode<IncidentRow>>({
+  resolveRows() {
+    return filteredAndSortedRows.value
+  },
+  resolveRange() {
+    return virtualRange.value
+  },
+  setRows(rows) {
+    setRuntimeRows(rows)
+  },
+  syncRowsInRange(range) {
+    return syncRuntimeRowsInRange({
+      start: range.start,
+      end: range.end,
+    })
+  },
+  applyVisibleRows(rows) {
+    visibleRows.value = rows
+  },
 })
-
-const stickyRightOffsets = computed(() => {
-  const offsets = new Map<string, number>()
-  let offset = 0
-  for (let index = orderedColumns.value.length - 1; index >= 0; index -= 1) {
-    const column = orderedColumns.value[index]
-    if (!column || column.pin !== "right") continue
-    offsets.set(column.key, offset)
-    offset += resolveColumnWidth(column)
-  }
-  return offsets
-})
-
-const virtualRange = computed(() => {
-  const total = filteredAndSortedRows.value.length
-  if (total === 0) {
-    if (cachedVirtualRange.start === 0 && cachedVirtualRange.end === -1) {
-      return cachedVirtualRange
-    }
-    cachedVirtualRange = { start: 0, end: -1 }
-    return cachedVirtualRange
-  }
-  const visible = Math.max(1, Math.ceil(viewportHeight.value / ROW_HEIGHT) + OVERSCAN * 2)
-  const start = Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - OVERSCAN)
-  const end = Math.min(total - 1, start + visible - 1)
-  if (cachedVirtualRange.start === start && cachedVirtualRange.end === end) {
-    return cachedVirtualRange
-  }
-  cachedVirtualRange = { start, end }
-  return cachedVirtualRange
-})
-
-const spacerTopHeight = computed(() => Math.max(0, virtualRange.value.start * ROW_HEIGHT))
-const spacerBottomHeight = computed(() => {
-  const total = filteredAndSortedRows.value.length
-  if (total === 0 || virtualRange.value.end < virtualRange.value.start) {
-    return 0
-  }
-  return Math.max(0, (total - (virtualRange.value.end + 1)) * ROW_HEIGHT)
-})
-
-const rangeLabel = computed(() => {
-  const total = filteredAndSortedRows.value.length
-  if (total === 0 || virtualRange.value.end < virtualRange.value.start) {
-    return "0-0"
-  }
-  return `${virtualRange.value.start + 1}-${virtualRange.value.end + 1}`
-})
+const {
+  syncVisibleRows,
+  scheduleVisibleRowsSync,
+  resetVisibleRowsSyncCache,
+  dispose: disposeVisibleRowsSyncScheduler,
+} = visibleRowsSyncScheduler
 
 const cellSelectionRange = computed<CellSelectionRange | null>(() => {
   if (!cellAnchor.value || !cellFocus.value) {
@@ -1235,40 +1493,6 @@ const selectedCellsCount = computed(() => {
   if (!range) return 0
   return (range.endRow - range.startRow + 1) * (range.endColumn - range.startColumn + 1)
 })
-const activeFilterColumnLabel = computed(() => {
-  if (!activeFilterColumnKey.value) {
-    return "none"
-  }
-  const column = columnSnapshot.value.visibleColumns.find(item => item.key === activeFilterColumnKey.value)
-  return column?.column.label ?? activeFilterColumnKey.value
-})
-const columnFilterOperatorOptions = computed(() => {
-  const draft = columnFilterDraft.value
-  if (!draft) {
-    return [] as readonly { value: string; label: string }[]
-  }
-  if (draft.kind === "number") {
-    return NUMBER_FILTER_OPERATOR_OPTIONS
-  }
-  if (draft.kind === "enum") {
-    return ENUM_FILTER_OPERATOR_OPTIONS
-  }
-  return TEXT_FILTER_OPERATOR_OPTIONS
-})
-const activeColumnFilterEnumOptions = computed(() => {
-  const draft = columnFilterDraft.value
-  if (!draft || draft.kind !== "enum") {
-    return [] as string[]
-  }
-  return resolveEnumFilterOptions(draft.columnKey)
-})
-const canApplyActiveColumnFilter = computed(() => {
-  const draft = columnFilterDraft.value
-  if (!draft) {
-    return false
-  }
-  return doesFilterDraftHaveRequiredValues(draft)
-})
 const copiedCellsCount = computed(() => {
   const range = copiedSelectionRange.value
   if (!range) {
@@ -1297,15 +1521,6 @@ const activeCellDescendantId = computed(() => {
     return null
   }
   return getGridCellId(String(row.rowId), column.key)
-})
-
-const sortSummary = computed(() => {
-  if (!sortState.value.length) {
-    return "none"
-  }
-  return sortState.value
-    .map((entry, index) => `${index + 1}:${entry.key}:${entry.direction}`)
-    .join(" | ")
 })
 
 const cellAnchorLabel = computed(() => {
@@ -1343,243 +1558,23 @@ function cellCoordsEqual(a: CellCoord | null, b: CellCoord | null): boolean {
   }
   return a.rowIndex === b.rowIndex && a.columnIndex === b.columnIndex
 }
-
-function snapOverlayValue(value: number): number {
-  const dpr = typeof window !== "undefined" && Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0
-    ? window.devicePixelRatio
-    : 1
-  return Math.round(value * dpr) / dpr
-}
-
-function buildScrollOverlaySegments(range: CellSelectionRange, keyPrefix: string): SelectionOverlaySegment[] {
-  if (!range) {
-    return []
-  }
-  const top = headerHeight.value + range.startRow * ROW_HEIGHT
-  const height = (range.endRow - range.startRow + 1) * ROW_HEIGHT
-
-  const segments: Array<{ start: number; end: number; mode: "pinned-left" | "scroll" }> = []
-  let currentMode: "pinned-left" | "scroll" | null = null
-  let currentStart = range.startColumn
-
-  for (let index = range.startColumn; index <= range.endColumn; index += 1) {
-    const column = orderedColumns.value[index]
-    const mode: "pinned-left" | "scroll" = column?.pin === "left" ? "pinned-left" : "scroll"
-    if (!currentMode) {
-      currentMode = mode
-      currentStart = index
-      continue
-    }
-    if (mode === currentMode) {
-      continue
-    }
-    segments.push({ start: currentStart, end: index - 1, mode: currentMode })
-    currentMode = mode
-    currentStart = index
-  }
-
-  if (currentMode) {
-    segments.push({ start: currentStart, end: range.endColumn, mode: currentMode })
-  }
-
-  return segments
-    .map(segment => {
-      if (segment.mode !== "scroll") {
-        return null
-      }
-      const startMetric = orderedColumnMetrics.value[segment.start]
-      const endMetric = orderedColumnMetrics.value[segment.end]
-      if (!startMetric || !endMetric) {
-        return null
-      }
-      const left = snapOverlayValue(startMetric.start)
-      const width = snapOverlayValue(endMetric.end - startMetric.start)
-      const snappedTop = snapOverlayValue(top)
-      const snappedHeight = snapOverlayValue(height)
-
-      return {
-        key: `${keyPrefix}-${segment.mode}-${segment.start}-${segment.end}`,
-        mode: "scroll",
-        style: {
-          top: `${Math.max(0, snappedTop)}px`,
-          left: `${Math.max(0, left)}px`,
-          width: `${Math.max(1, width)}px`,
-          height: `${Math.max(1, snappedHeight)}px`,
-        },
-      } satisfies SelectionOverlaySegment
-    })
-    .filter((segment): segment is SelectionOverlaySegment => segment !== null)
-}
-
-const cellSelectionOverlaySegments = computed(() => {
-  const range = cellSelectionRange.value
-  if (!range) {
-    return [] as SelectionOverlaySegment[]
-  }
-  return buildScrollOverlaySegments(range, "selection")
+const selectionOverlayOrchestration = useDataGridSelectionOverlayOrchestration({
+  headerHeight,
+  rowHeight: ROW_HEIGHT,
+  orderedColumns,
+  orderedColumnMetrics,
+  cellSelectionRange,
+  fillPreviewRange,
+  fillBaseRange,
+  rangeMovePreviewRange,
+  rangeMoveBaseRange,
+  isRangeMoving,
 })
-
-const fillPreviewOverlaySegments = computed(() => {
-  const preview = fillPreviewRange.value
-  const base = fillBaseRange.value
-  if (!preview || !base || rangesEqual(preview, base)) {
-    return [] as SelectionOverlaySegment[]
-  }
-  return buildScrollOverlaySegments(preview, "fill-preview")
-})
-
-const rangeMoveOverlaySegments = computed(() => {
-  const preview = rangeMovePreviewRange.value
-  const base = rangeMoveBaseRange.value
-  if (!isRangeMoving.value || !preview || !base || rangesEqual(preview, base)) {
-    return [] as SelectionOverlaySegment[]
-  }
-  return buildScrollOverlaySegments(preview, "move-preview")
-})
-
-const visibleColumnsWindow = computed(() => {
-  const columns = orderedColumnMetrics.value
-  if (!columns.length) {
-    return { start: 0, end: 0, total: 0, keys: "none" }
-  }
-
-  const windowStart = Math.max(0, scrollLeft.value)
-  const windowEnd = windowStart + Math.max(1, viewportWidth.value)
-  let offset = 0
-  let startIndex = 0
-  let endIndex = columns.length - 1
-  let found = false
-
-  for (let index = 0; index < columns.length; index += 1) {
-    const column = columns[index]
-    if (!column) continue
-    const columnStart = offset
-    const columnEnd = columnStart + column.width
-    const intersects = columnEnd > windowStart && columnStart < windowEnd
-    if (intersects && !found) {
-      startIndex = index
-      found = true
-    }
-    if (intersects) {
-      endIndex = index
-    }
-    offset = columnEnd
-  }
-
-  if (!found) {
-    startIndex = Math.max(0, columns.length - 1)
-    endIndex = startIndex
-  }
-
-  return {
-    start: startIndex + 1,
-    end: endIndex + 1,
-    total: columns.length,
-    keys: columns.slice(startIndex, endIndex + 1).map(column => column.key).join(" • ") || "none",
-  }
-})
-
-function syncViewportHeight() {
-  const element = viewportRef.value
-  if (!element) return
-  const height = Math.max(200, element.clientHeight - ROW_HEIGHT)
-  if (height !== viewportHeight.value) {
-    viewportHeight.value = height
-  }
-  if (element.clientWidth !== viewportWidth.value) {
-    viewportWidth.value = element.clientWidth
-  }
-  if (headerRef.value) {
-    const measuredHeaderHeight = Math.max(1, Math.round(headerRef.value.getBoundingClientRect().height))
-    if (measuredHeaderHeight !== headerHeight.value) {
-      headerHeight.value = measuredHeaderHeight
-    }
-  }
-}
-
-function flushViewportMeasure() {
-  viewportMeasureFrame = null
-  viewportMeasurePending = false
-  syncViewportHeight()
-}
-
-function scheduleViewportMeasure() {
-  if (viewportMeasurePending) {
-    return
-  }
-  viewportMeasurePending = true
-  if (typeof window === "undefined") {
-    flushViewportMeasure()
-    return
-  }
-  viewportMeasureFrame = window.requestAnimationFrame(flushViewportMeasure)
-}
-
-function syncVisibleRows() {
-  const rows = filteredAndSortedRows.value
-  const range = virtualRange.value
-  const hasSameRowsRef = lastSyncedRowsRef === rows
-  const hasSameRange = lastSyncedRangeStart === range.start && lastSyncedRangeEnd === range.end
-  if (hasSameRowsRef && hasSameRange) {
-    return
-  }
-
-  if (!hasSameRowsRef) {
-    setRows(rows)
-  }
-
-  if (range.end < range.start) {
-    visibleRows.value = []
-    lastSyncedRowsRef = rows
-    lastSyncedRangeStart = range.start
-    lastSyncedRangeEnd = range.end
-    return
-  }
-
-  visibleRows.value = syncRowsInRange({
-    start: range.start,
-    end: range.end,
-  })
-  lastSyncedRowsRef = rows
-  lastSyncedRangeStart = range.start
-  lastSyncedRangeEnd = range.end
-}
-
-function flushVisibleRowsSync() {
-  syncVisibleRowsFrame = null
-  syncVisibleRowsPending = false
-  syncVisibleRows()
-}
-
-function scheduleVisibleRowsSync() {
-  if (syncVisibleRowsPending) {
-    return
-  }
-  syncVisibleRowsPending = true
-  if (typeof window === "undefined") {
-    flushVisibleRowsSync()
-    return
-  }
-  syncVisibleRowsFrame = window.requestAnimationFrame(flushVisibleRowsSync)
-}
-
-function resetVisibleRowsSyncCache() {
-  lastSyncedRowsRef = null
-  lastSyncedRangeStart = Number.NaN
-  lastSyncedRangeEnd = Number.NaN
-}
-
-function getCellStyle(columnKey: string): Record<string, string> {
-  const leftOffset = stickyLeftOffsets.value.get(columnKey)
-  if (typeof leftOffset === "number") {
-    return { left: `${leftOffset}px` }
-  }
-  const rightOffset = stickyRightOffsets.value.get(columnKey)
-  if (typeof rightOffset === "number") {
-    return { right: `${rightOffset}px` }
-  }
-  return {}
-}
+const {
+  cellSelectionOverlaySegments,
+  fillPreviewOverlaySegments,
+  rangeMoveOverlaySegments,
+} = selectionOverlayOrchestration
 
 function sanitizeDomIdPart(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, "-")
@@ -1599,10 +1594,6 @@ function getColumnAriaIndex(columnKey: string): number {
 
 function getRowAriaIndex(row: DataGridRowNode<IncidentRow>): number {
   return Math.max(2, resolveRowIndex(row) + 2)
-}
-
-function isStickyColumn(columnKey: string): boolean {
-  return stickyLeftOffsets.value.has(columnKey) || stickyRightOffsets.value.has(columnKey)
 }
 
 function isGroupedByColumn(columnKey: string): boolean {
@@ -1647,20 +1638,14 @@ function onHeaderCellKeyDown(columnKey: string, event: KeyboardEvent) {
   applySortFromHeader(columnKey, event.shiftKey)
 }
 
-function resolveColumnFilterKind(columnKey: string): ColumnFilterKind {
-  if (ENUM_COLUMN_KEYS.has(columnKey)) {
+function resolveColumnFilterKind(columnKey: string): DataGridColumnFilterKind {
+  if (isEnumColumn(columnKey)) {
     return "enum"
   }
   if (NUMERIC_COLUMN_KEYS.has(columnKey)) {
     return "number"
   }
   return "text"
-}
-
-function defaultFilterOperator(kind: ColumnFilterKind): string {
-  if (kind === "number") return "equals"
-  if (kind === "enum") return "is"
-  return "contains"
 }
 
 function resolveEnumFilterOptions(columnKey: string): string[] {
@@ -1679,243 +1664,6 @@ function resolveEnumFilterOptions(columnKey: string): string[] {
   return [...values].sort((left, right) => left.localeCompare(right))
 }
 
-function isColumnFilterActive(columnKey: string): boolean {
-  return Boolean(appliedColumnFilters.value[columnKey])
-}
-
-function openColumnFilter(columnKey: string) {
-  if (columnKey === "select") {
-    return
-  }
-  const kind = resolveColumnFilterKind(columnKey)
-  const current = appliedColumnFilters.value[columnKey]
-  const enumOptions = kind === "enum" ? resolveEnumFilterOptions(columnKey) : []
-  const draftValue = current?.value ?? (enumOptions[0] ?? "")
-  const draftValue2 = current?.value2 ?? ""
-  columnFilterDraft.value = {
-    columnKey,
-    kind,
-    operator: current?.operator ?? defaultFilterOperator(kind),
-    value: draftValue,
-    value2: draftValue2,
-  }
-  activeFilterColumnKey.value = columnKey
-}
-
-function onHeaderFilterTriggerClick(columnKey: string) {
-  if (activeFilterColumnKey.value === columnKey) {
-    closeColumnFilterPanel()
-    return
-  }
-  openColumnFilter(columnKey)
-}
-
-function closeColumnFilterPanel() {
-  activeFilterColumnKey.value = null
-  columnFilterDraft.value = null
-}
-
-function onFilterOperatorChange(value: string | number) {
-  const draft = columnFilterDraft.value
-  if (!draft) {
-    return
-  }
-  const nextOperator = String(value)
-  columnFilterDraft.value = {
-    ...draft,
-    operator: nextOperator,
-    value2: doesOperatorNeedSecondValue(draft.kind, nextOperator) ? draft.value2 : "",
-  }
-}
-
-function onFilterEnumValueChange(value: string | number) {
-  const draft = columnFilterDraft.value
-  if (!draft) {
-    return
-  }
-  columnFilterDraft.value = {
-    ...draft,
-    value: String(value),
-  }
-}
-
-function onFilterValueInput(event: Event) {
-  const draft = columnFilterDraft.value
-  if (!draft) {
-    return
-  }
-  columnFilterDraft.value = {
-    ...draft,
-    value: (event.target as HTMLInputElement).value,
-  }
-}
-
-function onFilterSecondValueInput(event: Event) {
-  const draft = columnFilterDraft.value
-  if (!draft) {
-    return
-  }
-  columnFilterDraft.value = {
-    ...draft,
-    value2: (event.target as HTMLInputElement).value,
-  }
-}
-
-function doesOperatorNeedSecondValue(kind: ColumnFilterKind, operator: string): boolean {
-  return kind === "number" && operator === "between"
-}
-
-function doesFilterDraftHaveRequiredValues(draft: ColumnFilterDraft): boolean {
-  if (!draft.value.trim()) {
-    return false
-  }
-  if (doesOperatorNeedSecondValue(draft.kind, draft.operator) && !draft.value2.trim()) {
-    return false
-  }
-  return true
-}
-
-function applyActiveColumnFilter() {
-  const draft = columnFilterDraft.value
-  if (!draft) {
-    return
-  }
-  const next = { ...appliedColumnFilters.value }
-  if (!doesFilterDraftHaveRequiredValues(draft)) {
-    delete next[draft.columnKey]
-    appliedColumnFilters.value = next
-    lastAction.value = `Cleared filter for ${draft.columnKey}`
-    closeColumnFilterPanel()
-    return
-  }
-  next[draft.columnKey] = {
-    kind: draft.kind,
-    operator: draft.operator,
-    value: draft.value.trim(),
-    value2: draft.value2.trim() || undefined,
-  }
-  appliedColumnFilters.value = next
-  lastAction.value = `Filter applied: ${draft.columnKey}`
-  closeColumnFilterPanel()
-}
-
-function resetActiveColumnFilter() {
-  const draft = columnFilterDraft.value
-  if (!draft) {
-    return
-  }
-  const next = { ...appliedColumnFilters.value }
-  delete next[draft.columnKey]
-  appliedColumnFilters.value = next
-  lastAction.value = `Filter reset: ${draft.columnKey}`
-  closeColumnFilterPanel()
-}
-
-function clearAllColumnFilters() {
-  if (!Object.keys(appliedColumnFilters.value).length) {
-    closeColumnFilterPanel()
-    return
-  }
-  appliedColumnFilters.value = {}
-  lastAction.value = "All column filters cleared"
-  closeColumnFilterPanel()
-}
-
-function buildFilterSnapshot(filters: Record<string, AppliedColumnFilter>): DataGridFilterSnapshot | null {
-  const keys = Object.keys(filters)
-  if (!keys.length) {
-    return null
-  }
-  return {
-    columnFilters: {},
-    advancedFilters: Object.fromEntries(
-      keys.map(key => {
-        const filter = filters[key]
-        const type = filter?.kind === "number" ? "number" : "text"
-        return [
-          key,
-          {
-            type,
-            clauses: [
-              {
-                operator: filter?.operator ?? "equals",
-                value: filter?.value ?? "",
-                value2: filter?.value2,
-              },
-            ],
-          },
-        ]
-      }),
-    ),
-  }
-}
-
-function matchTextFilter(value: unknown, operator: string, rawExpected: string): boolean {
-  const haystack = String(value ?? "").toLowerCase()
-  const expected = rawExpected.toLowerCase()
-  if (operator === "equals") {
-    return haystack === expected
-  }
-  if (operator === "starts-with") {
-    return haystack.startsWith(expected)
-  }
-  return haystack.includes(expected)
-}
-
-function matchEnumFilter(value: unknown, operator: string, rawExpected: string): boolean {
-  const current = String(value ?? "").toLowerCase()
-  const expected = rawExpected.toLowerCase()
-  if (operator === "is-not") {
-    return current !== expected
-  }
-  return current === expected
-}
-
-function matchNumberFilter(value: unknown, operator: string, rawExpected: string, rawExpected2?: string): boolean {
-  const current = Number(value)
-  const expected = Number(rawExpected)
-  if (!Number.isFinite(current) || !Number.isFinite(expected)) {
-    return false
-  }
-
-  if (operator === "gt") return current > expected
-  if (operator === "gte") return current >= expected
-  if (operator === "lt") return current < expected
-  if (operator === "lte") return current <= expected
-  if (operator === "between") {
-    const second = Number(rawExpected2)
-    if (!Number.isFinite(second)) {
-      return false
-    }
-    const lower = Math.min(expected, second)
-    const upper = Math.max(expected, second)
-    return current >= lower && current <= upper
-  }
-  return current === expected
-}
-
-function rowMatchesColumnFilters(row: IncidentRow, filters: Record<string, AppliedColumnFilter>): boolean {
-  for (const [columnKey, filter] of Object.entries(filters)) {
-    const value = getRowCellValue(row, columnKey)
-    if (filter.kind === "number") {
-      if (!matchNumberFilter(value, filter.operator, filter.value, filter.value2)) {
-        return false
-      }
-      continue
-    }
-    if (filter.kind === "enum") {
-      if (!matchEnumFilter(value, filter.operator, filter.value)) {
-        return false
-      }
-      continue
-    }
-    if (!matchTextFilter(value, filter.operator, filter.value)) {
-      return false
-    }
-  }
-  return true
-}
-
 function resolveColumnWidth(column: DataGridColumnSnapshot): number {
   if (column.key === "select") {
     return Math.max(48, column.width ?? 58)
@@ -1924,56 +1672,7 @@ function resolveColumnWidth(column: DataGridColumnSnapshot): number {
 }
 
 function isEditableColumn(columnKey: string): columnKey is EditableColumnKey {
-  return [
-    "owner",
-    "region",
-    "environment",
-    "deployment",
-    "severity",
-    "latencyMs",
-    "errorRate",
-    "availabilityPct",
-    "mttrMin",
-    "cpuPct",
-    "memoryPct",
-    "queueDepth",
-    "throughputRps",
-    "sloBurnRate",
-    "incidents24h",
-    "channel",
-    "runbook",
-    "status",
-  ].includes(columnKey)
-}
-
-function getEditorOptions(columnKey: string): readonly string[] | null {
-  if (columnKey === "severity") return ["critical", "high", "medium", "low"]
-  if (columnKey === "status") return ["stable", "watch", "degraded"]
-  if (columnKey === "environment") return ["prod", "staging", "dev"]
-  if (columnKey === "region") return ["us-east", "us-west", "eu-central", "ap-south"]
-  return null
-}
-
-function isEnumColumn(columnKey: string): columnKey is Extract<EditableColumnKey, "severity" | "status" | "environment" | "region"> {
-  return columnKey === "severity" || columnKey === "status" || columnKey === "environment" || columnKey === "region"
-}
-
-function isEditingCell(rowId: string, columnKey: string): boolean {
-  return inlineEditor.value?.rowId === rowId && inlineEditor.value?.columnKey === columnKey
-}
-
-function updateEditorDraft(value: string) {
-  if (!inlineEditor.value) return
-  inlineEditor.value = { ...inlineEditor.value, draft: value }
-}
-
-function onEditorInput(event: Event) {
-  updateEditorDraft((event.target as HTMLInputElement).value)
-}
-
-function onEditorAffinoSelectChange(value: string | number) {
-  updateEditorDraft(String(value))
-  commitInlineEdit()
+  return hasEditablePolicy(columnKey)
 }
 
 function onSelectAllChange(event: Event) {
@@ -1992,29 +1691,10 @@ function clearQuickFilter() {
   lastAction.value = "Quick filter cleared"
 }
 
-function beginInlineEdit(
-  row: IncidentRow,
-  columnKey: string,
-  mode: InlineEditorMode = "text",
-  openPicker = false,
-) {
-  if (!isEditableColumn(columnKey)) return
-  inlineEditor.value = {
-    rowId: row.rowId,
-    columnKey,
-    draft: String(getRowCellValue(row, columnKey) ?? ""),
-    mode,
-  }
-  lastAction.value = mode === "select"
-    ? `Selecting ${columnKey} for ${row.service}`
-    : `Editing ${columnKey} for ${row.service}`
-  void focusInlineEditorElement(row.rowId, columnKey, mode, openPicker)
-}
-
 async function focusInlineEditorElement(
   rowId: string,
   columnKey: EditableColumnKey,
-  mode: InlineEditorMode,
+  mode: DataGridInlineEditorMode,
   openPicker: boolean,
 ) {
   await nextTick()
@@ -2041,114 +1721,8 @@ async function focusInlineEditorElement(
   }
 }
 
-function cancelInlineEdit() {
-  if (!inlineEditor.value) return
-  inlineEditor.value = null
-  lastAction.value = "Edit canceled"
-}
-
-function commitInlineEdit(): boolean {
-  if (!inlineEditor.value) return false
-  const editor = inlineEditor.value
-  const beforeSnapshot = captureGridMutationSnapshot()
-  const editCoord = resolveCellCoordFromDataset(editor.rowId, editor.columnKey)
-  const nextDraft = editor.draft.trim()
-  inlineEditor.value = null
-
-  let updated = false
-  sourceRows.value = sourceRows.value.map(row => {
-    if (row.rowId !== editor.rowId) return row
-    const nextRow = { ...row } as IncidentRow
-    applyEditedValue(nextRow, editor.columnKey, nextDraft)
-    if (editor.columnKey === "latencyMs" || editor.columnKey === "errorRate") {
-      nextRow.status = resolveStatus(nextRow.latencyMs, nextRow.errorRate)
-    }
-    updated = true
-    return nextRow
-  })
-
-  lastAction.value = updated ? `Saved ${editor.columnKey}` : "Edit target no longer available"
-  if (updated) {
-    void recordIntentTransaction(
-      {
-        intent: "edit",
-        label: `Edit ${editor.columnKey}`,
-        affectedRange: toSingleCellRange(editCoord),
-      },
-      beforeSnapshot,
-    )
-  }
-  return updated
-}
-
-function resolveNextEditableTarget(
-  rowId: string,
-  columnKey: string,
-  direction: 1 | -1,
-): { rowId: string; columnKey: EditableColumnKey; rowIndex: number; columnIndex: number } | null {
-  const rows = filteredAndSortedRows.value
-  const rowIndex = rows.findIndex(row => row.rowId === rowId)
-  if (rowIndex < 0) return null
-
-  const editableIndexes = orderedColumns.value
-    .map((column, index) => ({ column, index }))
-    .filter(entry => isEditableColumn(entry.column.key))
-    .map(entry => entry.index)
-  if (!editableIndexes.length) {
-    return null
-  }
-
-  const currentColumnIndex = resolveColumnIndex(columnKey)
-  const currentEditablePosition = editableIndexes.indexOf(currentColumnIndex)
-  if (currentEditablePosition < 0) {
-    return null
-  }
-
-  let nextRowIndex = rowIndex
-  let nextEditablePosition = currentEditablePosition + direction
-  if (nextEditablePosition >= editableIndexes.length) {
-    nextEditablePosition = 0
-    nextRowIndex += 1
-  } else if (nextEditablePosition < 0) {
-    nextEditablePosition = editableIndexes.length - 1
-    nextRowIndex -= 1
-  }
-
-  if (nextRowIndex < 0 || nextRowIndex >= rows.length) {
-    return null
-  }
-  const nextColumnIndex = editableIndexes[nextEditablePosition]
-  if (nextColumnIndex === undefined) {
-    return null
-  }
-  const nextColumn = orderedColumns.value[nextColumnIndex]
-  const nextRow = rows[nextRowIndex]
-  if (!nextColumn || !nextRow || !isEditableColumn(nextColumn.key)) {
-    return null
-  }
-  return {
-    rowId: nextRow.rowId,
-    columnKey: nextColumn.key,
-    rowIndex: nextRowIndex,
-    columnIndex: nextColumnIndex,
-  }
-}
-
-function focusInlineEditorTarget(target: { rowId: string; columnKey: EditableColumnKey; rowIndex: number; columnIndex: number }) {
-  const row = filteredAndSortedRows.value.find(entry => entry.rowId === target.rowId)
-  if (!row) {
-    return
-  }
-  applyCellSelection({ rowIndex: target.rowIndex, columnIndex: target.columnIndex }, false)
-  beginInlineEdit(row, target.columnKey, isEnumColumn(target.columnKey) ? "select" : "text")
-}
-
 function onEditorKeyDown(event: KeyboardEvent, rowId: string, columnKey: string) {
   inlineEditorKeyRouter.dispatchEditorKeyDown(event, rowId, columnKey)
-}
-
-function isSelectEditorCell(rowId: string, columnKey: string): boolean {
-  return isEditingCell(rowId, columnKey) && inlineEditor.value?.mode === "select" && isEnumColumn(columnKey)
 }
 
 function shouldShowEnumTrigger(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
@@ -2169,98 +1743,6 @@ function onEnumTriggerMouseDown(row: DataGridRowNode<IncidentRow>, columnKey: st
     applyCellSelection(coord, false)
   }
   beginInlineEdit(row.data, columnKey, "select", true)
-}
-
-function applyEditedValue(row: IncidentRow, columnKey: EditableColumnKey, draft: string) {
-  if (columnKey === "owner") {
-    row.owner = draft || row.owner
-    return
-  }
-  if (columnKey === "deployment") {
-    row.deployment = draft || row.deployment
-    return
-  }
-  if (columnKey === "channel") {
-    row.channel = draft || row.channel
-    return
-  }
-  if (columnKey === "runbook") {
-    row.runbook = draft || row.runbook
-    return
-  }
-  if (columnKey === "region") {
-    row.region = (getEditorOptions("region")?.includes(draft) ? draft : row.region) as IncidentRow["region"]
-    return
-  }
-  if (columnKey === "environment") {
-    row.environment = (getEditorOptions("environment")?.includes(draft) ? draft : row.environment) as IncidentRow["environment"]
-    return
-  }
-  if (columnKey === "severity") {
-    row.severity = (getEditorOptions("severity")?.includes(draft) ? draft : row.severity) as Severity
-    return
-  }
-  if (columnKey === "status") {
-    row.status = (getEditorOptions("status")?.includes(draft) ? draft : row.status) as Status
-    return
-  }
-
-  const numericValue = Number(draft)
-  if (!Number.isFinite(numericValue)) {
-    return
-  }
-
-  if (columnKey === "latencyMs") row.latencyMs = Math.max(1, Math.round(numericValue))
-  if (columnKey === "errorRate") row.errorRate = Math.max(0, Math.round(numericValue))
-  if (columnKey === "availabilityPct") row.availabilityPct = Math.min(100, Math.max(0, numericValue))
-  if (columnKey === "mttrMin") row.mttrMin = Math.max(0, Math.round(numericValue))
-  if (columnKey === "cpuPct") row.cpuPct = Math.min(100, Math.max(0, Math.round(numericValue)))
-  if (columnKey === "memoryPct") row.memoryPct = Math.min(100, Math.max(0, Math.round(numericValue)))
-  if (columnKey === "queueDepth") row.queueDepth = Math.max(0, Math.round(numericValue))
-  if (columnKey === "throughputRps") row.throughputRps = Math.max(0, Math.round(numericValue))
-  if (columnKey === "sloBurnRate") row.sloBurnRate = Math.max(0, Number(numericValue.toFixed(2)))
-  if (columnKey === "incidents24h") row.incidents24h = Math.max(0, Math.round(numericValue))
-}
-
-function isColumnClearableForCut(columnKey: EditableColumnKey): boolean {
-  return columnKey !== "region" && columnKey !== "environment" && columnKey !== "severity" && columnKey !== "status"
-}
-
-function canApplyPastedValue(columnKey: EditableColumnKey, draft: string): boolean {
-  if (columnKey === "owner" || columnKey === "deployment" || columnKey === "channel" || columnKey === "runbook") {
-    return draft.trim().length > 0
-  }
-  if (columnKey === "region" || columnKey === "environment" || columnKey === "severity" || columnKey === "status") {
-    return Boolean(getEditorOptions(columnKey)?.includes(draft))
-  }
-  return Number.isFinite(Number(draft))
-}
-
-function isRowSelected(rowId: string): boolean {
-  return selectedRowIds.value.has(rowId)
-}
-
-function toggleRowSelection(rowId: string, selected?: boolean) {
-  const next = new Set(selectedRowIds.value)
-  const shouldSelect = typeof selected === "boolean" ? selected : !next.has(rowId)
-  if (shouldSelect) {
-    next.add(rowId)
-  } else {
-    next.delete(rowId)
-  }
-  selectedRowIds.value = next
-}
-
-function toggleSelectAllFiltered(selected: boolean) {
-  const next = new Set(selectedRowIds.value)
-  for (const row of filteredAndSortedRows.value) {
-    if (selected) {
-      next.add(row.rowId)
-    } else {
-      next.delete(row.rowId)
-    }
-  }
-  selectedRowIds.value = next
 }
 
 function clearCellSelection() {
@@ -2337,86 +1819,12 @@ function getAdjacentNavigableColumnIndex(columnIndex: number, direction: 1 | -1)
   return indexes[nextPos] ?? columnIndex
 }
 
-function resolveCellCoord(row: DataGridRowNode<IncidentRow>, columnKey: string): CellCoord | null {
-  if (columnKey === "select") {
-    return null
-  }
-  const rawColumnIndex = resolveColumnIndex(columnKey)
-  if (rawColumnIndex < 0) {
-    return null
-  }
-  const columnIndex = resolveNearestNavigableColumnIndex(rawColumnIndex)
-  if (columnIndex < 0) {
-    return null
-  }
-  return {
-    rowIndex: clampRowIndex(resolveRowIndex(row)),
-    columnIndex,
-  }
-}
-
-function normalizeCellCoord(coord: CellCoord): CellCoord | null {
-  if (filteredAndSortedRows.value.length === 0 || orderedColumns.value.length === 0) {
-    return null
-  }
-  const rowIndex = clampRowIndex(coord.rowIndex)
-  const columnIndex = resolveNearestNavigableColumnIndex(Math.trunc(coord.columnIndex))
-  if (columnIndex < 0) {
-    return null
-  }
-  return { rowIndex, columnIndex }
-}
-
-function normalizeSelectionRange(range: CellSelectionRange): CellSelectionRange | null {
-  const start = normalizeCellCoord({ rowIndex: range.startRow, columnIndex: range.startColumn })
-  const end = normalizeCellCoord({ rowIndex: range.endRow, columnIndex: range.endColumn })
-  if (!start || !end) {
-    return null
-  }
-  return {
-    startRow: Math.min(start.rowIndex, end.rowIndex),
-    endRow: Math.max(start.rowIndex, end.rowIndex),
-    startColumn: Math.min(start.columnIndex, end.columnIndex),
-    endColumn: Math.max(start.columnIndex, end.columnIndex),
-  }
-}
-
-function buildExtendedRange(baseRange: CellSelectionRange, coord: CellCoord): CellSelectionRange | null {
-  return normalizeSelectionRange({
-    startRow: coord.rowIndex < baseRange.startRow ? coord.rowIndex : baseRange.startRow,
-    endRow: coord.rowIndex > baseRange.endRow ? coord.rowIndex : baseRange.endRow,
-    startColumn: coord.columnIndex < baseRange.startColumn ? coord.columnIndex : baseRange.startColumn,
-    endColumn: coord.columnIndex > baseRange.endColumn ? coord.columnIndex : baseRange.endColumn,
-  })
-}
-
-function isCellWithinRange(rowIndex: number, columnIndex: number, range: CellSelectionRange): boolean {
-  return (
-    rowIndex >= range.startRow &&
-    rowIndex <= range.endRow &&
-    columnIndex >= range.startColumn &&
-    columnIndex <= range.endColumn
-  )
-}
-
 function positiveModulo(value: number, divisor: number): number {
   if (divisor <= 0) {
     return 0
   }
   const remainder = value % divisor
   return remainder < 0 ? remainder + divisor : remainder
-}
-
-function resolveCurrentCellCoord(): CellCoord | null {
-  const candidate = activeCell.value ?? cellFocus.value ?? cellAnchor.value
-  if (candidate) {
-    return normalizeCellCoord(candidate)
-  }
-  const firstColumnIndex = getFirstNavigableColumnIndex()
-  if (filteredAndSortedRows.value.length === 0 || firstColumnIndex < 0) {
-    return null
-  }
-  return { rowIndex: 0, columnIndex: firstColumnIndex }
 }
 
 function applyCellSelection(nextCoord: CellCoord, extend: boolean, fallbackAnchor?: CellCoord, ensureVisible = true) {
@@ -2565,153 +1973,6 @@ function normalizeClipboardValue(value: unknown): string {
 
 async function copySelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
   return clipboard.copySelection(trigger)
-}
-
-function clearValueForCut(row: IncidentRow, columnKey: EditableColumnKey): boolean {
-  if (columnKey === "owner") {
-    if (row.owner === "") return false
-    row.owner = ""
-    return true
-  }
-  if (columnKey === "deployment") {
-    if (row.deployment === "") return false
-    row.deployment = ""
-    return true
-  }
-  if (columnKey === "channel") {
-    if (row.channel === "") return false
-    row.channel = ""
-    return true
-  }
-  if (columnKey === "runbook") {
-    if (row.runbook === "") return false
-    row.runbook = ""
-    return true
-  }
-  if (!isColumnClearableForCut(columnKey)) {
-    return false
-  }
-  if (columnKey === "latencyMs") {
-    if (row.latencyMs === 0) return false
-    row.latencyMs = 0
-    return true
-  }
-  if (columnKey === "errorRate") {
-    if (row.errorRate === 0) return false
-    row.errorRate = 0
-    return true
-  }
-  if (columnKey === "availabilityPct") {
-    if (row.availabilityPct === 0) return false
-    row.availabilityPct = 0
-    return true
-  }
-  if (columnKey === "mttrMin") {
-    if (row.mttrMin === 0) return false
-    row.mttrMin = 0
-    return true
-  }
-  if (columnKey === "cpuPct") {
-    if (row.cpuPct === 0) return false
-    row.cpuPct = 0
-    return true
-  }
-  if (columnKey === "memoryPct") {
-    if (row.memoryPct === 0) return false
-    row.memoryPct = 0
-    return true
-  }
-  if (columnKey === "queueDepth") {
-    if (row.queueDepth === 0) return false
-    row.queueDepth = 0
-    return true
-  }
-  if (columnKey === "throughputRps") {
-    if (row.throughputRps === 0) return false
-    row.throughputRps = 0
-    return true
-  }
-  if (columnKey === "sloBurnRate") {
-    if (row.sloBurnRate === 0) return false
-    row.sloBurnRate = 0
-    return true
-  }
-  if (columnKey === "incidents24h") {
-    if (row.incidents24h === 0) return false
-    row.incidents24h = 0
-    return true
-  }
-  return false
-}
-
-function applyValueForMove(row: IncidentRow, columnKey: string, value: string): boolean {
-  if (columnKey === "select") {
-    return false
-  }
-  if (isEditableColumn(columnKey)) {
-    applyEditedValue(row, columnKey, value)
-    return true
-  }
-  const record = row as unknown as Record<string, unknown>
-  if (!(columnKey in record)) {
-    return false
-  }
-  const current = record[columnKey]
-  if (typeof current === "number") {
-    const numeric = Number(value)
-    if (!Number.isFinite(numeric)) {
-      return false
-    }
-    record[columnKey] = numeric
-    return true
-  }
-  if (typeof current === "boolean") {
-    const normalized = value.trim().toLowerCase()
-    if (normalized === "true" || normalized === "1") {
-      record[columnKey] = true
-      return true
-    }
-    if (normalized === "false" || normalized === "0") {
-      record[columnKey] = false
-      return true
-    }
-    return false
-  }
-  record[columnKey] = value
-  return true
-}
-
-function clearValueForMove(row: IncidentRow, columnKey: string): boolean {
-  if (columnKey === "select") {
-    return false
-  }
-  if (isEditableColumn(columnKey)) {
-    return clearValueForCut(row, columnKey)
-  }
-  const record = row as unknown as Record<string, unknown>
-  if (!(columnKey in record)) {
-    return false
-  }
-  const current = record[columnKey]
-  if (typeof current === "number") {
-    if (current === 0) {
-      return false
-    }
-    record[columnKey] = 0
-    return true
-  }
-  if (typeof current === "boolean") {
-    if (!current) {
-      return false
-    }
-    record[columnKey] = false
-    return true
-  }
-  if (current == null || String(current) === "") {
-    return false
-  }
-  record[columnKey] = ""
-  return true
 }
 
 async function pasteSelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
@@ -3176,10 +2437,7 @@ function isRangeEndCell(row: DataGridRowNode<IncidentRow>, columnKey: string): b
 }
 
 function isGroupStartRow(row: DataGridRowNode<IncidentRow>): boolean {
-  if (groupBy.value === "none") {
-    return false
-  }
-  return groupMeta.value.starts.has(String(row.rowId))
+  return isGroupStartRowId(String(row.rowId))
 }
 
 function shouldShowGroupBadge(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
@@ -3190,10 +2448,7 @@ function shouldShowGroupBadge(row: DataGridRowNode<IncidentRow>, columnKey: stri
 }
 
 function resolveGroupBadgeText(row: DataGridRowNode<IncidentRow>): string {
-  const rowId = String(row.rowId)
-  const groupValue = groupMeta.value.values.get(rowId) ?? ""
-  const count = groupMeta.value.counts.get(rowId) ?? 0
-  return `${groupValue} (${count})`
+  return resolveGroupBadgeTextByRowId(String(row.rowId))
 }
 
 function shouldShowFillHandle(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
@@ -3316,7 +2571,7 @@ async function runHistoryAction(direction: "undo" | "redo", trigger: "keyboard" 
 function resetDataset() {
   seed.value = 1
   sourceRows.value = buildRows(rowCount.value, seed.value)
-  selectedRowIds.value = new Set()
+  clearRowSelection()
   inlineEditor.value = null
   clearCellSelection()
   lastAction.value = "Reset dataset"
@@ -3331,7 +2586,7 @@ function resetDataset() {
 watch(rowCount, () => {
   resetVisibleRowsSyncCache()
   sourceRows.value = buildRows(rowCount.value, seed.value)
-  selectedRowIds.value = new Set()
+  clearRowSelection()
   inlineEditor.value = null
   clearCellSelection()
   lastAction.value = `Regenerated ${rowCount.value} rows`
@@ -3360,7 +2615,7 @@ watch(sortPreset, value => {
 })
 
 watch(sortState, value => {
-  rowModel.setSortModel(withGroupingSortPriority(value, groupBy.value))
+  rowModel.setSortModel(effectiveSortModel.value)
   const presetEntry = Object.entries(SORT_PRESETS).find(([, preset]) => {
     if (preset.length !== value.length) {
       return false
@@ -3380,7 +2635,7 @@ watch(sortState, value => {
 }, { immediate: true, deep: true })
 
 watch(groupBy, value => {
-  rowModel.setSortModel(withGroupingSortPriority(sortState.value, value))
+  rowModel.setSortModel(effectiveSortModel.value)
   lastAction.value = value === "none" ? "Grouping disabled" : `Grouped by ${value}`
 })
 
@@ -3396,12 +2651,8 @@ watch([query, sortState, appliedColumnFilters, groupBy], () => {
   clearCellSelection()
 }, { deep: true })
 
-watch(sourceRows, rows => {
-  const rowIdSet = new Set(rows.map(row => row.rowId))
-  const next = new Set([...selectedRowIds.value].filter(rowId => rowIdSet.has(rowId)))
-  if (next.size !== selectedRowIds.value.size) {
-    selectedRowIds.value = next
-  }
+watch(sourceRows, () => {
+  reconcileRowSelection()
 })
 
 watch(
@@ -3412,7 +2663,34 @@ watch(
   { immediate: true },
 )
 
+let themeObserver: MutationObserver | null = null
+
+function resolveDemoThemeTokens(): ReturnType<typeof resolveGridThemeTokens> {
+  const mode = typeof document === "undefined" ? "dark" : document.documentElement.dataset.theme
+  if (mode === "light") {
+    return resolveGridThemeTokens(industrialNeutralTheme, { document })
+  }
+  return defaultThemeTokens
+}
+
+function applyDemoTheme() {
+  if (!themeRootRef.value) {
+    return
+  }
+  applyGridTheme(themeRootRef.value, resolveDemoThemeTokens())
+}
+
 onMounted(() => {
+  applyDemoTheme()
+  if (typeof document !== "undefined") {
+    themeObserver = new MutationObserver(() => {
+      applyDemoTheme()
+    })
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class"],
+    })
+  }
   syncViewportHeight()
   syncVisibleRows()
   window.addEventListener("resize", scheduleViewportMeasure)
@@ -3426,22 +2704,16 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  themeObserver?.disconnect()
+  themeObserver = null
   stopFillSelection(false)
   stopDragSelection()
   stopRangeMove(false)
   pointerAutoScroll.dispose()
   stopColumnResize()
   clearCopiedSelectionFlash()
-  if (syncVisibleRowsFrame !== null) {
-    window.cancelAnimationFrame(syncVisibleRowsFrame)
-    syncVisibleRowsFrame = null
-  }
-  syncVisibleRowsPending = false
-  if (viewportMeasureFrame !== null) {
-    window.cancelAnimationFrame(viewportMeasureFrame)
-    viewportMeasureFrame = null
-  }
-  viewportMeasurePending = false
+  disposeVisibleRowsSyncScheduler()
+  disposeViewportMeasureScheduler()
   window.removeEventListener("resize", scheduleViewportMeasure)
   window.removeEventListener("mousedown", onGlobalMouseDown)
   window.removeEventListener("mouseup", onGlobalMouseUp, true)
@@ -3451,96 +2723,6 @@ onBeforeUnmount(() => {
   window.removeEventListener("blur", onGlobalWindowBlur)
   window.removeEventListener("mousemove", onGlobalMouseMove)
 })
-
-function orderColumns(columns: readonly DataGridColumnSnapshot[]): DataGridColumnSnapshot[] {
-  const left: DataGridColumnSnapshot[] = []
-  const center: DataGridColumnSnapshot[] = []
-  const right: DataGridColumnSnapshot[] = []
-  for (const column of columns) {
-    if (column.pin === "left") {
-      left.push(column)
-      continue
-    }
-    if (column.pin === "right") {
-      right.push(column)
-      continue
-    }
-    center.push(column)
-  }
-  return [...left, ...center, ...right]
-}
-
-function compareSortableValues(left: unknown, right: unknown): number {
-  if (left == null && right == null) {
-    return 0
-  }
-  if (left == null) {
-    return 1
-  }
-  if (right == null) {
-    return -1
-  }
-  if (typeof left === "number" && typeof right === "number") {
-    if (left === right) return 0
-    return left < right ? -1 : 1
-  }
-  const leftValue = String(left).toLowerCase()
-  const rightValue = String(right).toLowerCase()
-  return leftValue.localeCompare(rightValue)
-}
-
-function sortRows(rows: IncidentRow[], model: readonly DataGridSortState[]): IncidentRow[] {
-  if (!model.length) {
-    return rows
-  }
-  return rows
-    .map((row, index) => ({ row, index }))
-    .sort((left, right) => {
-      for (const sortEntry of model) {
-        const next = compareSortableValues(
-          getRowCellValue(left.row, sortEntry.key),
-          getRowCellValue(right.row, sortEntry.key),
-        )
-        if (next === 0) {
-          continue
-        }
-        return sortEntry.direction === "asc" ? next : -next
-      }
-      return left.index - right.index
-    })
-    .map(entry => entry.row)
-}
-
-function matchesQuery(row: IncidentRow, normalizedQuery: string, columnKeys: readonly string[]): boolean {
-  if (!normalizedQuery) {
-    return true
-  }
-
-  const keys = columnKeys.length
-    ? columnKeys
-    : [
-      "service",
-      "owner",
-      "region",
-      "environment",
-      "deployment",
-      "severity",
-      "status",
-      "channel",
-      "runbook",
-    ]
-
-  for (const key of keys) {
-    const value = getRowCellValue(row, key)
-    if (typeof value === "undefined" || value === null) {
-      continue
-    }
-    if (String(value).toLowerCase().includes(normalizedQuery)) {
-      return true
-    }
-  }
-  return false
-}
 
 function resolveStatus(latencyMs: number, errorRate: number): Status {
   if (latencyMs > 380 || errorRate > 10) return "degraded"
@@ -3629,7 +2811,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 </script>
 
 <template>
-  <section class="datagrid-page">
+  <section class="datagrid-page" ref="themeRootRef">
     <header class="datagrid-hero">
       <div>
         <p class="datagrid-hero__eyebrow">datagrid showcase</p>
@@ -3680,6 +2862,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         <input v-model="pinStatusColumn" type="checkbox" />
         <span>Pin status column</span>
       </label>
+      <ThemeToggle variant="compact" @theme-change="applyDemoTheme" />
       <button type="button" @click="randomizeRuntime">Runtime shift</button>
       <button
         type="button"
@@ -4130,852 +3313,3 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
     <p class="datagrid-sr-only" role="status" aria-live="polite" aria-atomic="true">{{ lastAction }}</p>
   </section>
 </template>
-
-<style scoped>
-.datagrid-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.datagrid-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  height: calc(100dvh - 11.5rem);
-  min-height: 640px;
-}
-
-.datagrid-hero {
-  display: grid;
-  gap: 1rem;
-  border-radius: 1rem;
-  border: 1px solid var(--glass-border);
-  background: linear-gradient(130deg, rgba(11, 18, 29, 0.94), rgba(20, 34, 58, 0.92));
-  padding: 1.25rem;
-}
-
-.datagrid-hero__eyebrow {
-  margin: 0;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: var(--text-soft);
-}
-
-.datagrid-hero h2 {
-  margin: 0.35rem 0;
-  font-size: clamp(1.25rem, 2vw, 1.7rem);
-  color: var(--text-primary);
-}
-
-.datagrid-hero p {
-  margin: 0;
-  color: var(--text-soft);
-}
-
-.datagrid-hero__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.datagrid-hero__chips span {
-  border: 1px solid var(--glass-border);
-  border-radius: 999px;
-  padding: 0.3rem 0.7rem;
-  font-size: 0.75rem;
-  color: var(--text-soft);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.datagrid-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-  border-radius: 0.9rem;
-  border: 1px solid var(--glass-border);
-  background: rgba(9, 12, 20, 0.84);
-  padding: 0.9rem;
-}
-
-.datagrid-controls label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: var(--text-soft);
-}
-
-.datagrid-controls input,
-.datagrid-controls select,
-.datagrid-controls > button {
-  border-radius: 0.55rem;
-  border: 1px solid var(--glass-border);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-primary);
-  padding: 0.45rem 0.7rem;
-  font-size: 0.85rem;
-}
-
-.datagrid-controls__select {
-  min-width: 120px;
-}
-
-.datagrid-controls__select :deep(.affino-select__trigger) {
-  border-radius: 0.55rem;
-  border: 1px solid var(--glass-border);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-primary);
-  padding: 0.45rem 0.7rem;
-  font-size: 0.85rem;
-}
-
-.datagrid-controls__select :deep(.affino-select__surface) {
-  border-radius: 0.55rem;
-  border: 1px solid var(--glass-border);
-  background: rgba(8, 13, 24, 0.98);
-}
-
-.datagrid-controls input {
-  min-width: 210px;
-}
-
-.datagrid-controls > button {
-  cursor: pointer;
-}
-
-.datagrid-controls > button:hover {
-  border-color: var(--accent-strong);
-}
-
-.datagrid-controls > button.ghost {
-  background: transparent;
-}
-
-.datagrid-controls__clear-filter:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.datagrid-controls__toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.datagrid-controls__toggle input {
-  min-width: auto;
-  width: 1rem;
-  height: 1rem;
-  padding: 0;
-}
-
-.datagrid-controls__status {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--text-soft);
-}
-
-.datagrid-column-filter {
-  flex: 1 1 100%;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 0.55rem;
-  border: 1px solid rgba(125, 211, 252, 0.35);
-  border-radius: 0.8rem;
-  background: rgba(8, 14, 24, 0.94);
-  padding: 0.7rem;
-}
-
-.datagrid-column-filter__header {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.6rem;
-  margin: 0;
-}
-
-.datagrid-column-filter__header p {
-  margin: 0;
-  font-size: 0.73rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
-}
-
-.datagrid-column-filter__header strong {
-  margin: 0;
-  font-size: 0.84rem;
-  color: var(--text-primary);
-}
-
-.datagrid-column-filter label {
-  display: grid;
-  gap: 0.35rem;
-  align-content: start;
-}
-
-.datagrid-column-filter label span {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
-.datagrid-column-filter input {
-  min-width: 0;
-  width: 100%;
-}
-
-.datagrid-column-filter__select :deep(.affino-select__trigger) {
-  min-height: 2.1rem;
-  border-radius: 0.55rem;
-  border: 1px solid var(--glass-border);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-primary);
-  font-size: 0.82rem;
-}
-
-.datagrid-column-filter__select :deep(.affino-select__surface) {
-  border-radius: 0.55rem;
-  border: 1px solid var(--glass-border);
-  background: rgba(8, 13, 24, 0.98);
-}
-
-.datagrid-column-filter__actions {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.datagrid-column-filter__actions button {
-  border-radius: 0.55rem;
-  border: 1px solid var(--glass-border);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-primary);
-  padding: 0.45rem 0.7rem;
-  font-size: 0.82rem;
-  cursor: pointer;
-}
-
-.datagrid-column-filter__actions button.ghost {
-  background: transparent;
-}
-
-.datagrid-column-filter__actions button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.datagrid-controls__filter-indicator {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
-.datagrid-controls__filter-indicator[data-active="true"] {
-  color: rgba(125, 211, 252, 0.95);
-}
-
-.datagrid-metrics {
-  display: grid;
-  gap: 0.55rem;
-  grid-template-columns: 1fr;
-  height: 256px;
-  overflow: auto;
-  align-content: start;
-  padding-right: 0.2rem;
-}
-
-.datagrid-metrics div {
-  border: 1px solid var(--glass-border);
-  border-radius: 0.75rem;
-  background: rgba(7, 10, 19, 0.86);
-  padding: 0.55rem 0.8rem;
-}
-
-.datagrid-metrics dt {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.13em;
-  color: var(--text-muted);
-}
-
-.datagrid-metrics dd {
-  margin: 0.25rem 0 0;
-  font-size: 0.92rem;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-  color: var(--text-primary);
-}
-
-.datagrid-stage {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--glass-border);
-  border-radius: 1rem;
-  overflow: hidden;
-}
-
-.datagrid-stage__viewport {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: none;
-  overflow: auto;
-  background: rgba(5, 8, 16, 0.95);
-}
-
-.datagrid-stage__viewport:focus-visible {
-  outline: 2px solid rgba(56, 189, 248, 0.8);
-  outline-offset: -2px;
-}
-
-.datagrid-stage__viewport.is-drag-selecting,
-.datagrid-stage__viewport.is-drag-selecting .datagrid-stage__cell,
-.datagrid-stage__viewport.is-fill-dragging,
-.datagrid-stage__viewport.is-fill-dragging .datagrid-stage__cell {
-  cursor: cell;
-  user-select: none;
-}
-
-.datagrid-stage__viewport.is-range-moving,
-.datagrid-stage__viewport.is-range-moving .datagrid-stage__cell {
-  cursor: move;
-  user-select: none;
-}
-
-.datagrid-stage__viewport.is-column-resizing,
-.datagrid-stage__viewport.is-column-resizing .datagrid-stage__cell {
-  cursor: col-resize;
-  user-select: none;
-}
-
-.datagrid-stage__header,
-.datagrid-stage__row {
-  display: grid;
-  min-width: max-content;
-}
-
-.datagrid-stage__header {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  background: rgba(6, 10, 20, 0.98);
-  border-bottom: 1px solid rgba(145, 170, 210, 0.22);
-}
-
-.datagrid-stage__row {
-  height: 38px;
-  border-bottom: 1px solid rgba(145, 170, 210, 0.14);
-}
-
-.datagrid-stage__row--group-start .datagrid-stage__cell {
-  border-top: 1px solid rgba(125, 211, 252, 0.45);
-}
-
-.datagrid-stage__row.is-selected .datagrid-stage__cell {
-  background: rgba(17, 49, 86, 0.68);
-}
-
-.datagrid-stage__row.is-selected .datagrid-stage__cell--sticky {
-  background: rgba(20, 58, 101, 0.9);
-}
-
-.datagrid-stage__row.is-selected .datagrid-stage__cell--range {
-  background: rgba(56, 189, 248, 0.22);
-}
-
-.datagrid-stage__cell {
-  position: relative;
-  display: flex;
-  align-items: center;
-  border-right: 1px solid rgba(145, 170, 210, 0.12);
-  padding: 0 0.65rem;
-  font-size: 0.78rem;
-  line-height: 1.15;
-  color: var(--text-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: rgba(7, 10, 19, 0.92);
-}
-
-.datagrid-stage__cell:last-child {
-  border-right: none;
-}
-
-.datagrid-stage__cell--select {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-}
-
-.datagrid-stage__checkbox {
-  width: 1rem;
-  height: 1rem;
-  accent-color: #38bdf8;
-  cursor: pointer;
-}
-
-.datagrid-stage__cell--header {
-  font-size: 0.66rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-primary);
-  background: rgba(11, 17, 31, 0.98);
-  padding-right: 1.45rem;
-}
-
-.datagrid-stage__cell--header.datagrid-stage__cell--sortable {
-  cursor: pointer;
-}
-
-.datagrid-stage__cell--header.datagrid-stage__cell--sortable:hover {
-  background: rgba(18, 28, 47, 0.99);
-}
-
-.datagrid-stage__header-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.datagrid-stage__sort-indicator {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  font-size: 0.62rem;
-  color: rgba(125, 211, 252, 0.95);
-}
-
-.datagrid-stage__sort-priority {
-  min-width: 0.9rem;
-  height: 0.9rem;
-  border-radius: 999px;
-  border: 1px solid rgba(125, 211, 252, 0.45);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.55rem;
-  line-height: 1;
-}
-
-.datagrid-stage__cell--header.datagrid-stage__cell--filtered {
-  box-shadow: inset 0 -2px 0 rgba(125, 211, 252, 0.8);
-}
-
-.datagrid-stage__cell--header.datagrid-stage__cell--filter-open {
-  background: rgba(19, 32, 54, 0.99);
-}
-
-.datagrid-stage__filter-trigger {
-  flex: 0 0 auto;
-  margin-left: 0.35rem;
-  margin-right: 0.35rem;
-  width: 1.1rem;
-  height: 1.1rem;
-  border-radius: 0.25rem;
-  border: 1px solid rgba(145, 170, 210, 0.45);
-  background: rgba(8, 13, 23, 0.92);
-  color: var(--text-soft);
-  font-size: 0.58rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-}
-
-.datagrid-stage__filter-trigger:hover {
-  border-color: rgba(125, 211, 252, 0.8);
-  color: rgba(186, 230, 253, 0.98);
-}
-
-.datagrid-stage__filter-trigger.is-active {
-  border-color: rgba(125, 211, 252, 0.85);
-  background: rgba(8, 47, 73, 0.9);
-  color: rgba(186, 230, 253, 1);
-}
-
-.datagrid-stage__resize-handle {
-  position: absolute;
-  top: 0;
-  right: -1px;
-  width: 9px;
-  height: 100%;
-  border: 0;
-  border-right: 2px solid transparent;
-  background: transparent;
-  cursor: col-resize;
-  z-index: 48;
-  padding: 0;
-}
-
-.datagrid-stage__resize-handle:hover,
-.datagrid-stage__viewport.is-column-resizing .datagrid-stage__resize-handle {
-  border-right-color: rgba(125, 211, 252, 0.9);
-}
-
-.datagrid-stage__cell--numeric {
-  justify-content: flex-end;
-  text-align: right;
-  color: #bae6fd;
-}
-
-.datagrid-stage__cell--numeric.datagrid-stage__cell--editing {
-  justify-content: stretch;
-}
-
-.datagrid-stage__cell--status {
-  font-weight: 600;
-}
-
-.datagrid-stage__cell--editable {
-  cursor: text;
-}
-
-.datagrid-stage__cell--editable:hover {
-  background: rgba(16, 30, 52, 0.88);
-}
-
-.datagrid-stage__cell--enum {
-  padding-right: 1.8rem;
-}
-
-.datagrid-stage__cell--editing {
-  padding: 2px 4px;
-  z-index: 24;
-  overflow: visible;
-}
-
-.datagrid-stage__cell--range {
-  background: rgba(56, 189, 248, 0.14);
-}
-
-.datagrid-stage__cell--copied {
-  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.85);
-  background: rgba(56, 189, 248, 0.1);
-}
-
-.datagrid-stage__cell--fill-preview {
-  background: rgba(125, 211, 252, 0.14);
-}
-
-.datagrid-stage__cell--move-preview {
-  background: rgba(165, 180, 252, 0.14);
-}
-
-.datagrid-stage__cell--anchor {
-  background: rgba(56, 189, 248, 0.2);
-}
-
-.datagrid-stage__cell--active {
-  box-shadow: inset 0 0 0 2px rgba(186, 230, 253, 0.95);
-}
-
-.datagrid-stage__editor {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  margin: 0;
-  box-sizing: border-box;
-  position: relative;
-  z-index: 25;
-}
-
-.datagrid-stage__editor-input {
-  border-radius: 0.35rem;
-  border: 1px solid rgba(145, 170, 210, 0.35);
-  background: rgba(9, 14, 25, 0.96);
-  color: var(--text-primary);
-  padding: 0 0.5rem;
-  font-size: 0.76rem;
-  line-height: 1.15;
-}
-
-.datagrid-stage__editor-select :deep(.affino-select__trigger) {
-  height: 100%;
-  min-height: 0;
-  border-radius: 0.35rem;
-  border: 1px solid rgba(145, 170, 210, 0.35);
-  background: rgba(9, 14, 25, 0.96);
-  color: var(--text-primary);
-  padding: 0 0.5rem;
-  font-size: 0.76rem;
-  line-height: 1.15;
-}
-
-.datagrid-stage__editor-select :deep(.affino-select__surface) {
-  min-width: max(100%, 132px);
-  max-height: 220px;
-  z-index: 64;
-}
-
-.datagrid-stage__editor-select :deep(.affino-select__option) {
-  font-size: 0.74rem;
-  min-height: 1.8rem;
-  padding: 0.35rem 0.55rem;
-}
-
-.datagrid-stage__editor:focus {
-  outline: none;
-  border-color: rgba(125, 211, 252, 0.75);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25);
-}
-
-.datagrid-stage__editor-select:focus-within {
-  border-color: rgba(125, 211, 252, 0.75);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25);
-}
-
-.datagrid-stage__enum-trigger {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(145, 170, 210, 0.45);
-  border-radius: 4px;
-  background: rgba(11, 18, 30, 0.95);
-  color: rgba(186, 230, 253, 0.95);
-  font-size: 10px;
-  line-height: 1;
-  cursor: pointer;
-  z-index: 26;
-  padding: 0;
-}
-
-.datagrid-stage__enum-trigger:hover {
-  border-color: rgba(125, 211, 252, 0.8);
-  background: rgba(17, 31, 53, 0.98);
-}
-
-.datagrid-stage__cell--sticky {
-  position: sticky;
-  z-index: 16;
-  background: rgba(10, 17, 30, 0.98);
-  box-shadow: 1px 0 0 rgba(145, 170, 210, 0.2);
-  background-clip: padding-box;
-  contain: paint;
-}
-
-.datagrid-stage__row .datagrid-stage__cell--sticky.datagrid-stage__cell--range {
-  background: rgba(56, 189, 248, 0.24);
-  box-shadow:
-    inset 0 0 0 1px rgba(125, 211, 252, 0.55),
-    1px 0 0 rgba(145, 170, 210, 0.2);
-}
-
-.datagrid-stage__row .datagrid-stage__cell--sticky.datagrid-stage__cell--anchor {
-  background: rgba(56, 189, 248, 0.32);
-  box-shadow:
-    inset 0 0 0 2px rgba(186, 230, 253, 0.9),
-    1px 0 0 rgba(145, 170, 210, 0.2);
-}
-
-.datagrid-stage__row .datagrid-stage__cell--sticky.datagrid-stage__cell--active {
-  box-shadow:
-    inset 0 0 0 2px rgba(186, 230, 253, 1),
-    1px 0 0 rgba(145, 170, 210, 0.2);
-}
-
-.datagrid-stage__header .datagrid-stage__cell--sticky {
-  z-index: 42;
-  background: rgba(11, 17, 31, 0.99);
-}
-
-.datagrid-stage__row .datagrid-stage__cell--sticky {
-  z-index: 18;
-}
-
-.datagrid-stage__cell--range-end {
-  z-index: 20;
-}
-
-.datagrid-stage__cell--group-by {
-  padding-top: 0.9rem;
-}
-
-.datagrid-stage__cell--group-start {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.12), rgba(7, 10, 19, 0.92) 34%);
-}
-
-.datagrid-stage__group-badge {
-  position: absolute;
-  top: 2px;
-  left: 8px;
-  max-width: calc(100% - 16px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.58rem;
-  line-height: 1;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(125, 211, 252, 0.95);
-  pointer-events: none;
-}
-
-.datagrid-stage__selection-overlay {
-  position: absolute;
-  z-index: 12;
-  border: 2px solid rgba(56, 189, 248, 0.92);
-  background: rgba(56, 189, 248, 0.08);
-  pointer-events: none;
-  box-sizing: border-box;
-  transform: translateZ(0);
-  will-change: transform, width, height, top, left;
-}
-
-.datagrid-stage__selection-overlay--fill {
-  z-index: 11;
-  border-style: dashed;
-  border-color: rgba(125, 211, 252, 0.9);
-  background: rgba(56, 189, 248, 0.05);
-}
-
-.datagrid-stage__selection-overlay--move {
-  z-index: 13;
-  border-style: dashed;
-  border-color: rgba(165, 180, 252, 0.95);
-  background: rgba(99, 102, 241, 0.07);
-}
-
-.datagrid-stage__selection-handle {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  width: 8px;
-  height: 8px;
-  border: 1px solid rgba(125, 211, 252, 0.95);
-  background: rgba(8, 47, 73, 0.95);
-  box-sizing: border-box;
-  pointer-events: auto;
-  cursor: crosshair;
-}
-
-.datagrid-stage__selection-handle--cell {
-  z-index: 27;
-}
-
-.datagrid-stage__move-handle-zone {
-  position: absolute;
-  pointer-events: auto;
-  z-index: 26;
-  background: transparent;
-  cursor: move;
-}
-
-.datagrid-stage__move-handle-zone:hover {
-  background: rgba(125, 211, 252, 0.2);
-}
-
-.datagrid-stage__move-handle-zone--top {
-  top: -3px;
-  left: -3px;
-  right: -3px;
-  height: 6px;
-}
-
-.datagrid-stage__move-handle-zone--right {
-  top: -3px;
-  right: -3px;
-  bottom: -3px;
-  width: 6px;
-}
-
-.datagrid-stage__move-handle-zone--bottom {
-  left: -3px;
-  right: -3px;
-  bottom: -3px;
-  height: 6px;
-}
-
-.datagrid-stage__move-handle-zone--left {
-  top: -3px;
-  left: -3px;
-  bottom: -3px;
-  width: 6px;
-}
-
-.datagrid-stage__empty {
-  padding: 0.8rem;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-
-.datagrid-stage__hint {
-  margin: 0;
-  padding: 0.55rem 0.8rem 0.7rem;
-  border-top: 1px solid rgba(145, 170, 210, 0.12);
-  font-size: 0.73rem;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
-  background: rgba(7, 10, 19, 0.86);
-}
-
-.datagrid-copy-menu {
-  position: fixed;
-  z-index: 220;
-  min-width: 120px;
-  border-radius: 0.6rem;
-  border: 1px solid rgba(125, 211, 252, 0.35);
-  background: rgba(9, 14, 26, 0.97);
-  box-shadow: 0 10px 28px rgba(3, 7, 18, 0.58);
-  padding: 0.3rem;
-}
-
-.datagrid-copy-menu button {
-  width: 100%;
-  border: 1px solid transparent;
-  border-radius: 0.45rem;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 0.82rem;
-  line-height: 1.2;
-  text-align: left;
-  padding: 0.42rem 0.55rem;
-  cursor: pointer;
-}
-
-.datagrid-copy-menu button:hover {
-  border-color: rgba(125, 211, 252, 0.4);
-  background: rgba(16, 27, 46, 0.96);
-}
-
-@media (max-width: 900px) {
-  .datagrid-page {
-    height: auto;
-    min-height: 0;
-  }
-
-  .datagrid-metrics {
-    height: auto;
-    max-height: 260px;
-  }
-
-  .datagrid-controls__status {
-    margin-left: 0;
-    width: 100%;
-  }
-}
-</style>

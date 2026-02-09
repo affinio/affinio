@@ -5,6 +5,7 @@ type ThemeMode = "light" | "dark"
 type ThemeVariant = "default" | "compact"
 
 const props = defineProps<{ variant?: ThemeVariant }>()
+const emit = defineEmits<{ (event: "theme-change", mode: ThemeMode): void }>()
 
 const variant = computed<ThemeVariant>(() => props.variant ?? "default")
 const currentTheme = ref<ThemeMode>("dark")
@@ -18,6 +19,7 @@ function applyTheme(mode: ThemeMode) {
   } else {
     root.classList.remove("dark")
   }
+  emit("theme-change", mode)
   try {
     localStorage.setItem("affino-theme", mode)
   } catch {
@@ -40,8 +42,7 @@ onMounted(() => {
   } catch {
     stored = null
   }
-  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? false
-  currentTheme.value = stored ?? (prefersDark ? "dark" : "light")
+  currentTheme.value = stored ?? "dark"
   applyTheme(currentTheme.value)
 })
 </script>
