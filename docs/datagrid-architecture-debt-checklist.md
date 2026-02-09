@@ -39,11 +39,11 @@ Goal: close remaining architectural debt after 9.5 execution pipeline.
 
 ## 04. Theme Ownership Cleanup (`target >= 9.0`)
 
-- [ ] Закрыть `TODO(theme)` и завершить вынос theme preset ownership из core-runtime слоя.
-- [ ] Уточнить границу: tokens/theme utilities vs runtime logic.
-- [ ] Зафиксировать docs по theme ownership.
-- [ ] Финальная оценка пункта: `>= 9.0`.
-- Комментарий по закрытию: _pending_.
+- [x] Закрыть `TODO(theme)` и завершить вынос theme preset ownership из core-runtime слоя.
+- [x] Уточнить границу: tokens/theme utilities vs runtime logic.
+- [x] Зафиксировать docs по theme ownership.
+- [x] Финальная оценка пункта: `9.2`.
+- Комментарий по закрытию: `2026-02-09` - theme presets/utilities вынесены в `@affino/datagrid-theme`, plugin contracts перенесены в `@affino/datagrid-plugins`, core exports очищены, demo переведен на новый theme пакет, добавлены docs по ownership.
 
 ## 05. Public Surface Hardening (`target >= 9.0`)
 
@@ -58,3 +58,4 @@ Goal: close remaining architectural debt after 9.5 execution pipeline.
 - `2026-02-07`: создан v2 debt checklist.
 - `2026-02-07`: закрыт пункт `01` (import boundary detox + local missing module recovery).
 - `2026-02-07`: закрыт пункт `02` (DataGrid component decomposition + facade hooks).
+- `2026-02-09`: закрыт пункт `04` (theme preset ownership moved to datagrid-theme + plugin contracts moved to datagrid-plugins).

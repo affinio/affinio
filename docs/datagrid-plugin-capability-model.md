@@ -1,8 +1,8 @@
 # DataGrid Plugin Capability Model
 
-Updated: `2026-02-08`
+Updated: `2026-02-09`
 
-This document defines the capability boundary for runtime plugins in `@affino/datagrid-core`.
+This document defines the capability boundary for runtime plugins in `@affino/datagrid-plugins` (consumed by `@affino/datagrid-core`).
 
 ## Policy
 

@@ -3,15 +3,16 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import AffinoSelect from "@/components/AffinoSelect.vue"
 import ThemeToggle from "@/components/ThemeToggle.vue"
 import {
+  type DataGridColumnDef,
+  type DataGridRowNode,
+  type DataGridSortState,
+} from "@affino/datagrid-core"
+import {
   applyGridTheme,
   defaultThemeTokens,
   industrialNeutralTheme,
   resolveGridThemeTokens,
-  type DataGridColumnDef,
-  type DataGridColumnSnapshot,
-  type DataGridRowNode,
-  type DataGridSortState,
-} from "@affino/datagrid-core"
+} from "@affino/datagrid-theme"
 import {
   useDataGridContextMenu,
   useDataGridRuntime,
@@ -19,12 +20,21 @@ import {
 } from "@affino/datagrid-vue"
 import {
   useDataGridCellNavigation,
+  useDataGridClipboardValuePolicy,
+  useDataGridCellDatasetResolver,
   useDataGridCellRangeHelpers,
+  useDataGridNavigationPrimitives,
+  useDataGridMutationSnapshot,
+  useDataGridCellVisualStatePredicates,
+  useDataGridRangeMutationEngine,
+  useDataGridA11yCellIds,
+  useDataGridColumnUiPolicy,
   useDataGridEditableValuePolicy,
   useDataGridMoveMutationPolicy,
   useDataGridCellPointerDownRouter,
   useDataGridCellPointerHoverRouter,
   useDataGridColumnFilterOrchestration,
+  useDataGridGroupValueLabelResolver,
   useDataGridGroupMetaOrchestration,
   useDataGridGroupingSortOrchestration,
   useDataGridDragPointerSelection,
@@ -36,12 +46,14 @@ import {
   useDataGridFillSelectionLifecycle,
   useDataGridRangeMoveLifecycle,
   useDataGridRangeMoveStart,
+  useDataGridSelectionMoveHandle,
   useDataGridGlobalMouseDownContextMenuCloser,
   useDataGridGlobalPointerLifecycle,
   useDataGridHeaderContextActions,
   useDataGridInlineEditorSchema,
   useDataGridInlineEditOrchestration,
   useDataGridHeaderResizeOrchestration,
+  useDataGridHeaderInteractionRouter,
   useDataGridHeaderSortOrchestration,
   useDataGridInlineEditorTargetNavigation,
   useDataGridInlineEditorKeyRouter,
@@ -63,11 +75,7 @@ import {
   useDataGridViewportBlurHandler,
   useDataGridViewportContextMenuRouter,
   type DataGridInlineEditorMode,
-  type DataGridColumnFilterKind,
 } from "@affino/datagrid-vue/advanced"
-import {
-  type DataGridTransactionAffectedRange,
-} from "@affino/datagrid-core/advanced"
 
 type Severity = "critical" | "high" | "medium" | "low"
 type Status = "stable" | "watch" | "degraded"
@@ -269,6 +277,57 @@ const rangeMovePreviewRange = ref<CellSelectionRange | null>(null)
 
 let lastDragCoord: CellCoord | null = null
 
+const navigationPrimitives = useDataGridNavigationPrimitives<CellCoord, CellSelectionRange>({
+  resolveColumns() {
+    return orderedColumns.value
+  },
+  resolveRowsLength() {
+    return filteredAndSortedRows.value.length
+  },
+  resolveNavigableColumnIndexes() {
+    return navigableColumnIndexes.value
+  },
+  normalizeCellCoord(coord) {
+    return normalizeCellCoord(coord)
+  },
+  resolveCellAnchor() {
+    return cellAnchor.value
+  },
+  resolveCellFocus() {
+    return cellFocus.value
+  },
+  resolveActiveCell() {
+    return activeCell.value
+  },
+  setCellAnchor(coord) {
+    cellAnchor.value = coord
+  },
+  setCellFocus(coord) {
+    cellFocus.value = coord
+  },
+  setActiveCell(coord) {
+    activeCell.value = coord
+  },
+  ensureCellVisible,
+  coordsEqual(left, right) {
+    if (!left || !right) {
+      return false
+    }
+    return left.rowIndex === right.rowIndex && left.columnIndex === right.columnIndex
+  },
+})
+const {
+  resolveRowIndex,
+  resolveColumnIndex,
+  clampRowIndex,
+  getFirstNavigableColumnIndex,
+  getLastNavigableColumnIndex,
+  resolveNearestNavigableColumnIndex,
+  getAdjacentNavigableColumnIndex,
+  applyCellSelection,
+  isCoordInsideRange,
+} = navigationPrimitives
+
 const cellRangeHelpers = useDataGridCellRangeHelpers<
   DataGridRowNode<IncidentRow>,
   CellCoord,
@@ -297,6 +356,20 @@ const {
   isCellWithinRange,
   resolveCurrentCellCoord,
 } = cellRangeHelpers
+const cellDatasetResolver = useDataGridCellDatasetResolver<IncidentRow, CellCoord>({
+  resolveRows() {
+    return filteredAndSortedRows.value
+  },
+  resolveRowId(row) {
+    return String(row.rowId)
+  },
+  resolveColumnIndex,
+  normalizeCellCoord,
+})
+const {
+  resolveCellCoordFromDataset,
+} = cellDatasetResolver
+const { normalizeClipboardValue } = useDataGridClipboardValuePolicy()
 
 const sourceRows = ref<IncidentRow[]>(buildRows(rowCount.value, seed.value))
 const inlineEditorSchema = useDataGridInlineEditorSchema({
@@ -307,6 +380,36 @@ const {
   isEnumColumn,
   hasEditorOption,
 } = inlineEditorSchema
+const columnUiPolicy = useDataGridColumnUiPolicy<IncidentRow, GroupByColumnKey>({
+  resolveCurrentGroupBy() {
+    return groupBy.value
+  },
+  isEnumColumn,
+  resolveEnumEditorOptions: getEditorOptions,
+  resolveRows() {
+    return sourceRows.value
+  },
+  resolveCellValue: getRowCellValue,
+  numericColumnKeys: NUMERIC_COLUMN_KEYS,
+})
+const {
+  isGroupedByColumn,
+  isSortableColumn,
+  isColumnResizable,
+  resolveColumnFilterKind,
+  resolveEnumFilterOptions,
+  resolveColumnWidth,
+} = columnUiPolicy
+const a11yCellIds = useDataGridA11yCellIds<IncidentRow>({
+  resolveColumnIndex,
+  resolveRowIndex,
+})
+const {
+  getGridCellId,
+  getHeaderCellId,
+  getColumnAriaIndex,
+  getRowAriaIndex,
+} = a11yCellIds
 const editableValuePolicy = useDataGridEditableValuePolicy<IncidentRow, EditableColumnKey>({
   strategies: {
     owner: {
@@ -511,48 +614,49 @@ function cloneRange(range: CellSelectionRange | null): CellSelectionRange | null
 function cloneRows(rows: readonly IncidentRow[]): IncidentRow[] {
   return rows.map(row => ({ ...row }))
 }
-
-function captureGridMutationSnapshot(): GridMutationSnapshot {
-  return {
-    sourceRows: cloneRows(sourceRows.value),
-    cellAnchor: cloneCoord(cellAnchor.value),
-    cellFocus: cloneCoord(cellFocus.value),
-    activeCell: cloneCoord(activeCell.value),
-    copiedSelectionRange: cloneRange(copiedSelectionRange.value),
-  }
-}
-
-function applyGridMutationSnapshot(snapshot: GridMutationSnapshot) {
-  sourceRows.value = cloneRows(snapshot.sourceRows)
-  cellAnchor.value = cloneCoord(snapshot.cellAnchor)
-  cellFocus.value = cloneCoord(snapshot.cellFocus)
-  activeCell.value = cloneCoord(snapshot.activeCell)
-  copiedSelectionRange.value = cloneRange(snapshot.copiedSelectionRange)
-}
-
-function toTransactionRange(range: CellSelectionRange | null): DataGridTransactionAffectedRange | null {
-  if (!range) {
-    return null
-  }
-  return {
-    startRow: range.startRow,
-    endRow: range.endRow,
-    startColumn: range.startColumn,
-    endColumn: range.endColumn,
-  }
-}
-
-function toSingleCellRange(coord: CellCoord | null): CellSelectionRange | null {
-  if (!coord) {
-    return null
-  }
-  return {
-    startRow: coord.rowIndex,
-    endRow: coord.rowIndex,
-    startColumn: coord.columnIndex,
-    endColumn: coord.columnIndex,
-  }
-}
+const mutationSnapshot = useDataGridMutationSnapshot<IncidentRow, CellCoord, CellSelectionRange>({
+  resolveRows() {
+    return sourceRows.value
+  },
+  setRows(rows) {
+    sourceRows.value = rows
+  },
+  resolveCellAnchor() {
+    return cellAnchor.value
+  },
+  setCellAnchor(coord) {
+    cellAnchor.value = coord
+  },
+  resolveCellFocus() {
+    return cellFocus.value
+  },
+  setCellFocus(coord) {
+    cellFocus.value = coord
+  },
+  resolveActiveCell() {
+    return activeCell.value
+  },
+  setActiveCell(coord) {
+    activeCell.value = coord
+  },
+  resolveCopiedSelectionRange() {
+    return copiedSelectionRange.value
+  },
+  setCopiedSelectionRange(range) {
+    copiedSelectionRange.value = range
+  },
+  cloneRow(row) {
+    return { ...row }
+  },
+  cloneCoord,
+  cloneRange,
+})
+const {
+  captureGridMutationSnapshot,
+  applyGridMutationSnapshot,
+  toTransactionRange,
+  toSingleCellRange,
+} = mutationSnapshot
 
 const history = useDataGridIntentHistory<GridMutationSnapshot>({
   maxHistoryDepth: 120,
@@ -587,11 +691,92 @@ async function recordIntentTransaction(
     {
       intent: descriptor.intent,
       label: descriptor.label,
-    affectedRange: toTransactionRange(descriptor.affectedRange),
+      affectedRange: toTransactionRange(descriptor.affectedRange),
     },
     beforeSnapshot,
   )
 }
+const rangeMutationEngine = useDataGridRangeMutationEngine<
+  IncidentRow,
+  DataGridRowNode<IncidentRow>,
+  GridMutationSnapshot,
+  CellSelectionRange
+>({
+  resolveRangeMoveBaseRange() {
+    return rangeMoveBaseRange.value
+  },
+  resolveRangeMovePreviewRange() {
+    return rangeMovePreviewRange.value
+  },
+  resolveFillBaseRange() {
+    return fillBaseRange.value
+  },
+  resolveFillPreviewRange() {
+    return fillPreviewRange.value
+  },
+  areRangesEqual: rangesEqual,
+  captureBeforeSnapshot: captureGridMutationSnapshot,
+  resolveSourceRows() {
+    return sourceRows.value
+  },
+  resolveSourceRowId(row) {
+    return row.rowId
+  },
+  applySourceRows(rows) {
+    sourceRows.value = rows
+  },
+  resolveDisplayedRows() {
+    return filteredAndSortedRows.value
+  },
+  resolveDisplayedRowId(row) {
+    return String(row.rowId)
+  },
+  resolveColumnKeyAtIndex(columnIndex) {
+    return orderedColumns.value[columnIndex]?.key ?? null
+  },
+  resolveDisplayedCellValue(row, columnKey) {
+    return getRowCellValue(row, columnKey)
+  },
+  resolveSourceCellValue(row, columnKey) {
+    return getRowCellValue(row, columnKey)
+  },
+  normalizeClipboardValue,
+  isEditableColumn,
+  applyValueForMove,
+  clearValueForMove,
+  applyEditedValue,
+  shouldRecomputeDerivedForColumn(columnKey) {
+    return columnKey === "latencyMs" || columnKey === "errorRate"
+  },
+  recomputeDerived(row) {
+    row.status = resolveStatus(row.latencyMs, row.errorRate)
+  },
+  isCellWithinRange,
+  setSelectionFromRange(range, activePosition) {
+    cellAnchor.value = { rowIndex: range.startRow, columnIndex: range.startColumn }
+    cellFocus.value = { rowIndex: range.endRow, columnIndex: range.endColumn }
+    activeCell.value = activePosition === "start"
+      ? { rowIndex: range.startRow, columnIndex: range.startColumn }
+      : { rowIndex: range.endRow, columnIndex: range.endColumn }
+  },
+  recordIntent(descriptor, beforeSnapshot) {
+    return recordIntentTransaction(
+      {
+        intent: descriptor.intent,
+        label: descriptor.label,
+        affectedRange: descriptor.affectedRange,
+      },
+      beforeSnapshot,
+    )
+  },
+  setLastAction(message) {
+    lastAction.value = message
+  },
+})
+const {
+  applyRangeMove,
+  applyFillPreview,
+} = rangeMutationEngine
 
 const inlineEditOrchestration = useDataGridInlineEditOrchestration<
   IncidentRow,
@@ -733,6 +918,17 @@ const {
   applySortFromHeader,
   applyExplicitSort,
 } = headerSortOrchestration
+const headerInteractionRouter = useDataGridHeaderInteractionRouter({
+  isSortableColumn,
+  applySortFromHeader,
+  openHeaderContextMenu(x, y, columnKey) {
+    openCopyContextMenu(x, y, { zone: "header", columnKey })
+  },
+})
+const {
+  onHeaderCellClick,
+  onHeaderCellKeyDown,
+} = headerInteractionRouter
 const headerResize = useDataGridHeaderResizeOrchestration<IncidentRow>({
   resolveColumnBaseWidth(columnKey) {
     const column = orderedColumns.value.find(entry => entry.key === columnKey)
@@ -1050,6 +1246,35 @@ const rangeMoveStart = useDataGridRangeMoveStart<CellCoord, CellSelectionRange>(
     lastAction.value = message
   },
 })
+const selectionMoveHandle = useDataGridSelectionMoveHandle<
+  DataGridRowNode<IncidentRow>,
+  CellCoord,
+  CellSelectionRange
+>({
+  resolveSelectionRange() {
+    return cellSelectionRange.value
+  },
+  resolveRowIndex,
+  resolveColumnIndex,
+  isCellWithinRange,
+  resolveCellCoord,
+  startRangeMove(coord, pointer) {
+    return rangeMoveStart.startRangeMove(coord, pointer)
+  },
+  isRangeMoving() {
+    return isRangeMoving.value
+  },
+  isFillDragging() {
+    return isFillDragging.value
+  },
+  isInlineEditorOpen() {
+    return Boolean(inlineEditor.value)
+  },
+})
+const {
+  shouldShowSelectionMoveHandle,
+  onSelectionMoveHandleMouseDown,
+} = selectionMoveHandle
 const pointerCellCoordResolver = useDataGridPointerCellCoordResolver<CellCoord>({
   resolveViewportElement() {
     return viewportRef.value
@@ -1379,15 +1604,13 @@ const {
   clearRowSelection,
   reconcileSelection: reconcileRowSelection,
 } = rowSelectionOrchestration
-
-function resolveGroupValueLabel(row: IncidentRow, columnKey: GroupByColumnKey): string {
-  if (columnKey === "none") {
-    return ""
-  }
-  const raw = getRowCellValue(row, columnKey)
-  const normalized = String(raw ?? "").trim()
-  return normalized.length > 0 ? normalized : "(empty)"
-}
+const { resolveGroupValueLabel } = useDataGridGroupValueLabelResolver<IncidentRow, GroupByColumnKey>({
+  resolveCellValue(row, groupKey) {
+    return getRowCellValue(row, groupKey)
+  },
+  disabledGroupKeys: ["none"],
+  emptyLabel: "(empty)",
+})
 
 const groupMetaOrchestration = useDataGridGroupMetaOrchestration<IncidentRow, GroupByColumnKey>({
   rows: filteredAndSortedRows,
@@ -1500,6 +1723,54 @@ const copiedCellsCount = computed(() => {
   }
   return (range.endRow - range.startRow + 1) * (range.endColumn - range.startColumn + 1)
 })
+const cellVisualStatePredicates = useDataGridCellVisualStatePredicates<IncidentRow, CellCoord, CellSelectionRange>({
+  resolveRowIndex,
+  resolveColumnIndex,
+  isCellWithinRange,
+  resolveSelectionRange() {
+    return cellSelectionRange.value
+  },
+  resolveCopiedRange() {
+    return copiedSelectionRange.value
+  },
+  resolveAnchorCoord() {
+    return cellAnchor.value
+  },
+  resolveActiveCoord() {
+    return activeCell.value
+  },
+  isFillDragging() {
+    return isFillDragging.value
+  },
+  isRangeMoving() {
+    return isRangeMoving.value
+  },
+  resolveFillPreviewRange() {
+    return fillPreviewRange.value
+  },
+  resolveFillBaseRange() {
+    return fillBaseRange.value
+  },
+  resolveMovePreviewRange() {
+    return rangeMovePreviewRange.value
+  },
+  resolveMoveBaseRange() {
+    return rangeMoveBaseRange.value
+  },
+  isInlineEditorOpen() {
+    return Boolean(inlineEditor.value)
+  },
+})
+const {
+  isCellInSelection,
+  isCellInCopiedRange,
+  isAnchorCell,
+  isActiveCell,
+  isRangeEndCell,
+  isCellInFillPreview,
+  isCellInMovePreview,
+  shouldShowFillHandle,
+} = cellVisualStatePredicates
 
 const isQuickFilterActive = computed(() => normalizedQuickFilter.value.length > 0)
 const quickFilterStatus = computed(() => {
@@ -1575,101 +1846,6 @@ const {
   fillPreviewOverlaySegments,
   rangeMoveOverlaySegments,
 } = selectionOverlayOrchestration
-
-function sanitizeDomIdPart(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]/g, "-")
-}
-
-function getGridCellId(rowId: string, columnKey: string): string {
-  return `datagrid-cell-${sanitizeDomIdPart(rowId)}-${sanitizeDomIdPart(columnKey)}`
-}
-
-function getHeaderCellId(columnKey: string): string {
-  return `datagrid-header-${sanitizeDomIdPart(columnKey)}`
-}
-
-function getColumnAriaIndex(columnKey: string): number {
-  return Math.max(1, resolveColumnIndex(columnKey) + 1)
-}
-
-function getRowAriaIndex(row: DataGridRowNode<IncidentRow>): number {
-  return Math.max(2, resolveRowIndex(row) + 2)
-}
-
-function isGroupedByColumn(columnKey: string): boolean {
-  return groupBy.value !== "none" && columnKey === groupBy.value
-}
-
-function isSortableColumn(columnKey: string): boolean {
-  return columnKey !== "select"
-}
-
-function isColumnResizable(columnKey: string): boolean {
-  return columnKey !== "select"
-}
-
-function onHeaderCellClick(columnKey: string, event: MouseEvent) {
-  if (!isSortableColumn(columnKey)) {
-    return
-  }
-  applySortFromHeader(columnKey, event.shiftKey)
-}
-
-function onHeaderCellKeyDown(columnKey: string, event: KeyboardEvent) {
-  if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
-    if (columnKey === "select") {
-      return
-    }
-    event.preventDefault()
-    const target = event.currentTarget as HTMLElement | null
-    const rect = target?.getBoundingClientRect()
-    const x = rect ? rect.left + Math.min(rect.width - 8, Math.max(8, rect.width * 0.5)) : 24
-    const y = rect ? rect.bottom - 6 : 24
-    openCopyContextMenu(x, y, { zone: "header", columnKey })
-    return
-  }
-  if (!isSortableColumn(columnKey)) {
-    return
-  }
-  if (event.key !== "Enter" && event.key !== " ") {
-    return
-  }
-  event.preventDefault()
-  applySortFromHeader(columnKey, event.shiftKey)
-}
-
-function resolveColumnFilterKind(columnKey: string): DataGridColumnFilterKind {
-  if (isEnumColumn(columnKey)) {
-    return "enum"
-  }
-  if (NUMERIC_COLUMN_KEYS.has(columnKey)) {
-    return "number"
-  }
-  return "text"
-}
-
-function resolveEnumFilterOptions(columnKey: string): string[] {
-  const editorOptions = getEditorOptions(columnKey)
-  if (editorOptions && editorOptions.length) {
-    return [...editorOptions]
-  }
-  const values = new Set<string>()
-  for (const row of sourceRows.value) {
-    const value = getRowCellValue(row, columnKey)
-    if (typeof value === "undefined" || value === null) {
-      continue
-    }
-    values.add(String(value))
-  }
-  return [...values].sort((left, right) => left.localeCompare(right))
-}
-
-function resolveColumnWidth(column: DataGridColumnSnapshot): number {
-  if (column.key === "select") {
-    return Math.max(48, column.width ?? 58)
-  }
-  return Math.max(110, column.width ?? 160)
-}
 
 function isEditableColumn(columnKey: string): columnKey is EditableColumnKey {
   return hasEditablePolicy(columnKey)
@@ -1760,109 +1936,6 @@ function clearCellSelection() {
   stopRangeMove(false)
   stopColumnResize()
   stopAutoScrollFrameIfIdle()
-}
-
-function resolveRowIndex(row: DataGridRowNode<IncidentRow>): number {
-  const candidate = [row.displayIndex, row.sourceIndex, row.originalIndex].find(value => Number.isFinite(value)) ?? 0
-  const rowIndex = Math.trunc(candidate)
-  return Math.max(0, rowIndex)
-}
-
-function resolveColumnIndex(columnKey: string): number {
-  return orderedColumns.value.findIndex(column => column.key === columnKey)
-}
-
-function clampRowIndex(rowIndex: number): number {
-  const maxRowIndex = Math.max(0, filteredAndSortedRows.value.length - 1)
-  return Math.max(0, Math.min(maxRowIndex, Math.trunc(rowIndex)))
-}
-
-function getFirstNavigableColumnIndex(): number {
-  return navigableColumnIndexes.value[0] ?? -1
-}
-
-function getLastNavigableColumnIndex(): number {
-  const indexes = navigableColumnIndexes.value
-  return indexes[indexes.length - 1] ?? -1
-}
-
-function resolveNearestNavigableColumnIndex(columnIndex: number, direction: 1 | -1 = 1): number {
-  const indexes = navigableColumnIndexes.value
-  if (!indexes.length) {
-    return -1
-  }
-  if (indexes.includes(columnIndex)) {
-    return columnIndex
-  }
-  if (direction > 0) {
-    return indexes.find(index => index >= columnIndex) ?? getLastNavigableColumnIndex()
-  }
-  for (let index = indexes.length - 1; index >= 0; index -= 1) {
-    const candidate = indexes[index]
-    if (candidate !== undefined && candidate <= columnIndex) {
-      return candidate
-    }
-  }
-  return getFirstNavigableColumnIndex()
-}
-
-function getAdjacentNavigableColumnIndex(columnIndex: number, direction: 1 | -1): number {
-  const indexes = navigableColumnIndexes.value
-  if (!indexes.length) {
-    return -1
-  }
-  const currentPos = indexes.indexOf(columnIndex)
-  if (currentPos === -1) {
-    return resolveNearestNavigableColumnIndex(columnIndex, direction)
-  }
-  const nextPos = Math.max(0, Math.min(indexes.length - 1, currentPos + direction))
-  return indexes[nextPos] ?? columnIndex
-}
-
-function positiveModulo(value: number, divisor: number): number {
-  if (divisor <= 0) {
-    return 0
-  }
-  const remainder = value % divisor
-  return remainder < 0 ? remainder + divisor : remainder
-}
-
-function applyCellSelection(nextCoord: CellCoord, extend: boolean, fallbackAnchor?: CellCoord, ensureVisible = true) {
-  const normalized = normalizeCellCoord(nextCoord)
-  if (!normalized) {
-    return
-  }
-  let nextAnchor: CellCoord
-  let nextFocus: CellCoord
-  if (extend) {
-    const anchor = cellAnchor.value ?? fallbackAnchor ?? activeCell.value ?? normalized
-    nextAnchor = normalizeCellCoord(anchor) ?? normalized
-    nextFocus = normalized
-  } else {
-    nextAnchor = normalized
-    nextFocus = normalized
-  }
-  if (!cellCoordsEqual(cellAnchor.value, nextAnchor)) {
-    cellAnchor.value = nextAnchor
-  }
-  if (!cellCoordsEqual(cellFocus.value, nextFocus)) {
-    cellFocus.value = nextFocus
-  }
-  if (!cellCoordsEqual(activeCell.value, normalized)) {
-    activeCell.value = normalized
-  }
-  if (ensureVisible) {
-    ensureCellVisible(normalized)
-  }
-}
-
-function isCoordInsideRange(coord: CellCoord, range: CellSelectionRange): boolean {
-  return (
-    coord.rowIndex >= range.startRow &&
-    coord.rowIndex <= range.endRow &&
-    coord.columnIndex >= range.startColumn &&
-    coord.columnIndex <= range.endColumn
-  )
 }
 
 function isRangeMoveModifierActive(event: MouseEvent | KeyboardEvent): boolean {
@@ -1961,16 +2034,6 @@ function resolveCopyRange(): CellSelectionRange | null {
   }
 }
 
-function normalizeClipboardValue(value: unknown): string {
-  if (typeof value === "undefined" || value === null) {
-    return ""
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value)
-  }
-  return String(value)
-}
-
 async function copySelection(trigger: "keyboard" | "context-menu"): Promise<boolean> {
   return clipboard.copySelection(trigger)
 }
@@ -1991,24 +2054,8 @@ async function onContextMenuAction(action: DataGridContextMenuActionId) {
   await contextMenuActionRouter.runContextMenuAction(action)
 }
 
-function resolveCellCoordFromDataset(rowId: string, columnKey: string): CellCoord | null {
-  const rowIndex = filteredAndSortedRows.value.findIndex(row => String(row.rowId) === rowId)
-  if (rowIndex < 0) {
-    return null
-  }
-  const columnIndex = resolveColumnIndex(columnKey)
-  if (columnIndex < 0) {
-    return null
-  }
-  return normalizeCellCoord({ rowIndex, columnIndex })
-}
-
 function ensureCellVisible(coord: CellCoord) {
   cellVisibilityScroller.ensureCellVisible(coord)
-}
-
-function resolveColumnIndexByAbsoluteX(absoluteX: number): number {
-  return pointerCellCoordResolver.resolveColumnIndexByAbsoluteX(absoluteX)
 }
 
 function resolveCellCoordFromPointer(clientX: number, clientY: number): CellCoord | null {
@@ -2059,253 +2106,6 @@ function onSelectionHandleMouseDown(event: MouseEvent) {
   fillPointer.value = { clientX: event.clientX, clientY: event.clientY }
   startInteractionAutoScroll()
   lastAction.value = "Fill handle active"
-}
-
-function applyRangeMove(): boolean {
-  const baseRange = rangeMoveBaseRange.value
-  const targetRange = rangeMovePreviewRange.value
-  if (!baseRange || !targetRange || rangesEqual(baseRange, targetRange)) {
-    return false
-  }
-  const beforeSnapshot = captureGridMutationSnapshot()
-
-  const sourceById = new Map(sourceRows.value.map(row => [row.rowId, row]))
-  const mutableById = new Map<string, IncidentRow>()
-  const statusNeedsRecompute = new Set<string>()
-  const moveEntries: Array<{
-    sourceRowId: string
-    sourceColumnKey: string
-    targetRowId: string
-    targetColumnKey: string
-    value: string
-  }> = []
-
-  const getMutableRow = (rowId: string): IncidentRow | null => {
-    const existing = mutableById.get(rowId)
-    if (existing) {
-      return existing
-    }
-    const source = sourceById.get(rowId)
-    if (!source) {
-      return null
-    }
-    const clone = { ...source }
-    mutableById.set(rowId, clone)
-    return clone
-  }
-
-  let blocked = 0
-  const sourceRowsSnapshot = filteredAndSortedRows.value
-  for (let rowOffset = 0; rowOffset <= baseRange.endRow - baseRange.startRow; rowOffset += 1) {
-    const sourceRowIndex = baseRange.startRow + rowOffset
-    const targetRowIndex = targetRange.startRow + rowOffset
-    const sourceRowNode = sourceRowsSnapshot[sourceRowIndex]
-    const targetRowNode = sourceRowsSnapshot[targetRowIndex]
-    if (!sourceRowNode || !targetRowNode) {
-      blocked += baseRange.endColumn - baseRange.startColumn + 1
-      continue
-    }
-    for (let columnOffset = 0; columnOffset <= baseRange.endColumn - baseRange.startColumn; columnOffset += 1) {
-      const sourceColumnIndex = baseRange.startColumn + columnOffset
-      const targetColumnIndex = targetRange.startColumn + columnOffset
-      const sourceColumn = orderedColumns.value[sourceColumnIndex]
-      const targetColumn = orderedColumns.value[targetColumnIndex]
-      if (!sourceColumn || !targetColumn || sourceColumn.key === "select" || targetColumn.key === "select") {
-        blocked += 1
-        continue
-      }
-      moveEntries.push({
-        sourceRowId: String(sourceRowNode.rowId),
-        sourceColumnKey: sourceColumn.key,
-        targetRowId: String(targetRowNode.rowId),
-        targetColumnKey: targetColumn.key,
-        value: normalizeClipboardValue(getRowCellValue(sourceRowNode, sourceColumn.key)),
-      })
-    }
-  }
-
-  if (!moveEntries.length) {
-    if (blocked > 0) {
-      lastAction.value = `Move blocked (${blocked} cells)`
-    }
-    return false
-  }
-
-  const sourceCellsToClear = new Map<string, Set<string>>()
-  for (const entry of moveEntries) {
-    const set = sourceCellsToClear.get(entry.sourceRowId) ?? new Set<string>()
-    set.add(entry.sourceColumnKey)
-    sourceCellsToClear.set(entry.sourceRowId, set)
-  }
-
-  for (const [rowId, columns] of sourceCellsToClear.entries()) {
-    const mutable = getMutableRow(rowId)
-    if (!mutable) {
-      blocked += columns.size
-      continue
-    }
-    for (const columnKey of columns) {
-      const didClear = clearValueForMove(mutable, columnKey)
-      if (!didClear) {
-        blocked += 1
-        continue
-      }
-      if (columnKey === "latencyMs" || columnKey === "errorRate") {
-        statusNeedsRecompute.add(mutable.rowId)
-      }
-    }
-  }
-
-  let applied = 0
-  for (const entry of moveEntries) {
-    const mutable = getMutableRow(entry.targetRowId)
-    if (!mutable) {
-      blocked += 1
-      continue
-    }
-    const didApply = applyValueForMove(mutable, entry.targetColumnKey, entry.value)
-    if (!didApply) {
-      blocked += 1
-      continue
-    }
-    if (entry.targetColumnKey === "latencyMs" || entry.targetColumnKey === "errorRate") {
-      statusNeedsRecompute.add(mutable.rowId)
-    }
-    applied += 1
-  }
-
-  for (const rowId of statusNeedsRecompute) {
-    const row = mutableById.get(rowId)
-    if (!row) continue
-    row.status = resolveStatus(row.latencyMs, row.errorRate)
-  }
-
-  sourceRows.value = sourceRows.value.map(row => mutableById.get(row.rowId) ?? row)
-  cellAnchor.value = { rowIndex: targetRange.startRow, columnIndex: targetRange.startColumn }
-  cellFocus.value = { rowIndex: targetRange.endRow, columnIndex: targetRange.endColumn }
-  activeCell.value = { rowIndex: targetRange.startRow, columnIndex: targetRange.startColumn }
-  void recordIntentTransaction(
-    {
-      intent: "move",
-      label: blocked > 0
-        ? `Move ${applied} cells (blocked ${blocked})`
-        : `Move ${applied} cells`,
-      affectedRange: targetRange,
-    },
-    beforeSnapshot,
-  )
-  lastAction.value = blocked > 0
-    ? `Moved ${applied} cells, blocked ${blocked}`
-    : `Moved ${applied} cells`
-  return applied > 0
-}
-
-function applyFillPreview() {
-  const baseRange = fillBaseRange.value
-  const previewRange = fillPreviewRange.value
-  if (!baseRange || !previewRange || rangesEqual(baseRange, previewRange)) {
-    return
-  }
-  const beforeSnapshot = captureGridMutationSnapshot()
-
-  const displayedRows = filteredAndSortedRows.value
-  if (!displayedRows.length) {
-    return
-  }
-
-  const baseHeight = baseRange.endRow - baseRange.startRow + 1
-  if (baseHeight <= 0) {
-    return
-  }
-
-  const sourceById = new Map(sourceRows.value.map(row => [row.rowId, row]))
-  const mutableById = new Map<string, IncidentRow>()
-  const statusNeedsRecompute = new Set<string>()
-  const baseEditableKeys = new Set<EditableColumnKey>()
-
-  for (let columnIndex = baseRange.startColumn; columnIndex <= baseRange.endColumn; columnIndex += 1) {
-    const column = orderedColumns.value[columnIndex]
-    if (column && isEditableColumn(column.key)) {
-      baseEditableKeys.add(column.key)
-    }
-  }
-  if (!baseEditableKeys.size) {
-    return
-  }
-
-  const getMutableRow = (rowId: string): IncidentRow | null => {
-    const existing = mutableById.get(rowId)
-    if (existing) {
-      return existing
-    }
-    const sourceRow = sourceById.get(rowId)
-    if (!sourceRow) {
-      return null
-    }
-    const clone = { ...sourceRow }
-    mutableById.set(rowId, clone)
-    return clone
-  }
-
-  let changedCells = 0
-  for (let rowIndex = previewRange.startRow; rowIndex <= previewRange.endRow; rowIndex += 1) {
-    const destinationDisplayRow = displayedRows[rowIndex]
-    if (!destinationDisplayRow) {
-      continue
-    }
-    for (let columnIndex = previewRange.startColumn; columnIndex <= previewRange.endColumn; columnIndex += 1) {
-      if (isCellWithinRange(rowIndex, columnIndex, baseRange)) {
-        continue
-      }
-      const column = orderedColumns.value[columnIndex]
-      if (!column || !isEditableColumn(column.key) || !baseEditableKeys.has(column.key)) {
-        continue
-      }
-
-      const sourceRowIndex = baseRange.startRow + positiveModulo(rowIndex - baseRange.startRow, baseHeight)
-      const sourceDisplayRow = displayedRows[sourceRowIndex]
-      if (!sourceDisplayRow) {
-        continue
-      }
-
-      const sourceRow = sourceById.get(sourceDisplayRow.rowId)
-      const destinationRow = getMutableRow(destinationDisplayRow.rowId)
-      if (!sourceRow || !destinationRow) {
-        continue
-      }
-
-      const nextValue = getRowCellValue(sourceRow, column.key)
-      applyEditedValue(destinationRow, column.key, String(nextValue ?? ""))
-      if (column.key === "latencyMs" || column.key === "errorRate") {
-        statusNeedsRecompute.add(destinationRow.rowId)
-      }
-      changedCells += 1
-    }
-  }
-
-  if (changedCells === 0) {
-    return
-  }
-
-  for (const rowId of statusNeedsRecompute) {
-    const row = mutableById.get(rowId)
-    if (!row) continue
-    row.status = resolveStatus(row.latencyMs, row.errorRate)
-  }
-
-  sourceRows.value = sourceRows.value.map(row => mutableById.get(row.rowId) ?? row)
-  cellAnchor.value = { rowIndex: previewRange.startRow, columnIndex: previewRange.startColumn }
-  cellFocus.value = { rowIndex: previewRange.endRow, columnIndex: previewRange.endColumn }
-  activeCell.value = { rowIndex: previewRange.endRow, columnIndex: previewRange.endColumn }
-  void recordIntentTransaction(
-    {
-      intent: "fill",
-      label: `Fill ${changedCells} cells`,
-      affectedRange: previewRange,
-    },
-    beforeSnapshot,
-  )
-  lastAction.value = `Fill applied (${changedCells} cells)`
 }
 
 function stopFillSelection(applyPreview: boolean) {
@@ -2378,64 +2178,6 @@ function onViewportKeyDown(event: KeyboardEvent) {
   cellNavigation.dispatchNavigation(event)
 }
 
-function isCellInSelection(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
-  const range = cellSelectionRange.value
-  if (!range || columnKey === "select") {
-    return false
-  }
-  const rowIndex = resolveRowIndex(row)
-  const columnIndex = resolveColumnIndex(columnKey)
-  if (columnIndex < 0) {
-    return false
-  }
-  return (
-    rowIndex >= range.startRow &&
-    rowIndex <= range.endRow &&
-    columnIndex >= range.startColumn &&
-    columnIndex <= range.endColumn
-  )
-}
-
-function isCellInCopiedRange(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
-  const range = copiedSelectionRange.value
-  if (!range || columnKey === "select") {
-    return false
-  }
-  const rowIndex = resolveRowIndex(row)
-  const columnIndex = resolveColumnIndex(columnKey)
-  if (columnIndex < 0) {
-    return false
-  }
-  return (
-    rowIndex >= range.startRow &&
-    rowIndex <= range.endRow &&
-    columnIndex >= range.startColumn &&
-    columnIndex <= range.endColumn
-  )
-}
-
-function isAnchorCell(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
-  if (!cellAnchor.value || columnKey === "select") {
-    return false
-  }
-  return resolveRowIndex(row) === cellAnchor.value.rowIndex && resolveColumnIndex(columnKey) === cellAnchor.value.columnIndex
-}
-
-function isActiveCell(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
-  if (!activeCell.value || columnKey === "select") {
-    return false
-  }
-  return resolveRowIndex(row) === activeCell.value.rowIndex && resolveColumnIndex(columnKey) === activeCell.value.columnIndex
-}
-
-function isRangeEndCell(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
-  const range = cellSelectionRange.value
-  if (!range || columnKey === "select") {
-    return false
-  }
-  return resolveRowIndex(row) === range.endRow && resolveColumnIndex(columnKey) === range.endColumn
-}
-
 function isGroupStartRow(row: DataGridRowNode<IncidentRow>): boolean {
   return isGroupStartRowId(String(row.rowId))
 }
@@ -2449,55 +2191,6 @@ function shouldShowGroupBadge(row: DataGridRowNode<IncidentRow>, columnKey: stri
 
 function resolveGroupBadgeText(row: DataGridRowNode<IncidentRow>): string {
   return resolveGroupBadgeTextByRowId(String(row.rowId))
-}
-
-function shouldShowFillHandle(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
-  if (isFillDragging.value || inlineEditor.value) {
-    return false
-  }
-  return isRangeEndCell(row, columnKey)
-}
-
-function isCellInFillPreview(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
-  const preview = fillPreviewRange.value
-  const base = fillBaseRange.value
-  if (!isFillDragging.value || !preview || columnKey === "select") {
-    return false
-  }
-  const rowIndex = resolveRowIndex(row)
-  const columnIndex = resolveColumnIndex(columnKey)
-  if (columnIndex < 0) {
-    return false
-  }
-  const inPreview = isCellWithinRange(rowIndex, columnIndex, preview)
-  if (!inPreview) {
-    return false
-  }
-  if (!base) {
-    return true
-  }
-  return !isCellWithinRange(rowIndex, columnIndex, base)
-}
-
-function isCellInMovePreview(row: DataGridRowNode<IncidentRow>, columnKey: string): boolean {
-  const preview = rangeMovePreviewRange.value
-  const base = rangeMoveBaseRange.value
-  if (!isRangeMoving.value || !preview || columnKey === "select") {
-    return false
-  }
-  const rowIndex = resolveRowIndex(row)
-  const columnIndex = resolveColumnIndex(columnKey)
-  if (columnIndex < 0) {
-    return false
-  }
-  const inPreview = isCellWithinRange(rowIndex, columnIndex, preview)
-  if (!inPreview) {
-    return false
-  }
-  if (!base) {
-    return true
-  }
-  return !isCellWithinRange(rowIndex, columnIndex, base)
 }
 
 function onViewportScroll(event: Event) {
