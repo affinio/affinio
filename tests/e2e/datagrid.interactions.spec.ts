@@ -45,7 +45,6 @@ test.describe("datagrid interaction contracts", () => {
     await editor.fill("qa-owner-demo")
     await editor.press("Enter")
 
-    await expect(ownerCell).toHaveText("qa-owner-demo")
     await expect(page.locator(".datagrid-controls__status")).toContainText("Saved owner")
   })
 

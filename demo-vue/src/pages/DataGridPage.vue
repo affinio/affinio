@@ -86,7 +86,7 @@ import {
   useDataGridViewportBlurHandler,
   useDataGridViewportScrollLifecycle,
   useDataGridViewportContextMenuRouter,
-} from "@affino/datagrid-vue/advanced"
+} from "@affino/datagrid-vue/internal"
 
 type Severity = "critical" | "high" | "medium" | "low"
 type Status = "stable" | "watch" | "degraded"
@@ -285,6 +285,7 @@ const rangeMovePointer = ref<{ clientX: number; clientY: number } | null>(null)
 const rangeMoveBaseRange = ref<CellSelectionRange | null>(null)
 const rangeMoveOrigin = ref<CellCoord | null>(null)
 const rangeMovePreviewRange = ref<CellSelectionRange | null>(null)
+const shouldClearSourceOnRangeMove = ref(true)
 
 let lastDragCoord: CellCoord | null = null
 let ensureCellVisibleByCoord: ((coord: CellCoord) => void) | null = null
@@ -796,7 +797,12 @@ const rangeMutationEngine = useDataGridRangeMutationEngine<
   normalizeClipboardValue,
   isEditableColumn,
   applyValueForMove,
-  clearValueForMove,
+  clearValueForMove(row, columnKey) {
+    if (!shouldClearSourceOnRangeMove.value) {
+      return true
+    }
+    return clearValueForMove(row, columnKey)
+  },
   applyEditedValue(row, columnKey, draft) {
     if (!isEditableColumn(columnKey)) {
       return
@@ -895,11 +901,38 @@ const {
   isSelectEditorCell,
   beginInlineEdit,
   cancelInlineEdit,
-  commitInlineEdit,
+  commitInlineEdit: commitInlineEditCore,
   updateEditorDraft,
   onEditorInput,
   onEditorSelectChange: onEditorAffinoSelectChange,
 } = inlineEditOrchestration
+const commitInlineEdit = () => {
+  const currentEditor = inlineEditor.value
+  if (currentEditor && viewportRef.value) {
+    const selector = `[data-inline-editor-row-id="${currentEditor.rowId}"][data-inline-editor-column-key="${currentEditor.columnKey}"]`
+    const host = viewportRef.value.querySelector(selector)
+    const input = host && (host.matches("input,textarea,select") ? host : host.querySelector("input,textarea,select"))
+    if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement || input instanceof HTMLSelectElement) {
+      updateEditorDraft(input.value)
+    }
+  }
+  const committed = commitInlineEditCore()
+  if (committed) {
+    resetVisibleRowsSyncCache()
+    syncVisibleRows()
+    if (currentEditor) {
+      const updatedRow = sourceRows.value.find(row => row.rowId === currentEditor.rowId)
+      if (updatedRow) {
+        visibleRows.value = visibleRows.value.map(node =>
+          node.rowId === currentEditor.rowId
+            ? { ...node, data: updatedRow, row: updatedRow }
+            : node,
+        )
+      }
+    }
+  }
+  return committed
+}
 const enumTrigger = useDataGridEnumTrigger<DataGridRowNode<IncidentRow>, CellCoord, IncidentRow>({
   isEnumColumn,
   isInlineEditorOpen() {
@@ -1193,6 +1226,7 @@ const cellPointerDownRouter = useDataGridCellPointerDownRouter<DataGridRowNode<I
   },
   isCoordInsideRange,
   startRangeMove(coord, pointer) {
+    shouldClearSourceOnRangeMove.value = false
     return rangeMoveStart.startRangeMove(coord, pointer)
   },
   closeContextMenu: closeCopyContextMenu,
@@ -1219,6 +1253,21 @@ const cellPointerDownRouter = useDataGridCellPointerDownRouter<DataGridRowNode<I
   },
 })
 const onDataCellMouseDown = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) => {
+  if (
+    event.detail >= 2 &&
+    columnKey !== "select" &&
+    row.kind !== "group" &&
+    !event.shiftKey &&
+    !isRangeMoveModifierActive(event)
+  ) {
+    event.preventDefault()
+    event.stopPropagation()
+    stopDragSelection()
+    stopFillSelection(false)
+    stopRangeMove(false)
+    beginInlineEdit(row.data, columnKey)
+    return true
+  }
   if (!event.shiftKey && !isRangeMoveModifierActive(event) && copiedSelectionRange.value) {
     copiedSelectionRange.value = null
   }
@@ -1249,15 +1298,11 @@ const cellPointerHoverRouter = useDataGridCellPointerHoverRouter<DataGridRowNode
 })
 const onDataCellMouseEnter = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) =>
   cellPointerHoverRouter.dispatchCellPointerEnter(row, columnKey, event)
-const onDataCellClick = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) => {
-  const isDoubleClick = event.type === "dblclick" || event.detail >= 2
-  if (!isDoubleClick || event.button !== 0) {
-    return
-  }
+const onDataCellDoubleClick = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) => {
   if (columnKey === "select") {
     return
   }
-  if (row.kind !== "leaf") {
+  if (row.kind === "group") {
     return
   }
   if (event.shiftKey || isRangeMoveModifierActive(event)) {
@@ -1265,6 +1310,8 @@ const onDataCellClick = (row: DataGridRowNode<IncidentRow>, columnKey: string, e
   }
   // Dblclick should always enter edit mode even if a stale pointer interaction
   // flag remained set from the preceding click sequence.
+  event.preventDefault()
+  event.stopPropagation()
   stopDragSelection()
   stopFillSelection(false)
   stopRangeMove(false)
@@ -1388,6 +1435,7 @@ const selectionMoveHandle = useDataGridSelectionMoveHandle<
   isCellWithinRange,
   resolveCellCoord,
   startRangeMove(coord, pointer) {
+    shouldClearSourceOnRangeMove.value = true
     return rangeMoveStart.startRangeMove(coord, pointer)
   },
   isRangeMoving() {
@@ -1641,7 +1689,18 @@ const inlineEditorKeyRouter = useDataGridInlineEditorKeyRouter({
   resolveNextEditableTarget: inlineEditorTargetNavigation.resolveNextEditableTarget,
   focusInlineEditorTarget: inlineEditorTargetNavigation.focusInlineEditorTarget,
 })
-const onEditorKeyDown = inlineEditorKeyRouter.dispatchEditorKeyDown
+const onEditorKeyDown = (event: KeyboardEvent, rowId: string, columnKey: string) => {
+  if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
+    updateEditorDraft(event.target.value)
+    event.preventDefault()
+    commitInlineEdit()
+    return true
+  }
+  if (event.key === "Tab" && event.target instanceof HTMLInputElement) {
+    updateEditorDraft(event.target.value)
+  }
+  return inlineEditorKeyRouter.dispatchEditorKeyDown(event, rowId, columnKey)
+}
 const tabTargetResolver = useDataGridTabTargetResolver<CellCoord>({
   resolveNavigableColumnIndexes() {
     return navigableColumnIndexes.value
@@ -2109,6 +2168,7 @@ function stopFillSelection(applyPreview: boolean) {
 
 function stopRangeMove(applyPreview: boolean) {
   rangeMoveLifecycle.stopRangeMove(applyPreview)
+  shouldClearSourceOnRangeMove.value = true
 }
 
 function stopDragSelection() {
@@ -2321,6 +2381,8 @@ watch([query, sortState, appliedColumnFilters, groupBy], () => {
 
 watch(sourceRows, () => {
   reconcileRowSelection()
+  resetVisibleRowsSyncCache()
+  syncVisibleRows()
 })
 
 watch(
@@ -2852,8 +2914,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             :aria-labelledby="getHeaderCellId(column.key)"
             @mousedown="onDataCellMouseDown(row, column.key, $event)"
             @mouseenter="onDataCellMouseEnter(row, column.key, $event)"
-            @click="onDataCellClick(row, column.key, $event)"
-            @dblclick="onDataCellClick(row, column.key, $event)"
+            @dblclick="onDataCellDoubleClick(row, column.key, $event)"
           >
             <template v-if="column.key === 'select'">
               <input
