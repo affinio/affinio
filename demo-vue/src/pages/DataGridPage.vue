@@ -1211,8 +1211,12 @@ const cellPointerDownRouter = useDataGridCellPointerDownRouter<DataGridRowNode<I
     lastAction.value = message
   },
 })
-const onDataCellMouseDown = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) =>
-  cellPointerDownRouter.dispatchCellPointerDown(row, columnKey, event)
+const onDataCellMouseDown = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) => {
+  if (!event.shiftKey && !isRangeMoveModifierActive(event) && copiedSelectionRange.value) {
+    copiedSelectionRange.value = null
+  }
+  return cellPointerDownRouter.dispatchCellPointerDown(row, columnKey, event)
+}
 const cellPointerHoverRouter = useDataGridCellPointerHoverRouter<DataGridRowNode<IncidentRow>, CellCoord>({
   hasInlineEditor() {
     return inlineEditor.value !== null

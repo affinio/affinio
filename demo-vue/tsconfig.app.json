@@ -23,6 +23,8 @@
       "@affino/datagrid-theme/*": ["../packages/datagrid-theme/src/*"],
       "@affino/datagrid-plugins": ["../packages/datagrid-plugins/src/index.ts"],
       "@affino/datagrid-plugins/*": ["../packages/datagrid-plugins/src/*"],
+      "@affino/datagrid-orchestration": ["../packages/datagrid-orchestration/src/index.ts"],
+      "@affino/datagrid-orchestration/*": ["../packages/datagrid-orchestration/src/*"],
       "@affino/datagrid-vue": ["../packages/datagrid-vue/src/index.ts"],
       "@affino/datagrid-vue/*": ["../packages/datagrid-vue/src/*"],
       "@affino/focus-utils": ["../packages/focus-utils/src/index.ts"],
