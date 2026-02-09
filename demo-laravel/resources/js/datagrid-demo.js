@@ -141,6 +141,9 @@ function mountDatagridDemo(root) {
     void api.start();
 
     let frameHandle = null;
+    let suppressedScrollEvents = 0;
+    let lastScrollTop = viewport.scrollTop;
+    let lastScrollLeft = viewport.scrollLeft;
 
     const debugAutoScroll =
         root.dataset.datagridDebugAutoscroll === "true" ||
@@ -168,6 +171,30 @@ function mountDatagridDemo(root) {
             frameHandle = null;
             render();
         });
+    };
+
+    const setViewportScroll = (nextTop, nextLeft, reason = "programmatic") => {
+        const maxTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+        const maxLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+        const resolvedTop = clamp(Math.round(Number(nextTop) || 0), 0, maxTop);
+        const resolvedLeft = clamp(Math.round(Number(nextLeft) || 0), 0, maxLeft);
+        const changed = resolvedTop !== viewport.scrollTop || resolvedLeft !== viewport.scrollLeft;
+        if (!changed) {
+            return false;
+        }
+
+        suppressedScrollEvents = Math.max(suppressedScrollEvents, 2);
+        viewport.scrollTop = resolvedTop;
+        viewport.scrollLeft = resolvedLeft;
+        lastScrollTop = resolvedTop;
+        lastScrollLeft = resolvedLeft;
+
+        logAutoScroll("setViewportScroll", {
+            reason,
+            top: resolvedTop,
+            left: resolvedLeft,
+        });
+        return true;
     };
 
     const clearHistory = () => {
@@ -320,17 +347,32 @@ function mountDatagridDemo(root) {
         const node = rowsHost.querySelector(selector);
         if (node instanceof HTMLElement) {
             node.focus({ preventScroll: true });
-            const beforeTop = viewport.scrollTop;
-            const beforeLeft = viewport.scrollLeft;
-            node.scrollIntoView({ block: "nearest", inline: "nearest" });
-            logAutoScroll("scrollIntoView", {
-                rowIndex: activeCell.rowIndex,
-                columnKey: activeCell.columnKey,
-                beforeTop,
-                beforeLeft,
-                afterTop: viewport.scrollTop,
-                afterLeft: viewport.scrollLeft,
-            });
+            const viewportRect = viewport.getBoundingClientRect();
+            const nodeRect = node.getBoundingClientRect();
+            const headerHeight = header instanceof HTMLElement ? header.offsetHeight : ROW_HEIGHT;
+            const bodyTop = viewportRect.top + headerHeight;
+
+            let nextTop = viewport.scrollTop;
+            let nextLeft = viewport.scrollLeft;
+
+            if (nodeRect.top < bodyTop) {
+                nextTop -= bodyTop - nodeRect.top;
+            } else if (nodeRect.bottom > viewportRect.bottom) {
+                nextTop += nodeRect.bottom - viewportRect.bottom;
+            }
+
+            const targetColumn = resolveVisibleColumns().find((column) => column.key === activeCell.columnKey);
+            if (targetColumn && targetColumn.pin !== "left" && targetColumn.pin !== "right") {
+                if (nodeRect.left < viewportRect.left) {
+                    nextLeft -= viewportRect.left - nodeRect.left;
+                } else if (nodeRect.right > viewportRect.right) {
+                    nextLeft += nodeRect.right - viewportRect.right;
+                }
+            }
+
+            if (setViewportScroll(nextTop, nextLeft, "ensure-visible-node")) {
+                requestRender();
+            }
             return;
         }
 
@@ -380,19 +422,9 @@ function mountDatagridDemo(root) {
             }
         }
 
-        if (nextTop !== viewport.scrollTop) {
-            viewport.scrollTop = nextTop;
+        if (setViewportScroll(nextTop, nextLeft, "ensure-visible-fallback")) {
+            requestRender();
         }
-        if (nextLeft !== viewport.scrollLeft) {
-            viewport.scrollLeft = nextLeft;
-        }
-
-        logAutoScroll("fallback", {
-            rowIndex: activeCell.rowIndex,
-            columnKey: activeCell.columnKey,
-            nextTop: viewport.scrollTop,
-            nextLeft: viewport.scrollLeft,
-        });
     };
 
     const isCellInSelectionRange = (rowIndex, columnIndex) => {
@@ -893,6 +925,18 @@ function mountDatagridDemo(root) {
     };
 
     const onScroll = () => {
+        if (suppressedScrollEvents > 0) {
+            suppressedScrollEvents -= 1;
+            return;
+        }
+
+        const nextTop = viewport.scrollTop;
+        const nextLeft = viewport.scrollLeft;
+        if (nextTop === lastScrollTop && nextLeft === lastScrollLeft) {
+            return;
+        }
+        lastScrollTop = nextTop;
+        lastScrollLeft = nextLeft;
         closeContextMenu();
         requestRender();
     };
@@ -1089,7 +1133,7 @@ function mountDatagridDemo(root) {
         }
 
         if (options.resetScroll !== false) {
-            viewport.scrollTop = 0;
+            setViewportScroll(0, viewport.scrollLeft, "projection-reset");
         }
         closeContextMenu();
         requestRender();
@@ -1348,6 +1392,8 @@ function mountDatagridDemo(root) {
     }
 
     function render() {
+        const renderScrollTop = viewport.scrollTop;
+        const renderScrollLeft = viewport.scrollLeft;
         const rowCount = api.getRowCount();
         const viewportHeight = Math.max(viewport.clientHeight - ROW_HEIGHT, ROW_HEIGHT);
         const visibleRows = Math.max(1, Math.ceil(viewportHeight / ROW_HEIGHT) + OVERSCAN_ROWS * 2);
@@ -1374,6 +1420,10 @@ function mountDatagridDemo(root) {
 
         spacerTop.style.height = `${Math.max(0, start * ROW_HEIGHT)}px`;
         spacerBottom.style.height = `${Math.max(0, (rowCount - Math.max(end + 1, 0)) * ROW_HEIGHT)}px`;
+
+        if (viewport.scrollTop !== renderScrollTop || viewport.scrollLeft !== renderScrollLeft) {
+            setViewportScroll(renderScrollTop, renderScrollLeft, "render-stabilize");
+        }
 
         renderMeta(rowCount, start, end);
         if (editingCell) {

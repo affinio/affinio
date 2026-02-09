@@ -3,6 +3,14 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import AffinoSelect from "@/components/AffinoSelect.vue"
 import ThemeToggle from "@/components/ThemeToggle.vue"
 import {
+  UiMenu,
+  UiMenuTrigger,
+  UiMenuContent,
+  UiMenuItem,
+  UiMenuLabel,
+  UiMenuSeparator,
+} from "@affino/menu-vue"
+import {
   createDataGridSelectionSummary,
   evaluateDataGridAdvancedFilterExpression,
   type DataGridColumnDef,
@@ -183,6 +191,8 @@ type AdvancedFilterPreset =
   | "risk-hotspots"
   | "production-critical"
 
+type SetFilterApplyMode = "replace" | "add"
+
 const ROW_HEIGHT = 38
 const OVERSCAN = 8
 const DRAG_AUTO_SCROLL_EDGE_PX = 36
@@ -233,6 +243,17 @@ const advancedFilterPresetOptions = [
   { value: "risk-hotspots", label: "Risk hotspots" },
   { value: "production-critical", label: "Production critical" },
 ] as const
+const columnSetFilterSearch = ref("")
+const columnSetFilterApplyMode = ref<SetFilterApplyMode>("replace")
+const columnSetFilterSelectedValues = ref<string[]>([])
+
+const activeGroupByOption = computed(() => (
+  groupByOptions.find(option => option.value === groupBy.value) ?? groupByOptions[0]
+))
+const activeAdvancedFilterPresetOption = computed(() => (
+  advancedFilterPresetOptions.find(option => option.value === advancedFilterPreset.value)
+  ?? advancedFilterPresetOptions[0]
+))
 
 const COLUMN_VISIBILITY_PRESETS: Record<ColumnVisibilityPreset, readonly string[]> = {
   all: [
@@ -695,7 +716,6 @@ const {
   canApplyActiveColumnFilter,
   isColumnFilterActive,
   openColumnFilter,
-  onHeaderFilterTriggerClick,
   closeColumnFilterPanel,
   onFilterOperatorChange,
   onFilterEnumValueChange,
@@ -707,6 +727,176 @@ const {
   clearAllColumnFilters,
   rowMatchesColumnFilters,
 } = columnFilterOrchestration
+
+function parseFilterValueList(raw: string | null | undefined): string[] {
+  const normalized = String(raw ?? "").trim()
+  if (!normalized) {
+    return []
+  }
+  try {
+    const parsed = JSON.parse(normalized)
+    if (!Array.isArray(parsed)) {
+      return [normalized]
+    }
+    return parsed
+      .map(item => String(item ?? "").trim())
+      .filter(Boolean)
+  } catch {
+    return [normalized]
+  }
+}
+
+function serializeFilterValueList(values: readonly string[]): string {
+  return JSON.stringify(
+    values
+      .map(value => String(value ?? "").trim())
+      .filter(Boolean),
+  )
+}
+
+function resolveInitialSetFilterValues(): string[] {
+  const draft = columnFilterDraft.value
+  if (!draft || draft.kind === "number") {
+    return []
+  }
+  if (draft.operator === "in-list" || draft.operator === "not-in-list") {
+    return parseFilterValueList(draft.value)
+  }
+  const normalizedValue = draft.value.trim()
+  if (!normalizedValue) {
+    return []
+  }
+  if (draft.kind === "enum" || draft.operator === "equals") {
+    return [normalizedValue]
+  }
+  return []
+}
+
+function initializeSetFilterState(): void {
+  columnSetFilterSearch.value = ""
+  columnSetFilterApplyMode.value = "replace"
+  columnSetFilterSelectedValues.value = resolveInitialSetFilterValues()
+}
+
+watch(
+  () => [
+    columnFilterDraft.value?.columnKey ?? "",
+    columnFilterDraft.value?.operator ?? "",
+    columnFilterDraft.value?.value ?? "",
+  ],
+  () => {
+    initializeSetFilterState()
+  },
+  { immediate: true },
+)
+
+const isSetFilterEnabled = computed(() => {
+  const draft = columnFilterDraft.value
+  return Boolean(draft && draft.kind !== "number")
+})
+
+const setFilterUniqueOptions = computed(() => {
+  const draft = columnFilterDraft.value
+  if (!draft || draft.kind === "number") {
+    return [] as string[]
+  }
+  const values = new Set<string>()
+  for (const row of sourceRows.value) {
+    const value = String(getRowCellValue(row, draft.columnKey) ?? "").trim()
+    if (value) {
+      values.add(value)
+    }
+  }
+  return [...values].sort((left, right) =>
+    left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }),
+  )
+})
+
+const normalizedSetFilterSearch = computed(() => columnSetFilterSearch.value.trim().toLowerCase())
+
+const setFilterVisibleOptions = computed(() => {
+  const search = normalizedSetFilterSearch.value
+  if (!search) {
+    return setFilterUniqueOptions.value
+  }
+  return setFilterUniqueOptions.value.filter(option => option.toLowerCase().includes(search))
+})
+
+const setFilterSelectedValueSet = computed(() => new Set(columnSetFilterSelectedValues.value))
+const selectedSetFilterValueCount = computed(() => columnSetFilterSelectedValues.value.length)
+
+function isSetFilterValueSelected(value: string): boolean {
+  return setFilterSelectedValueSet.value.has(value)
+}
+
+function toggleSetFilterValue(value: string, checked: boolean): void {
+  const next = new Set(columnSetFilterSelectedValues.value)
+  if (checked) {
+    next.add(value)
+  } else {
+    next.delete(value)
+  }
+  columnSetFilterSelectedValues.value = setFilterUniqueOptions.value.filter(option => next.has(option))
+}
+
+function onSetFilterValueChange(value: string, event: Event): void {
+  const target = event.target
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+  toggleSetFilterValue(value, target.checked)
+}
+
+function selectAllVisibleSetFilterValues(): void {
+  const next = new Set(columnSetFilterSelectedValues.value)
+  for (const value of setFilterVisibleOptions.value) {
+    next.add(value)
+  }
+  columnSetFilterSelectedValues.value = setFilterUniqueOptions.value.filter(option => next.has(option))
+}
+
+function clearSetFilterSelection(): void {
+  columnSetFilterSelectedValues.value = []
+}
+
+function applySetFilterSelection(): void {
+  const draft = columnFilterDraft.value
+  if (!draft || draft.kind === "number") {
+    return
+  }
+
+  const next = new Set<string>()
+  if (columnSetFilterApplyMode.value === "add") {
+    for (const value of resolveInitialSetFilterValues()) {
+      next.add(value)
+    }
+  }
+  for (const value of columnSetFilterSelectedValues.value) {
+    next.add(value)
+  }
+
+  const values = setFilterUniqueOptions.value.filter(option => next.has(option))
+  if (!values.length) {
+    onFilterValueInput("")
+    applyActiveColumnFilter()
+    return
+  }
+  onFilterOperatorChange("in-list")
+  onFilterValueInput(serializeFilterValueList(values))
+  applyActiveColumnFilter()
+}
+
+function openHeaderFilterMenu(columnKey: string): void {
+  openColumnFilter(columnKey)
+}
+
+function onHeaderFilterMenuClose(columnKey: string): void {
+  if (activeFilterColumnKey.value !== columnKey) {
+    return
+  }
+  closeColumnFilterPanel()
+}
+
 const {
   contextMenu: copyContextMenu,
   contextMenuRef: copyMenuRef,
@@ -2990,13 +3180,27 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           :options="sortPresetOptions"
         />
       </label>
-      <label>
+      <label class="datagrid-controls__menu-field">
         <span>Group by</span>
-        <AffinoSelect
-          v-model="groupBy"
-          class="datagrid-controls__select"
-          :options="groupByOptions"
-        />
+        <UiMenu>
+          <UiMenuTrigger as-child>
+            <button type="button" class="datagrid-controls__menu-trigger">
+              {{ activeGroupByOption?.label ?? "None" }}
+            </button>
+          </UiMenuTrigger>
+          <UiMenuContent class="ui-menu-content datagrid-controls__menu-content" side-offset="8">
+            <UiMenuLabel>Group rows</UiMenuLabel>
+            <UiMenuSeparator />
+            <UiMenuItem
+              v-for="option in groupByOptions"
+              :key="`group-by-${option.value}`"
+              @select="groupBy = option.value as GroupByColumnKey"
+            >
+              <span class="datagrid-controls__menu-check">{{ groupBy === option.value ? "✓" : "" }}</span>
+              <span>{{ option.label }}</span>
+            </UiMenuItem>
+          </UiMenuContent>
+        </UiMenu>
       </label>
       <label>
         <span>Columns</span>
@@ -3006,13 +3210,27 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           :options="columnVisibilityPresetOptions"
         />
       </label>
-      <label>
+      <label class="datagrid-controls__menu-field">
         <span>Advanced filter</span>
-        <AffinoSelect
-          v-model="advancedFilterPreset"
-          class="datagrid-controls__select"
-          :options="advancedFilterPresetOptions"
-        />
+        <UiMenu>
+          <UiMenuTrigger as-child>
+            <button type="button" class="datagrid-controls__menu-trigger">
+              {{ activeAdvancedFilterPresetOption?.label ?? "None" }}
+            </button>
+          </UiMenuTrigger>
+          <UiMenuContent class="ui-menu-content datagrid-controls__menu-content" side-offset="8">
+            <UiMenuLabel>Advanced presets</UiMenuLabel>
+            <UiMenuSeparator />
+            <UiMenuItem
+              v-for="option in advancedFilterPresetOptions"
+              :key="`advanced-filter-${option.value}`"
+              @select="advancedFilterPreset = option.value as AdvancedFilterPreset"
+            >
+              <span class="datagrid-controls__menu-check">{{ advancedFilterPreset === option.value ? "✓" : "" }}</span>
+              <span>{{ option.label }}</span>
+            </UiMenuItem>
+          </UiMenuContent>
+        </UiMenu>
       </label>
       <label class="datagrid-controls__toggle">
         <input v-model="pinStatusColumn" type="checkbox" />
@@ -3051,80 +3269,6 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <p class="datagrid-controls__filter-indicator" :data-active="isAdvancedFilterActive ? 'true' : 'false'">
         Advanced filter: {{ advancedFilterSummary }}
       </p>
-      <section
-        v-if="columnFilterDraft"
-        class="datagrid-column-filter"
-        data-datagrid-filter-panel
-        :data-column-key="columnFilterDraft.columnKey"
-        role="dialog"
-        :aria-labelledby="FILTER_PANEL_TITLE_ID"
-      >
-        <header class="datagrid-column-filter__header">
-          <p>Column filter</p>
-          <strong :id="FILTER_PANEL_TITLE_ID">{{ activeFilterColumnLabel }}</strong>
-        </header>
-        <label>
-          <span>Operator</span>
-          <AffinoSelect
-            class="datagrid-column-filter__select"
-            data-datagrid-filter-operator
-            :model-value="columnFilterDraft.operator"
-            :options="columnFilterOperatorOptions"
-            @update:modelValue="onFilterOperatorChange"
-          />
-        </label>
-        <label v-if="columnFilterDraft.kind === 'enum'">
-          <span>Value</span>
-          <AffinoSelect
-            class="datagrid-column-filter__select"
-            data-datagrid-filter-value-select
-            :model-value="columnFilterDraft.value"
-            :options="activeColumnFilterEnumOptions"
-            @update:modelValue="onFilterEnumValueChange"
-          />
-        </label>
-        <label v-else>
-          <span>Value</span>
-          <input
-            data-datagrid-filter-value
-            :type="columnFilterDraft.kind === 'number' ? 'number' : 'text'"
-            :step="columnFilterDraft.kind === 'number' ? '0.01' : undefined"
-            :value="columnFilterDraft.value"
-            @input="onFilterValueInput"
-          />
-        </label>
-        <label v-if="doesOperatorNeedSecondValue(columnFilterDraft.kind, columnFilterDraft.operator)">
-          <span>And</span>
-          <input
-            data-datagrid-filter-value-2
-            type="number"
-            step="0.01"
-            :value="columnFilterDraft.value2"
-            @input="onFilterSecondValueInput"
-          />
-        </label>
-        <div class="datagrid-column-filter__actions">
-          <button
-            type="button"
-            data-datagrid-filter-apply
-            :disabled="!canApplyActiveColumnFilter"
-            @click="applyActiveColumnFilter"
-          >
-            Apply
-          </button>
-          <button type="button" class="ghost" data-datagrid-filter-reset @click="resetActiveColumnFilter">Reset</button>
-          <button
-            type="button"
-            class="ghost"
-            data-datagrid-filter-clear-all
-            :disabled="!hasColumnFilters"
-            @click="clearAllColumnFilters"
-          >
-            Clear all
-          </button>
-          <button type="button" class="ghost" data-datagrid-filter-close @click="closeColumnFilterPanel">Close</button>
-        </div>
-      </section>
       <p class="datagrid-controls__status">{{ lastAction }} · Double-click any editable cell for inline edit.</p>
     </section>
 
@@ -3264,19 +3408,179 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
                   {{ getHeaderSortPriority(column.key) }}
                 </span>
               </span>
-              <button
-                type="button"
-                class="datagrid-stage__filter-trigger"
-                :class="{ 'is-active': isColumnFilterActive(column.key) }"
-                :data-column-key="column.key"
-                data-datagrid-filter-trigger
-                :aria-label="`Filter ${column.column.label ?? column.key}`"
-                :aria-expanded="activeFilterColumnKey === column.key ? 'true' : 'false'"
-                @click.stop="onHeaderFilterTriggerClick(column.key)"
-                @keydown.stop
-              >
-                F
-              </button>
+              <UiMenu :callbacks="{ onClose: () => onHeaderFilterMenuClose(column.key) }">
+                <UiMenuTrigger as-child>
+                  <button
+                    type="button"
+                    class="datagrid-stage__filter-trigger"
+                    :class="{ 'is-active': isColumnFilterActive(column.key) }"
+                    :data-column-key="column.key"
+                    data-datagrid-filter-trigger
+                    :aria-label="`Filter ${column.column.label ?? column.key}`"
+                    :aria-expanded="activeFilterColumnKey === column.key ? 'true' : 'false'"
+                    @click.stop="openHeaderFilterMenu(column.key)"
+                    @keydown.stop
+                  >
+                    F
+                  </button>
+                </UiMenuTrigger>
+                <UiMenuContent
+                  class="ui-menu-content datagrid-column-filter datagrid-column-filter--menu"
+                  side-offset="6"
+                  :data-datagrid-filter-panel="activeFilterColumnKey === column.key ? 'true' : null"
+                  :data-column-key="activeFilterColumnKey === column.key ? column.key : null"
+                  :aria-labelledby="FILTER_PANEL_TITLE_ID"
+                  @pointerdown.stop
+                  @mousedown.stop
+                  @click.stop
+                >
+                  <template v-if="columnFilterDraft && activeFilterColumnKey === column.key">
+                    <header class="datagrid-column-filter__header">
+                      <p>Column filter</p>
+                      <strong :id="FILTER_PANEL_TITLE_ID">{{ activeFilterColumnLabel }}</strong>
+                    </header>
+                    <label>
+                      <span>Operator</span>
+                      <AffinoSelect
+                        class="datagrid-column-filter__select"
+                        data-datagrid-filter-operator
+                        :model-value="columnFilterDraft.operator"
+                        :options="columnFilterOperatorOptions"
+                        @update:modelValue="onFilterOperatorChange"
+                      />
+                    </label>
+                    <label v-if="columnFilterDraft.kind === 'enum'">
+                      <span>Value</span>
+                      <AffinoSelect
+                        class="datagrid-column-filter__select"
+                        data-datagrid-filter-value-select
+                        :model-value="columnFilterDraft.value"
+                        :options="activeColumnFilterEnumOptions"
+                        @update:modelValue="onFilterEnumValueChange"
+                      />
+                    </label>
+                    <label v-else>
+                      <span>Value</span>
+                      <input
+                        data-datagrid-filter-value
+                        :type="columnFilterDraft.kind === 'number' ? 'number' : 'text'"
+                        :step="columnFilterDraft.kind === 'number' ? '0.01' : undefined"
+                        :value="columnFilterDraft.value"
+                        @input="onFilterValueInput"
+                      />
+                    </label>
+                    <label v-if="doesOperatorNeedSecondValue(columnFilterDraft.kind, columnFilterDraft.operator)">
+                      <span>And</span>
+                      <input
+                        data-datagrid-filter-value-2
+                        type="number"
+                        step="0.01"
+                        :value="columnFilterDraft.value2"
+                        @input="onFilterSecondValueInput"
+                      />
+                    </label>
+                    <section
+                      v-if="isSetFilterEnabled"
+                      class="datagrid-column-filter__set"
+                      data-datagrid-filter-set
+                    >
+                      <header class="datagrid-column-filter__set-header">
+                        <p>Excel set filter</p>
+                        <strong>{{ selectedSetFilterValueCount }} selected</strong>
+                      </header>
+                      <label class="datagrid-column-filter__set-search">
+                        <span>Search values</span>
+                        <input
+                          v-model.trim="columnSetFilterSearch"
+                          data-datagrid-filter-set-search
+                          type="text"
+                          placeholder="Search unique values"
+                        />
+                      </label>
+                      <div class="datagrid-column-filter__set-mode">
+                        <button
+                          type="button"
+                          class="ghost"
+                          :class="{ 'is-active': columnSetFilterApplyMode === 'replace' }"
+                          :aria-pressed="columnSetFilterApplyMode === 'replace'"
+                          @click="columnSetFilterApplyMode = 'replace'"
+                        >
+                          Replace
+                        </button>
+                        <button
+                          type="button"
+                          class="ghost"
+                          :class="{ 'is-active': columnSetFilterApplyMode === 'add' }"
+                          :aria-pressed="columnSetFilterApplyMode === 'add'"
+                          @click="columnSetFilterApplyMode = 'add'"
+                        >
+                          Add to selected
+                        </button>
+                      </div>
+                      <div class="datagrid-column-filter__set-actions">
+                        <button type="button" class="ghost" @click="selectAllVisibleSetFilterValues">Select visible</button>
+                        <button type="button" class="ghost" @click="clearSetFilterSelection">Clear selected</button>
+                        <button
+                          type="button"
+                          data-datagrid-filter-apply-set
+                          :disabled="selectedSetFilterValueCount === 0 && columnSetFilterApplyMode === 'replace'"
+                          @click="applySetFilterSelection"
+                        >
+                          Apply set
+                        </button>
+                      </div>
+                      <div class="datagrid-column-filter__set-list" data-datagrid-filter-set-options>
+                        <label
+                          v-for="option in setFilterVisibleOptions"
+                          :key="`set-filter-option-${option}`"
+                          class="datagrid-column-filter__set-option"
+                        >
+                          <input
+                            type="checkbox"
+                            :checked="isSetFilterValueSelected(option)"
+                            @change="onSetFilterValueChange(option, $event)"
+                          />
+                          <span>{{ option }}</span>
+                        </label>
+                        <p v-if="setFilterVisibleOptions.length === 0" class="datagrid-column-filter__set-empty">
+                          No values matched search.
+                        </p>
+                      </div>
+                    </section>
+                    <div class="datagrid-column-filter__actions">
+                      <UiMenuItem
+                        data-datagrid-filter-apply
+                        :disabled="!canApplyActiveColumnFilter"
+                        @select="applyActiveColumnFilter"
+                      >
+                        Apply
+                      </UiMenuItem>
+                      <UiMenuItem
+                        class="ghost"
+                        data-datagrid-filter-reset
+                        @select="resetActiveColumnFilter"
+                      >
+                        Reset
+                      </UiMenuItem>
+                      <UiMenuItem
+                        class="ghost"
+                        data-datagrid-filter-clear-all
+                        :disabled="!hasColumnFilters"
+                        @select="clearAllColumnFilters"
+                      >
+                        Clear all
+                      </UiMenuItem>
+                      <UiMenuItem
+                        class="ghost"
+                        data-datagrid-filter-close
+                        @select="closeColumnFilterPanel"
+                      >
+                        Close
+                      </UiMenuItem>
+                    </div>
+                  </template>
+                </UiMenuContent>
+              </UiMenu>
               <button
                 v-if="isColumnResizable(column.key)"
                 type="button"

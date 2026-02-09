@@ -119,10 +119,22 @@
         max-height: 560px;
         max-width: 100%;
         width: 100%;
+        overscroll-behavior: contain;
+        overflow-anchor: none;
+        scroll-behavior: auto;
+        touch-action: pan-x pan-y;
+        -webkit-overflow-scrolling: touch;
     }
 
     .affino-datagrid-demo__rows {
         width: max-content;
+        overflow-anchor: none;
+    }
+
+    .affino-datagrid-demo__row,
+    [data-datagrid-spacer-top],
+    [data-datagrid-spacer-bottom] {
+        overflow-anchor: none;
     }
 
     .affino-datagrid-demo__selection-overlay {
