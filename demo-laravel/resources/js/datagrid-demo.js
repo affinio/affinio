@@ -1,9 +1,4 @@
-import {
-    createClientRowModel,
-    createDataGridApi,
-    createDataGridColumnModel,
-    createDataGridCore,
-} from "@affino/datagrid-core";
+import { createDataGridRuntime } from "@affino/datagrid-orchestration";
 
 const ROW_HEIGHT = 36;
 const OVERSCAN_ROWS = 8;
@@ -71,8 +66,8 @@ function mountDatagridDemo(root) {
     let sortMode = "latency-desc";
     let generation = 1;
 
-    const rowModel = createClientRowModel({ rows: activeRows });
-    const columnModel = createDataGridColumnModel({
+    const runtime = createDataGridRuntime({
+        rows: activeRows,
         columns: [
             { key: "service", label: "Service", width: 240, pin: "left" },
             { key: "owner", label: "Owner", width: 180 },
@@ -83,20 +78,7 @@ function mountDatagridDemo(root) {
             { key: "status", label: "Status", width: 130 },
         ],
     });
-
-    const core = createDataGridCore({
-        services: {
-            rowModel: { name: "rowModel", model: rowModel },
-            columnModel: { name: "columnModel", model: columnModel },
-            viewport: {
-                name: "viewport",
-                setViewportRange(range) {
-                    rowModel.setViewportRange(range);
-                },
-            },
-        },
-    });
-    const api = createDataGridApi({ core });
+    const { api, rowModel, core } = runtime;
     void api.start();
 
     let frameHandle = null;

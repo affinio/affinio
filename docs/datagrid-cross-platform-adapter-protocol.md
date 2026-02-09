@@ -55,6 +55,25 @@ Plugin host bridge is capability-based:
 Reference:
 - `/Users/anton/Projects/affinio/docs/datagrid-plugin-capability-model.md`
 
+## Thin Adapter Contract
+
+Adapters must stay thin and deterministic:
+
+- Vue adapter:
+  - reactivity/lifecycle/DOM bridge only;
+  - delegates orchestration logic to shared core (`@affino/datagrid-orchestration`).
+- Laravel/Livewire adapter:
+  - hydration/event bridge only;
+  - no duplicate runtime business logic in Blade/Livewire hooks.
+- React adapter:
+  - hooks/event bridge only;
+  - no framework-local forks of selection/fill/clipboard orchestration.
+
+Shared rule:
+
+- behavior logic lives in `@affino/datagrid-orchestration` (and core models/services);
+- adapters map host events and render concerns, not business state ownership.
+
 ## Compatibility Tests
 
 Contract tests:

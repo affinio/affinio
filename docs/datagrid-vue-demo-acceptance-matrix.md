@@ -39,6 +39,7 @@ This matrix defines blocking acceptance criteria for migration from demo-first i
 
 ## Execution Gate
 
+- Focused parity gate: `pnpm run test:e2e:datagrid:parity`
 - Primary command: `pnpm run test:e2e:critical`
 - Supporting strict contracts: `pnpm run test:datagrid:strict-contracts`
 - Quality lock gate: `pnpm run quality:lock:datagrid`
