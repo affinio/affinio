@@ -89,6 +89,15 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 - Root/stable entrypoint (`@affino/datagrid-vue`, `@affino/datagrid-vue/stable`) must not export advanced hooks.
 - Advanced entrypoint is for integrators who intentionally opt into lower-level orchestration APIs.
 
+## Perf Note
+
+- `useDataGridHeaderResizeOrchestration` supports `resizeApplyMode`:
+  - `raf` (default): coalesces pointer resize updates to one width apply per animation frame.
+  - `sync`: applies width immediately on every pointer update (useful for deterministic tests).
+- `useDataGridGlobalPointerLifecycle` supports `pointerPreviewApplyMode`:
+  - `sync` (default): immediate preview updates (deterministic tests / strict behavior checks).
+  - `raf`: coalesces range/fill/drag preview updates to one apply per animation frame for smoother pointer sessions.
+
 ## Contract Guards
 
 - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/__tests__/advancedApi.contract.spec.ts`

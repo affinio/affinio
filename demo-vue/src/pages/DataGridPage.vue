@@ -1414,6 +1414,7 @@ const headerResize = useDataGridHeaderResizeOrchestration<IncidentRow>({
   autoSizeCharWidth: AUTO_SIZE_CHAR_WIDTH,
   autoSizeHorizontalPadding: AUTO_SIZE_HORIZONTAL_PADDING,
   autoSizeMaxWidth: AUTO_SIZE_MAX_WIDTH,
+  resizeApplyMode: "raf",
 })
 const {
   activeColumnResize,
@@ -1958,6 +1959,7 @@ const globalPointerLifecycle = useDataGridGlobalPointerLifecycle({
   },
   applyDragSelectionFromPointer,
   stopDragSelection,
+  pointerPreviewApplyMode: "raf",
 })
 const onGlobalMouseMove = globalPointerLifecycle.dispatchGlobalMouseMove
 const onGlobalMouseUp = globalPointerLifecycle.dispatchGlobalMouseUp
@@ -1965,6 +1967,7 @@ const onGlobalPointerUp = globalPointerLifecycle.dispatchGlobalPointerUp
 const onGlobalPointerCancel = globalPointerLifecycle.dispatchGlobalPointerCancel
 const onGlobalContextMenuCapture = globalPointerLifecycle.dispatchGlobalContextMenuCapture
 const onGlobalWindowBlur = globalPointerLifecycle.dispatchGlobalWindowBlur
+const disposeGlobalPointerLifecycle = globalPointerLifecycle.dispose
 const globalMouseDownContextMenuCloser = useDataGridGlobalMouseDownContextMenuCloser({
   isContextMenuVisible() {
     return copyContextMenu.value.visible
@@ -2099,6 +2102,12 @@ const {
 function applyColumnVisibilityPreset(preset: ColumnVisibilityPreset): void {
   const maxColumns = Math.max(1, Math.min(columnCount.value, DATA_GRID_COLUMNS.length))
   const allowedKeys = new Set(DATA_GRID_COLUMNS.slice(0, maxColumns).map(column => column.key))
+  if (pinStatusColumn.value) {
+    allowedKeys.add("status")
+  }
+  if (pinUpdatedAtRight.value) {
+    allowedKeys.add("updatedAt")
+  }
   const presetKeys = new Set(COLUMN_VISIBILITY_PRESETS[preset] ?? COLUMN_VISIBILITY_PRESETS.all)
   const showAll = preset === "all"
   for (const column of DATA_GRID_COLUMNS) {
@@ -2591,7 +2600,7 @@ const selectionSummary = computed(() => {
       return orderedColumns.value[columnIndex]?.key ?? null
     },
     columns: [
-      { key: "latencyMs", aggregations: ["sum", "avg", "min", "max"] },
+      { key: "latencyMs", aggregations: ["count", "sum", "avg", "min", "max"] },
       { key: "errorRate", aggregations: ["avg", "max"] },
       { key: "owner", aggregations: ["countDistinct"] },
     ],
@@ -2611,6 +2620,79 @@ const selectedLatencyMax = computed(() => {
 })
 const selectedOwnersDistinct = computed(() => {
   return selectionSummary.value?.columns.owner?.metrics.countDistinct ?? null
+})
+const isSelectionBadgeVisible = computed(() => selectedCellsCount.value > 0)
+const selectionNumericSummary = computed(() => {
+  const range = cellSelectionRange.value
+  if (!range) {
+    return null
+  }
+
+  const rowCount = resolveDisplayRowCount()
+  if (rowCount <= 0) {
+    return null
+  }
+
+  const columns = orderedColumns.value
+  if (!columns.length) {
+    return null
+  }
+
+  let numericCount = 0
+  let numericSum = 0
+  let numericMin = Number.POSITIVE_INFINITY
+  let numericMax = Number.NEGATIVE_INFINITY
+
+  for (let rowIndex = range.startRow; rowIndex <= range.endRow; rowIndex += 1) {
+    const rowNode = resolveDisplayNodeAtIndex(rowIndex)
+    if (!rowNode || rowNode.kind !== "leaf") {
+      continue
+    }
+    for (let columnIndex = range.startColumn; columnIndex <= range.endColumn; columnIndex += 1) {
+      const column = columns[columnIndex]
+      if (!column) {
+        continue
+      }
+      const rawValue = getRowCellValue(rowNode.data, column.key)
+      const numeric = typeof rawValue === "number" ? rawValue : Number(rawValue)
+      if (!Number.isFinite(numeric)) {
+        continue
+      }
+      numericCount += 1
+      numericSum += numeric
+      if (numeric < numericMin) {
+        numericMin = numeric
+      }
+      if (numeric > numericMax) {
+        numericMax = numeric
+      }
+    }
+  }
+
+  if (numericCount === 0) {
+    return {
+      count: 0,
+      sum: null,
+      avg: null,
+      min: null,
+      max: null,
+    }
+  }
+
+  return {
+    count: numericCount,
+    sum: numericSum,
+    avg: numericSum / numericCount,
+    min: numericMin,
+    max: numericMax,
+  }
+})
+const selectionBadgeLine = computed(() => {
+  const summary = selectionNumericSummary.value
+  if (!summary || summary.count === 0) {
+    return "No numeric cells"
+  }
+  return `Count ${summary.count} · Min ${Math.round(summary.min ?? 0)} · Avg ${Math.round(summary.avg ?? 0)} · Max ${Math.round(summary.max ?? 0)} · Sum ${Math.round(summary.sum ?? 0)}`
 })
 const copiedCellsCount = computed(() => {
   const range = copiedSelectionRange.value
@@ -3129,6 +3211,7 @@ onBeforeUnmount(() => {
   stopDragSelection()
   stopRangeMove(false)
   pointerAutoScroll.dispose()
+  disposeGlobalPointerLifecycle()
   stopColumnResize()
   clearCopiedSelectionFlash()
   disposeVisibleRowsSyncScheduler()
@@ -3907,6 +3990,15 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 
         <div v-if="visibleRows.length === 0" class="datagrid-stage__empty">No rows matched current filters.</div>
         <div :style="{ height: `${spacerBottomHeight}px` }"></div>
+      </div>
+      <div
+        v-if="isSelectionBadgeVisible"
+        class="datagrid-selection-badge"
+        role="status"
+        aria-live="polite"
+      >
+        <div class="datagrid-selection-badge__title">Selection summary</div>
+        <div class="datagrid-selection-badge__line">{{ selectionBadgeLine }}</div>
       </div>
       </div>
       <p :id="GRID_HINT_ID" class="datagrid-stage__hint">Visible columns: {{ visibleColumnsWindow.keys }} · Tip: drag selection border to move range.</p>
