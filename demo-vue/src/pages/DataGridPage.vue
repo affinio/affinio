@@ -1149,7 +1149,7 @@ const rangeMutationEngine = useDataGridRangeMutationEngine<
     return row.rowId
   },
   applySourceRows(rows) {
-    sourceRows.value = rows
+    sourceRows.value = [...rows]
   },
   resolveDisplayedRows() {
     return materializeDisplayRows()

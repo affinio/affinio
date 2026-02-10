@@ -83,8 +83,10 @@ Goal: закрыть оставшиеся архитектурные/perf пун
 ## P1 (High)
 
 - [ ] Enforce phased async pipeline (`input -> compute -> apply`) across remaining hot interaction paths.
+  - Progress: `2026-02-10` - demoted non-hot imperative setter updates from forced heavy invalidation to queued async updates (`scheduleUpdate(false)` for zoom/virtualization/row-height/viewport-metrics setters), keeping heavy compute/apply in scheduled frame pipeline rather than immediate force path in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`.
 - [ ] Incremental recalculation for horizontal meta/layout across scroll-only updates.
   - Progress: `2026-02-10` - expanded horizontal meta cache from single-entry to 2-slot cache to reduce recompute thrash across alternating controllers in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportHorizontalMeta.ts`.
+  - Progress: `2026-02-10` - viewport controller now reuses cached `lastHorizontalMeta` for motion-only horizontal updates and rebuilds layout/meta only on structural changes (`columns/layoutScale/viewport/native scroll envelope`), avoiding repeated `buildHorizontalMeta` calls on plain scroll in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`.
 - [x] Hard split `horizontal virtualization` vs `layout`.
   - `virtual-x`: index/window math only.
   - `layout-x`: px geometry only.
@@ -97,11 +99,20 @@ Goal: закрыть оставшиеся архитектурные/perf пун
   - Bridge/controller invalidation should be narrowed from force-refresh to affected axis/range.
   - Progress: `2026-02-10` - controller now short-circuits horizontal recompute/apply for vertical-only updates using horizontal structure/motion invalidation gates, with contract coverage for axis-scoped callback behavior (vertical-only => rows/window without columns, horizontal-only => columns/window without rows, width resize => columns without rows) in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts` and `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
   - Progress: `2026-02-10` - model bridge now emits axis-specific invalidation reasons (`rows`/`columns`) and viewport controller maps row-only invalidation to non-force update scheduling to avoid broad forced horizontal refreshes on row updates in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportModelBridgeService.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/modelBridge.contract.spec.ts`.
+  - Progress: `2026-02-10` - added contract that row-only model invalidation must not produce horizontal column apply callbacks in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
   - Evidence (pending run):
     - `pnpm vitest packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`
     - `pnpm vitest packages/datagrid-core/src/viewport/__tests__/modelBridge.contract.spec.ts`
 - [ ] Unify range-engine internals for copy/paste/cut/fill/move to one canonical transaction-aware pipeline.
+  - Progress: `2026-02-10` - extracted shared kernel for deterministic range iteration + mutable row store (`dataGridRangeMutationKernel`) and rewired both clipboard mutations (`copy/paste/cut/clear` path) and range mutation engine (`fill/move` path) to consume it instead of duplicated local row-mutation loops in `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/dataGridRangeMutationKernel.ts`, `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/useDataGridClipboardMutations.ts`, `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/useDataGridRangeMutationEngine.ts`.
+  - Progress: `2026-02-10` - added kernel contract coverage in `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/__tests__/dataGridRangeMutationKernel.contract.spec.ts`.
+  - Evidence (pending run):
+    - `pnpm --filter @affino/datagrid-orchestration exec vitest run --config vitest.config.ts src/__tests__/dataGridRangeMutationKernel.contract.spec.ts src/__tests__/useDataGridClipboardMutations.contract.spec.ts src/__tests__/useDataGridRangeMutationEngine.contract.spec.ts`
 - [ ] Expand derived/value caches (filter predicates, sort keys, group meta) with bounded invalidation.
+  - Progress: `2026-02-10` - client row model now caches compiled filter predicate by serialized filter snapshot (bounded single-slot cache with automatic invalidation on filter model key change), materializes sort keys once per row per sort pass instead of re-reading row fields inside comparator loops, and caches grouped field values per projection pass (`rowId::field`) to avoid duplicate group-value reads in grouped projection in `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/clientRowModel.ts`.
+  - Progress: `2026-02-10` - added projection contract for sort-key materialization in `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/__tests__/clientRowModel.spec.ts`.
+  - Evidence (pending run):
+    - `pnpm --filter @affino/datagrid-core exec vitest run --config vitest.config.ts src/models/__tests__/clientRowModel.spec.ts`
 
 ## P2 (Hardening)
 
