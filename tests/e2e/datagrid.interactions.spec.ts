@@ -3,7 +3,7 @@ import {
   DATA_GRID_DATA_ATTRS,
   DATA_GRID_SELECTORS,
   dataGridCellSelector,
-} from "@affino/datagrid-vue"
+} from "../../packages/datagrid-vue/src/contracts/dataGridSelectors"
 
 const ROUTE = "/datagrid"
 

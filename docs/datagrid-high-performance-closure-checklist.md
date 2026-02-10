@@ -84,9 +84,18 @@ Goal: закрыть оставшиеся архитектурные/perf пун
 
 - [ ] Enforce phased async pipeline (`input -> compute -> apply`) across remaining hot interaction paths.
   - Progress: `2026-02-10` - demoted non-hot imperative setter updates from forced heavy invalidation to queued async updates (`scheduleUpdate(false)` for zoom/virtualization/row-height/viewport-metrics setters), keeping heavy compute/apply in scheduled frame pipeline rather than immediate force path in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`.
+  - Progress: `2026-02-10` - removed synchronous `measureLayout()` from `setViewportMetrics` input setter; viewport metric writes now stay in input-phase and compute/apply happens only via scheduled frame pass in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`.
+  - Progress: `2026-02-10` - added contract coverage that imperative non-force setters are async-phased (no immediate apply before scheduler flush, then single coalesced apply) in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
+  - Progress: `2026-02-10` - filtered out viewport-only row model notifications inside bridge (no invalidation emission for pure `setViewportRange` churn), preventing redundant heavy-frame scheduling loops in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportModelBridgeService.ts`; viewport-only detection is now revision-aware to keep real row-content updates (same `rowCount`, new `revision`) invalidating correctly, covered in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/modelBridge.contract.spec.ts`.
+  - Evidence (pending run):
+    - `pnpm -C /Users/anton/Projects/affinio --filter @affino/datagrid-core exec vitest run --config vitest.config.ts src/viewport/__tests__/integrationSnapshot.contract.spec.ts`
+    - `pnpm -C /Users/anton/Projects/affinio --filter @affino/datagrid-core exec vitest run --config vitest.config.ts src/viewport/__tests__/modelBridge.contract.spec.ts`
 - [ ] Incremental recalculation for horizontal meta/layout across scroll-only updates.
   - Progress: `2026-02-10` - expanded horizontal meta cache from single-entry to 2-slot cache to reduce recompute thrash across alternating controllers in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportHorizontalMeta.ts`.
   - Progress: `2026-02-10` - viewport controller now reuses cached `lastHorizontalMeta` for motion-only horizontal updates and rebuilds layout/meta only on structural changes (`columns/layoutScale/viewport/native scroll envelope`), avoiding repeated `buildHorizontalMeta` calls on plain scroll in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`.
+  - Progress: `2026-02-10` - added instrumentation hooks (`runtime.buildHorizontalMeta`, `runtime.resolveHorizontalSizing`) and contract coverage to assert both meta and sizing are reused across scroll-only horizontal motion and recomputed only after structural width changes in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportTypes.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
+  - Evidence (pending run):
+    - `pnpm -C /Users/anton/Projects/affinio --filter @affino/datagrid-core exec vitest run --config vitest.config.ts src/viewport/__tests__/integrationSnapshot.contract.spec.ts`
 - [x] Hard split `horizontal virtualization` vs `layout`.
   - `virtual-x`: index/window math only.
   - `layout-x`: px geometry only.
@@ -99,6 +108,8 @@ Goal: закрыть оставшиеся архитектурные/perf пун
   - Bridge/controller invalidation should be narrowed from force-refresh to affected axis/range.
   - Progress: `2026-02-10` - controller now short-circuits horizontal recompute/apply for vertical-only updates using horizontal structure/motion invalidation gates, with contract coverage for axis-scoped callback behavior (vertical-only => rows/window without columns, horizontal-only => columns/window without rows, width resize => columns without rows) in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts` and `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
   - Progress: `2026-02-10` - model bridge now emits axis-specific invalidation reasons (`rows`/`columns`) and viewport controller maps row-only invalidation to non-force update scheduling to avoid broad forced horizontal refreshes on row updates in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportModelBridgeService.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/modelBridge.contract.spec.ts`.
+  - Progress: `2026-02-10` - upgraded model bridge invalidation contract from reason-only signal to structured payload (`reason`, `axes`, `rowRange`), so row invalidations carry normalized affected viewport range and controller can keep row-only updates on non-force path in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportModelBridgeService.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/modelBridge.contract.spec.ts`.
+  - Progress: `2026-02-10` - bridge now suppresses invalidation emission for pure viewport-range churn (`setViewportRange` only), avoiding self-triggered row-axis feedback loops while keeping structural row invalidations active in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportModelBridgeService.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/modelBridge.contract.spec.ts`.
   - Progress: `2026-02-10` - added contract that row-only model invalidation must not produce horizontal column apply callbacks in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
   - Evidence (pending run):
     - `pnpm vitest packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`
@@ -119,6 +130,7 @@ Goal: закрыть оставшиеся архитектурные/perf пун
 - [ ] Strengthen CI perf gates (variance + memory growth) for parity lock.
   - Progress: `2026-02-10` - strengthened benchmark gate script to validate finite CI variance/heap budgets and enforce aggregate variance/heap envelopes from suite artifacts (not only `ok` flags), in `/Users/anton/Projects/affinio/scripts/check-datagrid-benchmark-report.mjs`.
   - Progress: `2026-02-10` - updated performance gate docs with new runtime gate checks in `/Users/anton/Projects/affinio/docs/datagrid-performance-gates.md`.
+  - Progress: `2026-02-10` - added perf-contract guard checks to prevent CI gate drift: static verification now enforces benchmark-gate finite-budget checks and CI wiring tokens in `/Users/anton/Projects/affinio/scripts/check-datagrid-perf-contracts.mjs`.
   - Evidence (pending run):
     - `pnpm run bench:datagrid:harness:ci:gate`
 - [x] Finish stable selector contract extraction from demo into `@affino/datagrid-vue`.
@@ -129,5 +141,6 @@ Goal: закрыть оставшиеся архитектурные/perf пун
     - `pnpm -C /Users/anton/Projects/affinio exec playwright test tests/e2e/datagrid.interactions.spec.ts tests/e2e/datagrid.regression.spec.ts`
 - [ ] Complete cross-framework parity lock rollout (`quality:lock:datagrid:parity`) in CI workflow.
   - Progress: `2026-02-10` - CI workflow now runs parity lock directly in `quality-gates` job (`pnpm run quality:lock:datagrid:parity`), uploads perf artifacts from the same blocking job, and removes separate duplicate benchmark-regression stage in `/Users/anton/Projects/affinio/.github/workflows/ci.yml`.
+  - Progress: `2026-02-10` - architecture acceptance gate now statically verifies parity-lock script wiring and required CI workflow tokens (`quality-gates` job + parity command + artifact upload paths) in `/Users/anton/Projects/affinio/scripts/check-datagrid-architecture-acceptance.mjs`.
   - Evidence (pending run):
     - `.github/workflows/ci.yml` pipeline run with green `quality-gates` job on PR/branch.
