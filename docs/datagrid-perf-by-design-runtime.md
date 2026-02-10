@@ -53,3 +53,14 @@ Interaction benchmark (selection/fill virtualization proxy) must pass:
 
 Harness source:
 - `/Users/anton/Projects/affinio/scripts/bench-datagrid-interactions.mjs`
+
+## Baseline Drift Lock
+
+CI benchmark gate also enforces baseline drift lock:
+
+- baseline file: `/Users/anton/Projects/affinio/docs/perf/datagrid-benchmark-baseline.json`
+- gate script: `/Users/anton/Projects/affinio/scripts/check-datagrid-benchmark-report.mjs`
+- checks:
+  - task runtime duration drift;
+  - aggregate elapsed drift;
+  - aggregate heap drift.

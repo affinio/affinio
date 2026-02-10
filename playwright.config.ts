@@ -23,7 +23,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: "php artisan serve --host=127.0.0.1 --port=4180",
+      command: "pnpm build && php artisan serve --host=127.0.0.1 --port=4180",
       url: "http://127.0.0.1:4180",
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

@@ -304,6 +304,39 @@ a {
 	background: color-mix(in srgb, var(--accent, #8b5cf6) 20%, transparent);
 }
 
+.datagrid-musthave-pagination__links,
+.datagrid-musthave-filtering__links,
+.datagrid-musthave-column-state__links,
+.datagrid-musthave-reorder__links,
+.datagrid-musthave-row-height__links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.8rem;
+}
+
+.datagrid-musthave-pagination__links a,
+.datagrid-musthave-filtering__links a,
+.datagrid-musthave-column-state__links a,
+.datagrid-musthave-reorder__links a,
+.datagrid-musthave-row-height__links a {
+	text-decoration: none;
+	border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+	border-radius: 999px;
+	padding: 0.3rem 0.75rem;
+	font-size: 0.78rem;
+	color: var(--text-primary, #edf2ff);
+	background: color-mix(in srgb, var(--surface-card, #161e2e) 70%, transparent);
+}
+
+.datagrid-musthave-pagination__links a:hover,
+.datagrid-musthave-filtering__links a:hover,
+.datagrid-musthave-column-state__links a:hover,
+.datagrid-musthave-reorder__links a:hover,
+.datagrid-musthave-row-height__links a:hover {
+	border-color: var(--accent-strong, #38bdf8);
+}
+
 .menu-demo-block {
   display: flex;
   flex-direction: column;

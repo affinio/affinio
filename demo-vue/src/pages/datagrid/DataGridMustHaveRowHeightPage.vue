@@ -50,6 +50,7 @@ const viewportRef = ref<HTMLDivElement | null>(null)
 const headerRef = ref<HTMLElement | null>(null)
 const visibleRows = ref<readonly VisibleRowEntry[]>([])
 const virtualWindow = ref<DataGridVirtualWindowSnapshot | null>(null)
+const renderedRange = ref<{ start: number; end: number }>({ start: 0, end: -1 })
 const estimatedRowHeight = ref(38)
 const rowHeightMode = ref<"auto" | "fixed">("auto")
 const baseRowHeight = ref(38)
@@ -80,7 +81,25 @@ const controller = createDataGridViewportController({
           } satisfies VisibleRowEntry
         })
       visibleRows.value = nextRows
-      estimatedRowHeight.value = payload.rowHeight > 0 ? payload.rowHeight : estimatedRowHeight.value
+      const fallbackStart = Number.isFinite(payload.startIndex) ? Math.max(0, Math.trunc(payload.startIndex)) : 0
+      const fallbackEnd = Number.isFinite(payload.endIndex)
+        ? Math.max(fallbackStart - 1, Math.trunc(payload.endIndex))
+        : fallbackStart - 1
+      const firstVisibleDisplayIndex = nextRows[0]?.displayIndex
+      const lastVisibleDisplayIndex = nextRows[nextRows.length - 1]?.displayIndex
+      const rangeStart = typeof firstVisibleDisplayIndex === "number" && Number.isFinite(firstVisibleDisplayIndex)
+        ? Math.max(0, Math.trunc(firstVisibleDisplayIndex))
+        : fallbackStart
+      const rangeEnd = typeof lastVisibleDisplayIndex === "number" && Number.isFinite(lastVisibleDisplayIndex)
+        ? Math.max(rangeStart - 1, Math.trunc(lastVisibleDisplayIndex))
+        : fallbackEnd
+      renderedRange.value = {
+        start: rangeStart,
+        end: rangeEnd,
+      }
+      if (Number.isFinite(payload.rowHeight) && payload.rowHeight > 0) {
+        estimatedRowHeight.value = payload.rowHeight
+      }
     },
     onWindow(payload) {
       virtualWindow.value = payload.virtualWindow
@@ -94,10 +113,13 @@ const totalRows = computed(() => virtualWindow.value?.rowTotal ?? rows.length)
 const visibleStart = computed(() => virtualWindow.value?.rowStart ?? 0)
 const visibleEnd = computed(() => virtualWindow.value?.rowEnd ?? Math.max(0, visibleRows.value.length - 1))
 const visibleCount = computed(() => Math.max(0, visibleEnd.value - visibleStart.value + 1))
+const renderedStart = computed(() => Math.max(0, renderedRange.value.start))
+const renderedEnd = computed(() => Math.max(renderedStart.value - 1, renderedRange.value.end))
+const renderedCount = computed(() => Math.max(0, renderedEnd.value - renderedStart.value + 1))
 
-const spacerTopHeight = computed(() => Math.max(0, visibleStart.value * estimatedRowHeight.value))
+const spacerTopHeight = computed(() => Math.max(0, renderedStart.value * estimatedRowHeight.value))
 const spacerBottomHeight = computed(() => {
-  const remaining = Math.max(0, totalRows.value - visibleEnd.value - 1)
+  const remaining = Math.max(0, totalRows.value - renderedEnd.value - 1)
   return remaining * estimatedRowHeight.value
 })
 
@@ -108,6 +130,19 @@ const rowHeightSnapshot = computed(() => ({
 }))
 
 function resolveRowVisualStyle(row: VisibleRowEntry) {
+  if (rowHeightMode.value === "fixed") {
+    const fixedHeight = Math.max(24, baseRowHeight.value)
+    return {
+      "--fixed-row-height": `${fixedHeight}px`,
+      height: `${fixedHeight}px`,
+      minHeight: `${fixedHeight}px`,
+      maxHeight: `${fixedHeight}px`,
+      paddingTop: "0px",
+      paddingBottom: "0px",
+      alignItems: "center",
+      overflow: "hidden",
+    }
+  }
   const base = Math.max(2, row.data.lineWeight)
   return {
     paddingTop: `${4 + base}px`,
@@ -238,6 +273,10 @@ onBeforeUnmount(() => {
             <dd>{{ visibleCount }}</dd>
           </div>
           <div>
+            <dt>Rendered count</dt>
+            <dd>{{ renderedCount }}</dd>
+          </div>
+          <div>
             <dt>Estimated row height</dt>
             <dd>{{ rowHeightSnapshot.estimated }}px</dd>
           </div>
@@ -260,6 +299,7 @@ onBeforeUnmount(() => {
             v-for="row in visibleRows"
             :key="row.rowId"
             class="datagrid-musthave-row-height__row"
+            :class="{ 'is-fixed': rowHeightMode === 'fixed' }"
             :data-row-index="row.displayIndex"
             :style="resolveRowVisualStyle(row)"
           >
@@ -432,6 +472,13 @@ onBeforeUnmount(() => {
   color: var(--text-primary);
   line-height: 1.36;
   word-break: break-word;
+}
+
+.datagrid-musthave-row-height__row.is-fixed .col-summary {
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (max-width: 1100px) {

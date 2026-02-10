@@ -31,6 +31,8 @@ Per-benchmark outputs (JSON):
 - `artifacts/performance/bench-vue-adapters.json`
 - `artifacts/performance/bench-livewire-morph.json`
 - `artifacts/performance/bench-datagrid-interactions.json`
+- `artifacts/performance/bench-datagrid-datasource-churn.json`
+- `artifacts/performance/bench-datagrid-derived-cache.json`
 - `artifacts/performance/bench-datagrid-rowmodels.json`
 
 Harness summary:
@@ -38,6 +40,8 @@ Harness summary:
 
 Runtime report gate summary:
 - `artifacts/quality/datagrid-benchmark-gates-report.json`
+Baseline lock:
+- `docs/perf/datagrid-benchmark-baseline.json`
 
 ## Budgets and Fail-Fast Rules
 
@@ -60,12 +64,29 @@ CI harness (`DATAGRID_BENCH_MODE=ci`) applies:
   - `PERF_BUDGET_MAX_SERVER_RANGE_P99_MS=55`
   - `PERF_BUDGET_MAX_WINDOW_SHIFT_P95_MS=10`
   - `PERF_BUDGET_MAX_WINDOW_SHIFT_P99_MS=16`
+  - synthetic source cache cap: `BENCH_SERVER_CACHE_BLOCK_LIMIT=96` (bounded server block cache in benchmark to avoid unbounded heap growth noise)
 - Interaction models (selection/fill under virtualization proxy):
   - `PERF_BUDGET_TOTAL_MS=3500`
   - `PERF_BUDGET_MAX_SELECTION_DRAG_P95_MS=5`
   - `PERF_BUDGET_MAX_SELECTION_DRAG_P99_MS=8`
   - `PERF_BUDGET_MAX_FILL_APPLY_P95_MS=8`
   - `PERF_BUDGET_MAX_FILL_APPLY_P99_MS=14`
+- Datasource churn (range pull churn + invalidation pressure):
+  - `PERF_BUDGET_TOTAL_MS=9000`
+  - `PERF_BUDGET_MAX_SCROLL_BURST_P95_MS=20`
+  - `PERF_BUDGET_MAX_SCROLL_BURST_P99_MS=35`
+  - `PERF_BUDGET_MAX_FILTER_BURST_P95_MS=22`
+  - `PERF_BUDGET_MAX_FILTER_BURST_P99_MS=40`
+  - `PERF_BUDGET_MIN_PULL_COALESCED=1`
+  - `PERF_BUDGET_MIN_PULL_DEFERRED=1`
+- Derived cache (stable cache + invalidation pressure):
+  - `PERF_BUDGET_TOTAL_MS=7000`
+  - `PERF_BUDGET_MAX_STABLE_P95_MS=8`
+  - `PERF_BUDGET_MAX_INVALIDATED_P95_MS=18`
+  - `PERF_BUDGET_MIN_STABLE_FILTER_HIT_RATE_PCT=80`
+  - `PERF_BUDGET_MIN_STABLE_SORT_HIT_RATE_PCT=90`
+  - `PERF_BUDGET_MIN_STABLE_GROUP_HIT_RATE_PCT=70`
+  - `PERF_BUDGET_MIN_INVALIDATED_FILTER_MISSES=10`
 - Shared:
   - `PERF_BUDGET_MAX_VARIANCE_PCT=25`
   - `PERF_BUDGET_MAX_HEAP_DELTA_MB=80`
@@ -74,13 +95,13 @@ Perf-contract fail-fast gate:
 - `pnpm run quality:perf:datagrid`
 - Script: `scripts/check-datagrid-perf-contracts.mjs`
 - Report: `artifacts/quality/datagrid-perf-contracts-report.json`
-- Includes static guard for benchmark harness task matrix (`vue-adapters`, `laravel-morph`, `interaction-models`, `row-models`) and mode-scoped budget wiring.
+- Includes static guard for benchmark harness task matrix (`vue-adapters`, `laravel-morph`, `interaction-models`, `datasource-churn`, `derived-cache`, `row-models`) and mode-scoped budget wiring.
 
 Fail-fast behavior:
 - Harness exits non-zero when any benchmark fails budget checks.
 - Runtime report gate (`scripts/check-datagrid-benchmark-report.mjs`) validates:
   - report freshness,
-  - required suites presence (`vue-adapters`, `laravel-morph`, `interaction-models`, `row-models`),
+  - required suites presence (`vue-adapters`, `laravel-morph`, `interaction-models`, `datasource-churn`, `derived-cache`, `row-models`),
   - harness report consistency (no duplicate task ids, valid durations, status/ok consistency),
   - presence and completeness of `budgets.byTask` map for required suites,
   - `ok=true` for harness summary and each required suite,
@@ -88,7 +109,8 @@ Fail-fast behavior:
   - per-suite artifact freshness,
   - finite CI variance/heap budgets in harness + per-suite artifacts,
   - no `Infinity` literals in CI budget payloads (shared + per-suite),
-  - aggregate variance/heap envelopes against declared budgets.
+  - aggregate variance/heap envelopes against declared budgets,
+  - baseline drift lock for per-task runtime/elapsed/heap envelopes (`docs/perf/datagrid-benchmark-baseline.json`).
 - CI `quality-gates` parity lock run is blocking for merge readiness.
 
 ## CI Integration

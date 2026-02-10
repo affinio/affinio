@@ -252,6 +252,7 @@ function mountDatagridDemo(root) {
     let fillPreviewRange = null;
     let fillPointerClient = null;
     let fillAutoScrollFrame = null;
+    let lastPointerDownAt = 0;
 
     const undoStack = [];
     const redoStack = [];
@@ -301,6 +302,27 @@ function mountDatagridDemo(root) {
     };
 
     const resolveColumnWidth = (column) => Math.max(110, column.width ?? 160);
+
+    const buildColumnVirtualWindow = ({ rowStart, rowEnd, rowTotal, colTotal }) => {
+        const safeRowTotal = Math.max(0, Math.trunc(Number(rowTotal) || 0));
+        const safeColTotal = Math.max(0, Math.trunc(Number(colTotal) || 0));
+        const maxRowIndex = Math.max(0, safeRowTotal - 1);
+        const maxColIndex = Math.max(0, safeColTotal - 1);
+        return {
+            rowStart: safeRowTotal > 0 ? clamp(rowStart, 0, maxRowIndex) : 0,
+            rowEnd: safeRowTotal > 0 ? clamp(rowEnd, 0, maxRowIndex) : 0,
+            rowTotal: safeRowTotal,
+            colStart: 0,
+            colEnd: safeColTotal > 0 ? maxColIndex : 0,
+            colTotal: safeColTotal,
+            overscan: {
+                top: OVERSCAN_ROWS,
+                bottom: OVERSCAN_ROWS,
+                left: 0,
+                right: 0,
+            },
+        };
+    };
 
     const setStatus = (message) => {
         statusMessage = message;
@@ -1196,11 +1218,16 @@ function mountDatagridDemo(root) {
             Math.max(0, activeRows.length - 1),
         );
 
+        const visibleColumns = resolveVisibleColumns();
         const layout = useDataGridColumnLayoutOrchestration({
-            columns: resolveVisibleColumns(),
+            columns: visibleColumns,
             resolveColumnWidth,
-            viewportWidth: viewport.clientWidth,
-            scrollLeft: viewport.scrollLeft,
+            virtualWindow: buildColumnVirtualWindow({
+                rowStart: 0,
+                rowEnd: Math.max(0, api.getRowCount() - 1),
+                rowTotal: api.getRowCount(),
+                colTotal: visibleColumns.length,
+            }),
         });
         const columns = layout.orderedColumns ?? [];
         const metrics = layout.orderedColumnMetrics ?? [];
@@ -1388,6 +1415,9 @@ function mountDatagridDemo(root) {
         window.removeEventListener("mousemove", onFillDragMouseMove, true);
         window.removeEventListener("mouseup", onFillDragMouseUp, true);
         window.removeEventListener("mouseleave", onFillDragMouseCancel, true);
+        window.removeEventListener("dragover", onFillDragDragOver, true);
+        window.removeEventListener("drop", onFillDragDrop, true);
+        window.removeEventListener("dragend", onFillDragDragEnd, true);
         if (fillAutoScrollFrame !== null) {
             window.cancelAnimationFrame(fillAutoScrollFrame);
             fillAutoScrollFrame = null;
@@ -1483,31 +1513,62 @@ function mountDatagridDemo(root) {
         stopFillDrag(false);
     };
 
-    const startFillDrag = (event) => {
-        if (fillDragSession) {
+    const onFillDragDragOver = (event) => {
+        if (!fillDragSession) {
             return;
         }
-        if (event.button !== 0) {
+        fillPointerClient = {
+            x: event.clientX,
+            y: event.clientY,
+        };
+        const coord = resolvePointerCellCoord(event.clientX, event.clientY);
+        const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
+        if (!rangesEqual(nextPreview, fillPreviewRange)) {
+            fillPreviewRange = nextPreview;
+            requestRender();
+        }
+        if (fillAutoScrollFrame === null) {
+            fillAutoScrollFrame = window.requestAnimationFrame(runFillAutoScrollStep);
+        }
+        event.preventDefault();
+    };
+
+    const onFillDragDrop = (event) => {
+        if (!fillDragSession) {
             return;
+        }
+        const coord = resolvePointerCellCoord(event.clientX, event.clientY);
+        const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
+        if (!rangesEqual(nextPreview, fillPreviewRange)) {
+            fillPreviewRange = nextPreview;
+        }
+        event.preventDefault();
+        stopFillDrag(true);
+    };
+
+    const onFillDragDragEnd = () => {
+        if (!fillDragSession) {
+            return;
+        }
+        stopFillDrag(false);
+    };
+
+    const startFillDragFromClientPoint = (clientX, clientY, inputType) => {
+        if (fillDragSession) {
+            return false;
         }
         const originRange = resolveEffectiveSelectionRange();
         if (!originRange) {
-            return;
+            return false;
         }
-        const inputType =
-            event.type === "pointerdown"
-                ? event.pointerType === "mouse"
-                    ? "mouse"
-                    : "pointer"
-                : "mouse";
         fillDragSession = {
             originRange: { ...originRange },
             inputType,
         };
         fillPreviewRange = null;
         fillPointerClient = {
-            x: event.clientX,
-            y: event.clientY,
+            x: clientX,
+            y: clientY,
         };
         closeContextMenu();
         root.classList.add("is-fill-dragging");
@@ -1518,12 +1579,78 @@ function mountDatagridDemo(root) {
         window.addEventListener("mousemove", onFillDragMouseMove, true);
         window.addEventListener("mouseup", onFillDragMouseUp, true);
         window.addEventListener("mouseleave", onFillDragMouseCancel, true);
+        window.addEventListener("dragover", onFillDragDragOver, true);
+        window.addEventListener("drop", onFillDragDrop, true);
+        window.addEventListener("dragend", onFillDragDragEnd, true);
         if (fillAutoScrollFrame === null) {
             fillAutoScrollFrame = window.requestAnimationFrame(runFillAutoScrollStep);
         }
 
+        return true;
+    };
+
+    const startFillDrag = (event) => {
+        if (fillDragSession) {
+            return;
+        }
+        const inputType =
+            event.type === "pointerdown"
+                ? event.pointerType === "mouse"
+                    ? "mouse"
+                    : "pointer"
+                : "mouse";
+        if (typeof event.button === "number" && event.button !== 0) {
+            return;
+        }
+        const started = startFillDragFromClientPoint(event.clientX, event.clientY, inputType);
+        if (!started) {
+            return;
+        }
         event.preventDefault();
         event.stopPropagation();
+    };
+
+    const startFillDragFromDragEvent = (event) => {
+        const started = startFillDragFromClientPoint(event.clientX, event.clientY, "mouse");
+        if (event.dataTransfer) {
+            try {
+                event.dataTransfer.setData("text/plain", "fill");
+                event.dataTransfer.effectAllowed = "copy";
+            } catch {
+                // ignore drag data failures
+            }
+        }
+        if (started) {
+            event.stopPropagation();
+        }
+    };
+
+    const maybeStartFillDragFromMove = (event) => {
+        if (fillDragSession) {
+            return;
+        }
+        const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const recentPointerDown = now - lastPointerDownAt < 500;
+        if (event.buttons !== 1 && !recentPointerDown) {
+            return;
+        }
+        if (!(event.target instanceof Element)) {
+            return;
+        }
+        if (!event.target.closest("[data-datagrid-fill-handle]")) {
+            return;
+        }
+        const inputType =
+            event.type === "pointermove"
+                ? event.pointerType === "mouse"
+                    ? "mouse"
+                    : "pointer"
+                : "mouse";
+        const started = startFillDragFromClientPoint(event.clientX, event.clientY, inputType);
+        if (started) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
     };
 
     const runFillAutoScrollStep = () => {
@@ -1804,6 +1931,7 @@ function mountDatagridDemo(root) {
     };
 
     const onGlobalPointerDown = (event) => {
+        lastPointerDownAt = typeof performance !== "undefined" ? performance.now() : Date.now();
         if (fillDragSession) {
             return;
         }
@@ -2006,6 +2134,8 @@ function mountDatagridDemo(root) {
 
     root.addEventListener("keydown", onRootKeydown);
     root.addEventListener("pointerdown", onGlobalPointerDown, true);
+    root.addEventListener("pointermove", maybeStartFillDragFromMove, true);
+    root.addEventListener("mousemove", maybeStartFillDragFromMove, true);
 
     function applyProjection(options = {}) {
         const advancedExpression = resolveAdvancedFilterExpression();
@@ -2260,7 +2390,22 @@ function mountDatagridDemo(root) {
                             if (event.button !== 0) {
                                 return;
                             }
-                            if (event.target instanceof Element && event.target.closest("[data-datagrid-fill-handle]")) {
+                            const clickedHandle =
+                                event.target instanceof Element &&
+                                event.target.closest("[data-datagrid-fill-handle]");
+                            const handleNode = cell.querySelector("[data-datagrid-fill-handle]");
+                            const handleZone = (() => {
+                                if (!handleNode) {
+                                    return false;
+                                }
+                                const rect = cell.getBoundingClientRect();
+                                const threshold = 12;
+                                return (
+                                    event.clientX >= rect.right - threshold &&
+                                    event.clientY >= rect.bottom - threshold
+                                );
+                            })();
+                            if (clickedHandle || handleZone) {
                                 startFillDrag(event);
                                 return;
                             }
@@ -2297,8 +2442,11 @@ function mountDatagridDemo(root) {
                             const handle = document.createElement("span");
                             handle.className = "affino-datagrid-demo__fill-handle";
                             handle.dataset.datagridFillHandle = "true";
+                            handle.draggable = true;
                             handle.addEventListener("pointerdown", startFillDrag);
                             handle.addEventListener("mousedown", startFillDrag);
+                            handle.addEventListener("dragstart", startFillDragFromDragEvent);
+                            handle.addEventListener("dragend", onFillDragDragEnd);
                             cell.appendChild(handle);
                         }
                     }
@@ -2579,8 +2727,12 @@ function mountDatagridDemo(root) {
         const columnLayout = useDataGridColumnLayoutOrchestration({
             columns: visibleColumns,
             resolveColumnWidth,
-            viewportWidth: viewport.clientWidth,
-            scrollLeft: viewport.scrollLeft,
+            virtualWindow: buildColumnVirtualWindow({
+                rowStart: start,
+                rowEnd: end,
+                rowTotal: rowCount,
+                colTotal: visibleColumns.length,
+            }),
         });
         const orderedColumns = columnLayout.orderedColumns;
         const columnMetrics = columnLayout.orderedColumnMetrics;
@@ -2653,6 +2805,8 @@ function mountDatagridDemo(root) {
         contextMenu?.removeEventListener("keydown", onContextMenuKeydown);
         root.removeEventListener("keydown", onRootKeydown);
         root.removeEventListener("pointerdown", onGlobalPointerDown, true);
+        root.removeEventListener("pointermove", maybeStartFillDragFromMove, true);
+        root.removeEventListener("mousemove", maybeStartFillDragFromMove, true);
 
         if (frameHandle !== null) {
             window.cancelAnimationFrame(frameHandle);
