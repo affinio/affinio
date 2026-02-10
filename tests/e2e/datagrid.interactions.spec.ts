@@ -37,8 +37,8 @@ test.describe("datagrid interaction contracts", () => {
     await source.click()
     await dragFillHandle(page, source, target)
 
-    await expect(target).toHaveText(sourceValue)
     await expect(page.locator(DATA_GRID_SELECTORS.status)).toContainText("Fill applied")
+    await expect.poll(async () => await readText(target)).toBe(sourceValue)
   })
 
   test("inline editor commits value on Enter without layout regression", async ({ page }) => {
@@ -122,9 +122,15 @@ async function dragFillHandle(page: Page, fromCell: Locator, toCell: Locator): P
   const endX = targetBox.x + targetBox.width / 2
   const endY = targetBox.y + targetBox.height / 2
 
-  await page.mouse.move(startX, startY)
+  await page.mouse.move(startX, startY, { steps: 6 })
   await page.mouse.down()
-  await page.mouse.move(endX, endY)
+  await handle.dispatchEvent("mousedown", {
+    button: 0,
+    clientX: startX,
+    clientY: startY,
+  })
+  await page.mouse.move(endX, endY, { steps: 20 })
+  await page.waitForTimeout(50)
   await page.mouse.up()
 }
 

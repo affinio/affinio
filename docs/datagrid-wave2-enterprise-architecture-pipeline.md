@@ -41,6 +41,7 @@ Progress:
 - `2026-02-10` - extended backpressure diagnostics with runtime-state observability (`hasPendingPull`, `rowCacheSize`, `rowCacheLimit`) in `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/dataSourceProtocol.ts` + `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/dataSourceBackedRowModel.ts`.
 - `2026-02-10` - added long-session bounded-memory contract test `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/__tests__/dataSourceBackedRowModel.spec.ts` (`keeps row-cache bounded under long viewport churn`) to prove `rowCacheSize <= rowCacheLimit` across sustained viewport churn.
 - `2026-02-10` - added dedicated rapid churn benchmark `/Users/anton/Projects/affinio/scripts/bench-datagrid-datasource-churn.mjs` with backpressure diagnostics assertions (coalesced/deferred pulls) and assert entrypoint `pnpm run bench:datagrid:datasource-churn:assert`; artifact: `/Users/anton/Projects/affinio/artifacts/performance/bench-datagrid-datasource-churn.json`.
+- `2026-02-10` - deduplicated overlapping warmup pulls in `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/serverBackedRowModel.ts`: concurrent `setViewportRange` + `refresh` for identical source range now reuse a single in-flight warmup promise (no duplicate `fetchBlock(start/end)` burst), plus deterministic range-scoped cache invalidation on warmup completion; contract added in `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/__tests__/serverBackedRowModel.spec.ts` (`deduplicates viewport warmup when refresh overlaps inflight range fetch`).
 
 ## 02. Value/Derived Cache Layer (`target >= 9.3`)
 
@@ -81,6 +82,10 @@ Progress:
   - `tracks recompute scope counters for vertical/horizontal/offscreen invalidation paths`;
   - ensures vertical content invalidation does not force horizontal recompute/apply;
   - ensures offscreen content invalidation is skipped without apply.
+- `2026-02-10` - reduced horizontal apply churn in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`: `applyColumnSnapshot` now reuses previous signal arrays when both layout-version and virtual column window are unchanged (no redundant remap/slice allocations on scroll-only micro-updates inside the same window).
+- `2026-02-10` - added contract coverage in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts` (`keeps column projection signal references stable when horizontal range does not change`).
+- `2026-02-10` - added no-op fast-path in `/Users/anton/Projects/affinio/packages/datagrid-core/src/virtualization/columnSnapshot.ts`: when `meta version`, `metrics` reference, and `scrollable range` are unchanged, `updateColumnSnapshot` now updates only scalar snapshot fields and skips column projection traversal.
+- `2026-02-10` - added traversal-guard contract in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/columnSnapshot.performance.contract.spec.ts` (`skips column projection traversal when meta and range are unchanged`).
 
 ## 04. One-Frame Apply Contract (`target >= 9.5`)
 

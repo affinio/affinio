@@ -105,6 +105,8 @@ test.describe("laravel datagrid interactions", () => {
     const ownerR2Before = ((await ownerR2.textContent()) ?? "").trim()
     const regionR1Before = ((await regionR1.textContent()) ?? "").trim()
     const regionR2Before = ((await regionR2.textContent()) ?? "").trim()
+    expect(ownerR1Before).not.toBe("")
+    expect(regionR1Before).not.toBe("")
 
     await ownerR1.click()
     await page.keyboard.down("Shift")
@@ -113,6 +115,7 @@ test.describe("laravel datagrid interactions", () => {
 
     await expect(page.locator("[data-datagrid-selected]")).toHaveText("4")
 
+    await page.locator("[data-datagrid-viewport]").focus()
     await page.keyboard.press("ControlOrMeta+X")
 
     await expect.poll(async () => {
@@ -142,14 +145,18 @@ test.describe("laravel datagrid interactions", () => {
     await page.keyboard.down("Shift")
     await regionR2.click()
     await page.keyboard.up("Shift")
+    await page.locator("[data-datagrid-viewport]").focus()
     await page.keyboard.press("ControlOrMeta+C")
-    await page.keyboard.press("Escape")
+    await expect(page.locator("[data-datagrid-status]")).toContainText("Copied")
 
     await ownerR3.click()
+    await page.locator("[data-datagrid-viewport]").focus()
     await page.keyboard.press("ControlOrMeta+V")
 
-    await expect(ownerR3).toHaveText(ownerR1Before)
-    await expect(regionR3).toHaveText(regionR1Before)
+    await expect(page.locator("[data-datagrid-status]")).toContainText("Pasted")
+
+    await expect.poll(async () => ((await ownerR3.textContent()) ?? "").trim()).toBe(ownerR1Before)
+    await expect.poll(async () => ((await regionR3.textContent()) ?? "").trim()).toBe(regionR1Before)
   })
 
   test("fill handle extends active cell value down the range", async ({ page }) => {

@@ -11,10 +11,14 @@ import {
   UiMenuSeparator,
 } from "@affino/menu-vue"
 import {
+  createInMemoryDataGridSettingsAdapter,
   createDataGridSelectionSummary,
   evaluateDataGridAdvancedFilterExpression,
   type DataGridColumnDef,
+  type DataGridColumnModelSnapshot,
+  type DataGridColumnStateSnapshot,
   type DataGridAdvancedFilterExpression,
+  type DataGridPaginationSnapshot,
   type DataGridRowNode,
   type DataGridSortState,
 } from "@affino/datagrid-core"
@@ -197,7 +201,7 @@ type AdvancedFilterPreset =
 
 type SetFilterApplyMode = "replace" | "add"
 
-const ROW_HEIGHT = 38
+const DEFAULT_ROW_HEIGHT = 38
 const DRAG_AUTO_SCROLL_EDGE_PX = 36
 const DRAG_AUTO_SCROLL_MAX_STEP_PX = 28
 const AUTO_SIZE_SAMPLE_LIMIT = 260
@@ -206,6 +210,7 @@ const AUTO_SIZE_HORIZONTAL_PADDING = 28
 const AUTO_SIZE_MAX_WIDTH = 640
 const GRID_HINT_ID = "datagrid-a11y-hint"
 const FILTER_PANEL_TITLE_ID = "datagrid-filter-panel-title"
+const COLUMN_STATE_TABLE_ID = "datagrid-internal-demo-main"
 
 const rowCount = ref(2400)
 const columnCount = ref(20)
@@ -220,6 +225,10 @@ const sortState = ref<readonly DataGridSortState[]>([
 ])
 const pinStatusColumn = ref(false)
 const pinUpdatedAtRight = ref(false)
+const rowHeightMode = ref<"fixed" | "auto">("fixed")
+const baseRowHeight = ref(DEFAULT_ROW_HEIGHT)
+const paginationPageSize = ref(0)
+const paginationTargetPage = ref(1)
 const lastAction = ref("Ready")
 const rowCountOptions = [2400, 6400, 10000] as const
 const columnCountOptions = [10, 20, 50] as const
@@ -249,9 +258,18 @@ const advancedFilterPresetOptions = [
   { value: "risk-hotspots", label: "Risk hotspots" },
   { value: "production-critical", label: "Production critical" },
 ] as const
+const paginationPageSizeOptions = [
+  { value: 0, label: "Disabled" },
+  { value: 10, label: "10" },
+  { value: 25, label: "25" },
+  { value: 50, label: "50" },
+  { value: 100, label: "100" },
+] as const
 const columnSetFilterSearch = ref("")
 const columnSetFilterApplyMode = ref<SetFilterApplyMode>("replace")
 const columnSetFilterSelectedValues = ref<string[]>([])
+const columnStateAdapter = createInMemoryDataGridSettingsAdapter()
+const savedColumnState = ref<DataGridColumnStateSnapshot | null>(null)
 
 const activeGroupByOption = computed(() => (
   groupByOptions.find(option => option.value === groupBy.value) ?? groupByOptions[0]
@@ -260,6 +278,23 @@ const activeAdvancedFilterPresetOption = computed(() => (
   advancedFilterPresetOptions.find(option => option.value === advancedFilterPreset.value)
   ?? advancedFilterPresetOptions[0]
 ))
+const hasSavedColumnState = computed(() => Boolean(savedColumnState.value))
+const columnStateSummary = computed(() => (
+  hasSavedColumnState.value ? "Saved snapshot available" : "No saved snapshot"
+))
+const savedColumnStateJson = computed(() =>
+  savedColumnState.value ? JSON.stringify(savedColumnState.value, null, 2) : "No snapshot saved",
+)
+const columnStateMenuColumns = computed(() =>
+  columnSnapshot.value.columns
+    .filter(column => column.key !== "select")
+    .map(column => ({
+      key: column.key,
+      label: column.column.label ?? column.key,
+      visible: column.visible,
+      pin: column.pin,
+    })),
+)
 
 const NUMERIC_COLUMN_KEYS = new Set<string>([
   "latencyMs",
@@ -366,7 +401,8 @@ const scrollTop = ref(0)
 const scrollLeft = ref(0)
 const viewportHeight = ref(420)
 const viewportWidth = ref(960)
-const headerHeight = ref(ROW_HEIGHT)
+const rowHeightPx = computed(() => Math.max(24, Math.round(baseRowHeight.value)))
+const headerHeight = ref(rowHeightPx.value)
 const bodyViewportHeaderOffset = computed(() => 0)
 const viewportLayerGeometry = computed(() => resolveDataGridHeaderLayerViewportGeometry({
   headerViewportHeight: 0,
@@ -380,7 +416,7 @@ const overlayContentWidth = computed(() => {
   }
   return metrics[metrics.length - 1]?.end ?? 0
 })
-const overlayContentHeight = computed(() => Math.max(0, resolveDisplayRowCount()) * ROW_HEIGHT)
+const overlayContentHeight = computed(() => Math.max(0, resolveDisplayRowCount()) * rowHeightPx.value)
 const overlayLayerStyle = computed(() => ({
   top: "0px",
   left: "0px",
@@ -405,6 +441,13 @@ const rangeMoveBaseRange = ref<CellSelectionRange | null>(null)
 const rangeMoveOrigin = ref<CellCoord | null>(null)
 const rangeMovePreviewRange = ref<CellSelectionRange | null>(null)
 const shouldClearSourceOnRangeMove = ref(true)
+const rowHeightOverrides = ref<Record<string, number>>({})
+const activeRowResize = ref<{ rowId: string; startClientY: number; startHeight: number } | null>(null)
+const rowHeightOverrideCount = computed(() => Object.keys(rowHeightOverrides.value).length)
+const rowReorderDragSourceId = ref<string | null>(null)
+const rowReorderDropTargetId = ref<string | null>(null)
+const columnReorderDragSourceKey = ref<string | null>(null)
+const columnReorderDropTargetKey = ref<string | null>(null)
 
 let lastDragCoord: CellCoord | null = null
 let ensureCellVisibleByCoord: ((coord: CellCoord) => void) | null = null
@@ -1870,7 +1913,7 @@ const pointerCellCoordResolver = useDataGridPointerCellCoordResolver<CellCoord>(
     return bodyViewportHeaderOffset.value
   },
   resolveRowHeight() {
-    return ROW_HEIGHT
+    return rowHeightPx.value
   },
   resolveNearestNavigableColumnIndex,
   normalizeCellCoord,
@@ -1906,7 +1949,7 @@ const cellVisibilityScroller = useDataGridCellVisibilityScroller<CellCoord>({
     return bodyViewportHeaderOffset.value
   },
   resolveRowHeight() {
-    return ROW_HEIGHT
+    return rowHeightPx.value
   },
   setScrollPosition(position) {
     scrollTop.value = position.top
@@ -2022,12 +2065,35 @@ const globalPointerLifecycle = useDataGridGlobalPointerLifecycle({
   stopDragSelection,
   pointerPreviewApplyMode: "raf",
 })
-const onGlobalMouseMove = globalPointerLifecycle.dispatchGlobalMouseMove
-const onGlobalMouseUp = globalPointerLifecycle.dispatchGlobalMouseUp
-const onGlobalPointerUp = globalPointerLifecycle.dispatchGlobalPointerUp
-const onGlobalPointerCancel = globalPointerLifecycle.dispatchGlobalPointerCancel
+const onGlobalMouseMove = (event: MouseEvent) => {
+  if (applyRowResizeByClientY(event.clientY)) {
+    return
+  }
+  globalPointerLifecycle.dispatchGlobalMouseMove(event)
+}
+const onGlobalMouseUp = (event: MouseEvent) => {
+  if (stopRowResize(true)) {
+    return
+  }
+  globalPointerLifecycle.dispatchGlobalMouseUp(event)
+}
+const onGlobalPointerUp = (event: PointerEvent) => {
+  if (stopRowResize(true)) {
+    return
+  }
+  globalPointerLifecycle.dispatchGlobalPointerUp(event)
+}
+const onGlobalPointerCancel = () => {
+  if (stopRowResize(false)) {
+    return
+  }
+  globalPointerLifecycle.dispatchGlobalPointerCancel()
+}
 const onGlobalContextMenuCapture = globalPointerLifecycle.dispatchGlobalContextMenuCapture
-const onGlobalWindowBlur = globalPointerLifecycle.dispatchGlobalWindowBlur
+const onGlobalWindowBlur = () => {
+  stopRowResize(false)
+  globalPointerLifecycle.dispatchGlobalWindowBlur()
+}
 const disposeGlobalPointerLifecycle = globalPointerLifecycle.dispose
 const globalMouseDownContextMenuCloser = useDataGridGlobalMouseDownContextMenuCloser({
   isContextMenuVisible() {
@@ -2137,7 +2203,7 @@ const cellNavigation = useDataGridCellNavigation<CellCoord>({
     return Math.max(0, resolveDisplayRowCount() - 1)
   },
   resolveStepRows() {
-    return Math.max(1, Math.floor(viewportLayerGeometry.value.overlayHeight / ROW_HEIGHT))
+    return Math.max(1, Math.floor(viewportLayerGeometry.value.overlayHeight / rowHeightPx.value))
   },
   closeContextMenu: closeCopyContextMenu,
   clearCellSelection,
@@ -2150,6 +2216,7 @@ const cellNavigation = useDataGridCellNavigation<CellCoord>({
 const {
   rowModel,
   api,
+  core,
   columnSnapshot,
   virtualWindow: runtimeVirtualWindow,
   setRows: setRuntimeRows,
@@ -2160,6 +2227,106 @@ const {
     transaction: history.transactionService,
   },
 })
+const paginationSnapshot = ref<DataGridPaginationSnapshot | null>(null)
+
+const paginationSummary = computed(() => {
+  const snapshot = paginationSnapshot.value
+  if (!snapshot || !snapshot.enabled) {
+    return "Disabled"
+  }
+  return `Page ${snapshot.currentPage + 1}/${Math.max(1, snapshot.pageCount)} · size ${snapshot.pageSize}`
+})
+
+const paginationSliceSummary = computed(() => {
+  const snapshot = paginationSnapshot.value
+  if (!snapshot || !snapshot.enabled || snapshot.startIndex < 0 || snapshot.endIndex < snapshot.startIndex) {
+    return "-"
+  }
+  return `${snapshot.startIndex + 1}-${snapshot.endIndex + 1}`
+})
+
+function syncPaginationState(): void {
+  const next = api.getPaginationSnapshot()
+  paginationSnapshot.value = next
+  paginationPageSize.value = next.enabled ? next.pageSize : 0
+  paginationTargetPage.value = next.currentPage + 1
+}
+
+function setPaginationPageSize(nextPageSize: number): void {
+  const normalizedPageSize = Number.isFinite(nextPageSize) && nextPageSize > 0
+    ? Math.max(1, Math.trunc(nextPageSize))
+    : 0
+  const snapshot = paginationSnapshot.value ?? api.getPaginationSnapshot()
+  const activePageSize = snapshot.enabled ? snapshot.pageSize : 0
+  if (normalizedPageSize === activePageSize) {
+    return
+  }
+  api.setPageSize(normalizedPageSize > 0 ? normalizedPageSize : null)
+  api.setCurrentPage(0)
+  resetViewportScrollPosition()
+  resetVisibleRowsSyncCache()
+  syncVisibleRows()
+  clearCellSelection()
+  syncPaginationState()
+  lastAction.value = normalizedPageSize > 0
+    ? `Pagination enabled (${normalizedPageSize}/page)`
+    : "Pagination disabled"
+}
+
+function applyPaginationTargetPage(nextPage: number): void {
+  const snapshot = paginationSnapshot.value ?? api.getPaginationSnapshot()
+  if (!snapshot.enabled) {
+    return
+  }
+  const pageCount = Math.max(1, snapshot.pageCount)
+  const normalizedPage = Number.isFinite(nextPage)
+    ? Math.max(1, Math.min(pageCount, Math.trunc(nextPage)))
+    : 1
+  if (normalizedPage === snapshot.currentPage + 1) {
+    return
+  }
+  api.setCurrentPage(normalizedPage - 1)
+  resetViewportScrollPosition()
+  resetVisibleRowsSyncCache()
+  syncVisibleRows()
+  clearCellSelection()
+  syncPaginationState()
+  lastAction.value = `Pagination page ${normalizedPage}/${pageCount}`
+}
+
+function goPaginationPrev(): void {
+  const snapshot = paginationSnapshot.value
+  if (!snapshot || !snapshot.enabled || snapshot.currentPage <= 0) {
+    return
+  }
+  applyPaginationTargetPage(snapshot.currentPage)
+}
+
+function goPaginationNext(): void {
+  const snapshot = paginationSnapshot.value
+  if (!snapshot || !snapshot.enabled || snapshot.currentPage >= snapshot.pageCount - 1) {
+    return
+  }
+  applyPaginationTargetPage(snapshot.currentPage + 2)
+}
+
+function applyPaginationRoundtrip(): void {
+  const snapshot = paginationSnapshot.value ?? api.getPaginationSnapshot()
+  if (!snapshot.enabled) {
+    lastAction.value = "Pagination is disabled"
+    return
+  }
+  api.setPagination({
+    pageSize: snapshot.pageSize,
+    currentPage: snapshot.currentPage,
+  })
+  api.refreshRows("manual")
+  resetVisibleRowsSyncCache()
+  syncVisibleRows()
+  syncPaginationState()
+  lastAction.value = "Pagination snapshot roundtrip applied"
+}
+
 resolveCanonicalVirtualWindow = () => {
   const snapshot = runtimeVirtualWindow.value
   if (!snapshot) {
@@ -2181,6 +2348,31 @@ resolveCanonicalVirtualWindow = () => {
   }
 }
 
+interface ViewportRuntimeService {
+  setRowHeightMode?: (mode: "fixed" | "auto") => void
+  setBaseRowHeight?: (height: number) => void
+  measureRowHeight?: () => void
+  refresh?: (force?: boolean) => void
+}
+
+function resolveViewportRuntimeService(): ViewportRuntimeService | null {
+  try {
+    return core.getService("viewport") as ViewportRuntimeService
+  } catch {
+    return null
+  }
+}
+
+function applyRuntimeRowHeightSettings(): void {
+  const viewportService = resolveViewportRuntimeService()
+  if (!viewportService) {
+    return
+  }
+  viewportService.setRowHeightMode?.(rowHeightMode.value)
+  viewportService.setBaseRowHeight?.(rowHeightPx.value)
+  viewportService.refresh?.(true)
+}
+
 function applyColumnVisibilityPreset(preset: ColumnVisibilityPreset): void {
   const maxColumns = Math.max(1, Math.min(columnCount.value, DATA_GRID_COLUMNS.length))
   const allowedKeys = new Set(DATA_GRID_COLUMNS.slice(0, maxColumns).map(column => column.key))
@@ -2197,6 +2389,148 @@ function applyColumnVisibilityPreset(preset: ColumnVisibilityPreset): void {
     const shouldBeVisible = isAllowed && (column.key === "select" || showAll || presetKeys.has(column.key))
     api.setColumnVisibility(column.key, shouldBeVisible)
   }
+}
+
+function captureColumnState(snapshot: DataGridColumnModelSnapshot): DataGridColumnStateSnapshot {
+  const visibility: Record<string, boolean> = {}
+  const widths: Record<string, number> = {}
+  const pinning: Record<string, "left" | "right" | "none"> = {}
+  for (const column of snapshot.columns) {
+    visibility[column.key] = column.visible
+    if (typeof column.width === "number") {
+      widths[column.key] = column.width
+    }
+    pinning[column.key] = column.pin
+  }
+  return {
+    order: [...snapshot.order],
+    visibility,
+    widths,
+    pinning,
+  }
+}
+
+function applyCapturedColumnState(state: DataGridColumnStateSnapshot): void {
+  api.setColumnOrder(state.order)
+  for (const [key, visible] of Object.entries(state.visibility)) {
+    api.setColumnVisibility(key, visible)
+  }
+  for (const [key, width] of Object.entries(state.widths)) {
+    api.setColumnWidth(key, width)
+  }
+  for (const [key, pin] of Object.entries(state.pinning)) {
+    api.setColumnPin(key, pin)
+  }
+}
+
+function mutateColumnStateDemo(): void {
+  const reordered = [
+    "select",
+    "owner",
+    "service",
+    "status",
+    "region",
+    "environment",
+    "deployment",
+    "severity",
+    "latencyMs",
+    "errorRate",
+    "availabilityPct",
+    "updatedAt",
+  ]
+  api.setColumnOrder(reordered)
+  api.setColumnVisibility("runbook", false)
+  api.setColumnVisibility("channel", false)
+  api.setColumnWidth("service", 300)
+  api.setColumnWidth("owner", 210)
+  api.setColumnPin("owner", "left")
+  api.setColumnPin("status", "right")
+  pinStatusColumn.value = false
+  pinUpdatedAtRight.value = false
+  lastAction.value = "Mutated column state (order/visibility/width/pin)"
+}
+
+function saveCurrentColumnState(): void {
+  const state = captureColumnState(api.getColumnModelSnapshot())
+  columnStateAdapter.setColumnState(COLUMN_STATE_TABLE_ID, state)
+  savedColumnState.value = columnStateAdapter.getColumnState(COLUMN_STATE_TABLE_ID)
+  lastAction.value = "Saved column state snapshot"
+}
+
+function restoreSavedColumnState(): void {
+  const state = columnStateAdapter.getColumnState(COLUMN_STATE_TABLE_ID)
+  if (!state) {
+    lastAction.value = "No saved column state snapshot"
+    return
+  }
+  applyCapturedColumnState(state)
+  savedColumnState.value = state
+  lastAction.value = "Restored column state snapshot"
+}
+
+function clearSavedColumnState(): void {
+  columnStateAdapter.setColumnState(COLUMN_STATE_TABLE_ID, null)
+  savedColumnState.value = null
+  lastAction.value = "Cleared saved column state snapshot"
+}
+
+function setColumnVisibilityFromMenu(columnKey: string, visible: boolean): void {
+  api.setColumnVisibility(columnKey, visible)
+  lastAction.value = visible
+    ? `Column ${columnKey} shown`
+    : `Column ${columnKey} hidden`
+}
+
+function onColumnStateVisibilityChange(columnKey: string, event: Event): void {
+  const target = event.target
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+  setColumnVisibilityFromMenu(columnKey, target.checked)
+}
+
+function setColumnPinFromMenu(columnKey: string, pin: "left" | "right" | "none"): void {
+  api.setColumnPin(columnKey, pin)
+  lastAction.value = pin === "none"
+    ? `Column ${columnKey} unpinned`
+    : `Column ${columnKey} pinned ${pin}`
+}
+
+function showAllColumnsFromMenu(): void {
+  for (const column of columnStateMenuColumns.value) {
+    api.setColumnVisibility(column.key, true)
+  }
+  lastAction.value = "All columns visible"
+}
+
+function setRowHeightMode(nextMode: "fixed" | "auto"): void {
+  if (rowHeightMode.value === nextMode) {
+    return
+  }
+  rowHeightMode.value = nextMode
+}
+
+function measureVisibleRowHeight(): void {
+  const viewportService = resolveViewportRuntimeService()
+  if (!viewportService?.measureRowHeight) {
+    lastAction.value = "Row height measurement is unavailable"
+    return
+  }
+  viewportService.measureRowHeight()
+  viewportService.refresh?.(true)
+  scheduleViewportMeasure()
+  syncVisibleRows()
+  lastAction.value = "Measured visible rows for auto height cache"
+}
+
+function resetCustomRowHeights(): void {
+  if (rowHeightOverrideCount.value === 0) {
+    lastAction.value = "No custom row heights to reset"
+    return
+  }
+  rowHeightOverrides.value = {}
+  measureVisibleRowHeight()
+  lastAction.value = "Reset custom row heights"
 }
 
 function applyRuntimeGroupBy(nextGroupBy: GroupByColumnKey): void {
@@ -2221,6 +2555,238 @@ function toggleRuntimeGroup(row: DataGridRowNode<IncidentRow>): void {
   const label = resolveTreeGroupLabel(row)
   const nextState = row.state.expanded ? "collapsed" : "expanded"
   lastAction.value = `${nextState}: ${label}`
+}
+
+function isColumnReorderEnabled(columnKey: string): boolean {
+  return columnKey !== "select"
+}
+
+function resetColumnReorderDragState(): void {
+  columnReorderDragSourceKey.value = null
+  columnReorderDropTargetKey.value = null
+}
+
+function reorderVisibleColumnsByKey(sourceKey: string, targetKey: string): boolean {
+  if (!sourceKey || !targetKey || sourceKey === targetKey) {
+    return false
+  }
+  if (!isColumnReorderEnabled(sourceKey) || !isColumnReorderEnabled(targetKey)) {
+    return false
+  }
+
+  const snapshot = api.getColumnModelSnapshot()
+  const visibleOrder = snapshot.columns
+    .filter(column => column.visible)
+    .map(column => column.key)
+
+  if (!visibleOrder.includes(sourceKey) || !visibleOrder.includes(targetKey)) {
+    return false
+  }
+
+  const nextOrder = visibleOrder.filter(key => key !== sourceKey)
+  const targetIndex = nextOrder.indexOf(targetKey)
+  if (targetIndex < 0) {
+    return false
+  }
+  nextOrder.splice(targetIndex, 0, sourceKey)
+  api.setColumnOrder(nextOrder)
+  return true
+}
+
+function onColumnReorderDragStart(columnKey: string, event: DragEvent): void {
+  if (!isColumnReorderEnabled(columnKey)) {
+    return
+  }
+  columnReorderDragSourceKey.value = columnKey
+  columnReorderDropTargetKey.value = null
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData("text/x-affino-column-key", columnKey)
+    event.dataTransfer.dropEffect = "move"
+  }
+}
+
+function onColumnReorderDragOver(columnKey: string, event: DragEvent): void {
+  if (!isColumnReorderEnabled(columnKey) || !columnReorderDragSourceKey.value) {
+    return
+  }
+  event.preventDefault()
+  columnReorderDropTargetKey.value = columnKey
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "move"
+  }
+}
+
+function onColumnReorderDrop(columnKey: string, event: DragEvent): void {
+  if (!isColumnReorderEnabled(columnKey)) {
+    resetColumnReorderDragState()
+    return
+  }
+  event.preventDefault()
+  const sourceKey = columnReorderDragSourceKey.value
+    ?? event.dataTransfer?.getData("text/x-affino-column-key")
+    ?? null
+  if (!sourceKey) {
+    resetColumnReorderDragState()
+    return
+  }
+
+  const reordered = reorderVisibleColumnsByKey(sourceKey, columnKey)
+  lastAction.value = reordered
+    ? `Column moved: ${sourceKey} -> ${columnKey}`
+    : "Column reorder skipped"
+  resetColumnReorderDragState()
+}
+
+function onColumnReorderDragEnd(): void {
+  resetColumnReorderDragState()
+}
+
+function isColumnReorderDropTarget(columnKey: string): boolean {
+  return columnReorderDropTargetKey.value === columnKey
+}
+
+function reorderSourceRowsById(sourceRowId: string, targetRowId: string): boolean {
+  if (!sourceRowId || !targetRowId || sourceRowId === targetRowId) {
+    return false
+  }
+  const sourceIndex = sourceRows.value.findIndex(row => row.rowId === sourceRowId)
+  const targetIndex = sourceRows.value.findIndex(row => row.rowId === targetRowId)
+  if (sourceIndex < 0 || targetIndex < 0) {
+    return false
+  }
+  const nextRows = sourceRows.value.slice()
+  const [moved] = nextRows.splice(sourceIndex, 1)
+  if (!moved) {
+    return false
+  }
+  const insertAt = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
+  nextRows.splice(Math.max(0, insertAt), 0, moved)
+  sourceRows.value = nextRows
+  return true
+}
+
+function resetRowReorderDragState(): void {
+  rowReorderDragSourceId.value = null
+  rowReorderDropTargetId.value = null
+}
+
+function onRowReorderDragStart(row: DataGridRowNode<IncidentRow>, event: DragEvent): void {
+  if (row.kind !== "leaf") {
+    return
+  }
+  rowReorderDragSourceId.value = row.data.rowId
+  rowReorderDropTargetId.value = null
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData("text/plain", row.data.rowId)
+  }
+}
+
+function onRowReorderDragOver(row: DataGridRowNode<IncidentRow>, event: DragEvent): void {
+  if (row.kind !== "leaf" || !rowReorderDragSourceId.value) {
+    return
+  }
+  event.preventDefault()
+  rowReorderDropTargetId.value = row.data.rowId
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "move"
+  }
+}
+
+function onRowReorderDrop(row: DataGridRowNode<IncidentRow>, event: DragEvent): void {
+  if (row.kind !== "leaf") {
+    resetRowReorderDragState()
+    return
+  }
+  event.preventDefault()
+  const sourceRowId = rowReorderDragSourceId.value
+    ?? event.dataTransfer?.getData("text/plain")
+    ?? null
+  if (!sourceRowId) {
+    resetRowReorderDragState()
+    return
+  }
+  const moved = reorderSourceRowsById(sourceRowId, row.data.rowId)
+  lastAction.value = moved
+    ? `Row moved: ${sourceRowId} -> ${row.data.rowId}`
+    : "Row reorder skipped"
+  resetRowReorderDragState()
+}
+
+function onRowReorderDragEnd(): void {
+  resetRowReorderDragState()
+}
+
+function isRowReorderDropTarget(row: DataGridRowNode<IncidentRow>): boolean {
+  return row.kind === "leaf" && rowReorderDropTargetId.value === row.data.rowId
+}
+
+function isRowResizeEnabledForRow(row: DataGridRowNode<IncidentRow>): boolean {
+  return row.kind === "leaf" && rowHeightMode.value === "auto"
+}
+
+function resolveRowHeightForNode(row: DataGridRowNode<IncidentRow>): number {
+  if (row.kind !== "leaf") {
+    return rowHeightPx.value
+  }
+  const override = rowHeightOverrides.value[row.data.rowId]
+  if (typeof override !== "number" || !Number.isFinite(override)) {
+    return rowHeightPx.value
+  }
+  return Math.max(24, Math.min(120, Math.round(override)))
+}
+
+function resolveRowInlineStyle(row: DataGridRowNode<IncidentRow>): Record<string, string> {
+  return {
+    gridTemplateColumns: layerTrackTemplate.value,
+    "--datagrid-row-height": `${resolveRowHeightForNode(row)}px`,
+  }
+}
+
+function applyRowResizeByClientY(clientY: number): boolean {
+  const active = activeRowResize.value
+  if (!active || !Number.isFinite(clientY)) {
+    return false
+  }
+  const nextHeight = Math.max(24, Math.min(120, Math.round(active.startHeight + (clientY - active.startClientY))))
+  rowHeightOverrides.value = {
+    ...rowHeightOverrides.value,
+    [active.rowId]: nextHeight,
+  }
+  return true
+}
+
+function stopRowResize(commit: boolean): boolean {
+  const active = activeRowResize.value
+  if (!active) {
+    return false
+  }
+  activeRowResize.value = null
+  if (commit) {
+    measureVisibleRowHeight()
+    const nextHeight = rowHeightOverrides.value[active.rowId]
+    lastAction.value = typeof nextHeight === "number"
+      ? `Row ${active.rowId} height ${nextHeight}px`
+      : `Row ${active.rowId} height reset`
+  } else {
+    lastAction.value = "Row resize cancelled"
+  }
+  return true
+}
+
+function onRowResizeHandleMouseDown(row: DataGridRowNode<IncidentRow>, event: MouseEvent): void {
+  if (row.kind !== "leaf" || rowHeightMode.value !== "auto") {
+    return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+  closeCopyContextMenu()
+  activeRowResize.value = {
+    rowId: row.data.rowId,
+    startClientY: event.clientY,
+    startHeight: resolveRowHeightForNode(row),
+  }
 }
 
 resolveDisplayRowCount = () => Math.max(0, rowModel.getRowCount())
@@ -2272,7 +2838,7 @@ const viewportMeasureScheduler = useDataGridViewportMeasureScheduler({
     viewportWidth.value = next.viewportWidth
     headerHeight.value = next.headerHeight
   },
-  rowHeight: ROW_HEIGHT,
+  rowHeight: rowHeightPx.value,
   minViewportBodyHeight: 200,
 })
 const {
@@ -2560,12 +3126,9 @@ const navigableColumnIndexes = computed(() =>
 )
 const virtualRangeMetrics = useDataGridVirtualRangeMetrics({
   virtualWindow: computed(() => runtimeVirtualWindow.value),
-  rowHeight: ROW_HEIGHT,
+  rowHeight: rowHeightPx.value,
 })
-const {
-  virtualRange,
-  rangeLabel,
-} = virtualRangeMetrics
+const { rangeLabel } = virtualRangeMetrics
 const renderRange = computed(() => {
   const total = Math.max(0, filteredAndSortedRows.value.length)
   if (total <= 0) {
@@ -2577,21 +3140,21 @@ const renderRange = computed(() => {
     end: Math.max(0, Math.min(total - 1, range.end)),
   }
 })
-const renderSpacerTopHeight = computed(() => Math.max(0, renderRange.value.start * ROW_HEIGHT))
+const renderSpacerTopHeight = computed(() => Math.max(0, renderRange.value.start * rowHeightPx.value))
 const renderSpacerBottomHeight = computed(() => {
   const total = Math.max(0, filteredAndSortedRows.value.length)
   if (total === 0 || renderRange.value.end < renderRange.value.start) {
     return 0
   }
-  return Math.max(0, (total - (renderRange.value.end + 1)) * ROW_HEIGHT)
+  return Math.max(0, (total - (renderRange.value.end + 1)) * rowHeightPx.value)
 })
 const resolveViewportRange = () => {
   const total = Math.max(0, filteredAndSortedRows.value.length)
   if (total <= 0) {
     return { start: 0, end: 0 }
   }
-  const start = Math.max(0, Math.min(total - 1, Math.floor(scrollTop.value / ROW_HEIGHT)))
-  const visibleCount = Math.max(1, Math.ceil(viewportHeight.value / ROW_HEIGHT))
+  const start = Math.max(0, Math.min(total - 1, Math.floor(scrollTop.value / rowHeightPx.value)))
+  const visibleCount = Math.max(1, Math.ceil(viewportHeight.value / rowHeightPx.value))
   const end = Math.max(start, Math.min(total - 1, start + visibleCount - 1))
   return { start, end }
 }
@@ -2907,7 +3470,7 @@ const activeCellLabel = computed(() => {
 
 const selectionOverlayOrchestration = useDataGridSelectionOverlayOrchestration({
   headerHeight: bodyViewportHeaderOffset,
-  rowHeight: ROW_HEIGHT,
+  rowHeight: rowHeightPx.value,
   orderedColumns,
   orderedColumnMetrics,
   cellSelectionRange,
@@ -3167,6 +3730,22 @@ watch(pinUpdatedAtRight, value => {
   lastAction.value = value ? "Pinned updatedAt right" : "Unpinned updatedAt"
 })
 
+watch(rowHeightMode, mode => {
+  applyRuntimeRowHeightSettings()
+  scheduleViewportMeasure()
+  syncVisibleRows()
+  lastAction.value = mode === "auto"
+    ? `Row height mode: auto (${rowHeightPx.value}px base)`
+    : `Row height mode: fixed (${rowHeightPx.value}px)`
+}, { immediate: true })
+
+watch(rowHeightPx, value => {
+  applyRuntimeRowHeightSettings()
+  scheduleViewportMeasure()
+  syncVisibleRows()
+  lastAction.value = `Row height: ${value}px`
+})
+
 watch(sortPreset, value => {
   if (value === "custom") {
     return
@@ -3232,12 +3811,14 @@ watch(sourceRows, () => {
   reconcileRowSelection()
   resetVisibleRowsSyncCache()
   syncVisibleRows()
+  syncPaginationState()
 })
 
 watch(
   [filteredAndSortedRows, renderRange],
   () => {
     syncVisibleRows()
+    syncPaginationState()
   },
   { immediate: true, flush: "sync" },
 )
@@ -3317,6 +3898,7 @@ onBeforeUnmount(() => {
   stopFillSelection(false)
   stopDragSelection()
   stopRangeMove(false)
+  stopRowResize(false)
   pointerAutoScroll.dispose()
   disposeGlobalPointerLifecycle()
   stopColumnResize()
@@ -3420,21 +4002,14 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
 </script>
 
 <template>
-  <section class="datagrid-page" ref="themeRootRef">
+  <section class="datagrid-page" ref="themeRootRef" :style="{ '--datagrid-row-height': `${rowHeightPx}px` }">
     <header class="datagrid-hero">
-      <div>
-        <p class="datagrid-hero__eyebrow">datagrid showcase</p>
-        <h2>Vue demo on datagrid-vue runtime</h2>
-        <p>
-          This playground runs on the package-level `@affino/datagrid-vue` runtime API and renders a wide virtualized
-          dataset to stress horizontal and vertical behavior.
-        </p>
-      </div>
-
+      <p class="datagrid-hero__eyebrow">Internal Demo · DataGrid</p>
+      <h2>Excel-style interaction surface</h2>
       <div class="datagrid-hero__chips" aria-label="Datagrid foundation">
         <span>@affino/datagrid-vue</span>
         <span>@affino/datagrid-core</span>
-        <span>useDataGridRuntime</span>
+        <span>status: {{ lastAction }}</span>
       </div>
     </header>
 
@@ -3498,6 +4073,72 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         />
       </label>
       <label class="datagrid-controls__menu-field">
+        <span>Column state</span>
+        <UiMenu>
+          <UiMenuTrigger as-child>
+            <button type="button" class="datagrid-controls__menu-trigger">
+              {{ hasSavedColumnState ? "Saved" : "Unsaved" }}
+            </button>
+          </UiMenuTrigger>
+          <UiMenuContent class="ui-menu-content datagrid-controls__menu-content" side-offset="8">
+            <UiMenuLabel>Column state roundtrip</UiMenuLabel>
+            <UiMenuSeparator />
+            <UiMenuItem @select="mutateColumnStateDemo">Mutate state</UiMenuItem>
+            <UiMenuItem @select="saveCurrentColumnState">Save snapshot</UiMenuItem>
+            <UiMenuItem @select="restoreSavedColumnState">Restore snapshot</UiMenuItem>
+            <UiMenuItem @select="clearSavedColumnState">Clear snapshot</UiMenuItem>
+            <UiMenuSeparator />
+            <div class="datagrid-controls__column-state-panel" @mousedown.stop @click.stop>
+              <div class="datagrid-controls__column-state-panel-header">
+                <span>Columns</span>
+                <button type="button" class="ghost" @click="showAllColumnsFromMenu">Show all</button>
+              </div>
+              <div class="datagrid-controls__column-state-list">
+                <div
+                  v-for="column in columnStateMenuColumns"
+                  :key="`column-state-menu-${column.key}`"
+                  class="datagrid-controls__column-state-item"
+                >
+                  <label class="datagrid-controls__column-state-visibility">
+                    <input
+                      type="checkbox"
+                      :checked="column.visible"
+                      @change="onColumnStateVisibilityChange(column.key, $event)"
+                    />
+                    <span>{{ column.label }}</span>
+                  </label>
+                  <div class="datagrid-controls__column-state-pin">
+                    <button
+                      type="button"
+                      :data-active="column.pin === 'left' ? 'true' : 'false'"
+                      @click="setColumnPinFromMenu(column.key, 'left')"
+                    >
+                      L
+                    </button>
+                    <button
+                      type="button"
+                      :data-active="column.pin === 'none' ? 'true' : 'false'"
+                      @click="setColumnPinFromMenu(column.key, 'none')"
+                    >
+                      —
+                    </button>
+                    <button
+                      type="button"
+                      :data-active="column.pin === 'right' ? 'true' : 'false'"
+                      @click="setColumnPinFromMenu(column.key, 'right')"
+                    >
+                      R
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <UiMenuSeparator />
+            <pre class="datagrid-controls__column-state-preview" @mousedown.stop @click.stop>{{ savedColumnStateJson }}</pre>
+          </UiMenuContent>
+        </UiMenu>
+      </label>
+      <label class="datagrid-controls__menu-field">
         <span>Advanced filter</span>
         <UiMenu>
           <UiMenuTrigger as-child>
@@ -3526,6 +4167,114 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <label class="datagrid-controls__toggle">
         <input v-model="pinUpdatedAtRight" type="checkbox" />
         <span>Pin updatedAt right</span>
+      </label>
+      <label class="datagrid-controls__menu-field">
+        <span>Row height</span>
+        <UiMenu>
+          <UiMenuTrigger as-child>
+            <button type="button" class="datagrid-controls__menu-trigger">
+              {{ rowHeightMode === "auto" ? "Auto" : "Fixed" }} · {{ rowHeightPx }}px
+            </button>
+          </UiMenuTrigger>
+          <UiMenuContent class="ui-menu-content datagrid-controls__menu-content" side-offset="8">
+            <UiMenuLabel>Row height</UiMenuLabel>
+            <UiMenuSeparator />
+            <UiMenuItem @select="setRowHeightMode('fixed')">
+              <span class="datagrid-controls__menu-check">{{ rowHeightMode === "fixed" ? "✓" : "" }}</span>
+              <span>Fixed mode</span>
+            </UiMenuItem>
+            <UiMenuItem @select="setRowHeightMode('auto')">
+              <span class="datagrid-controls__menu-check">{{ rowHeightMode === "auto" ? "✓" : "" }}</span>
+              <span>Auto mode</span>
+            </UiMenuItem>
+            <UiMenuSeparator />
+            <div class="datagrid-controls__row-height-slider" @mousedown.stop @click.stop>
+              <label>
+                <span>Base</span>
+                <input v-model.number="baseRowHeight" type="range" min="24" max="72" step="1" />
+              </label>
+              <div class="datagrid-controls__row-height-presets">
+                <button type="button" @click="baseRowHeight = 32">32</button>
+                <button type="button" @click="baseRowHeight = 38">38</button>
+                <button type="button" @click="baseRowHeight = 44">44</button>
+                <button type="button" @click="baseRowHeight = 52">52</button>
+              </div>
+              <button
+                type="button"
+                class="datagrid-controls__row-height-action"
+                :disabled="rowHeightMode !== 'auto'"
+                @click="measureVisibleRowHeight"
+              >
+                Measure visible rows
+              </button>
+              <button
+                type="button"
+                class="datagrid-controls__row-height-action ghost"
+                :disabled="rowHeightMode !== 'auto' || rowHeightOverrideCount === 0"
+                @click="resetCustomRowHeights"
+              >
+                Reset custom row heights ({{ rowHeightOverrideCount }})
+              </button>
+            </div>
+          </UiMenuContent>
+        </UiMenu>
+      </label>
+      <label class="datagrid-controls__menu-field">
+        <span>Pagination</span>
+        <UiMenu>
+          <UiMenuTrigger as-child>
+            <button type="button" class="datagrid-controls__menu-trigger">
+              {{ paginationSummary }}
+            </button>
+          </UiMenuTrigger>
+          <UiMenuContent class="ui-menu-content datagrid-controls__menu-content" side-offset="8">
+            <UiMenuLabel>Pagination</UiMenuLabel>
+            <UiMenuSeparator />
+            <div class="datagrid-controls__pagination-panel" @mousedown.stop @click.stop>
+              <label>
+                <span>Page size</span>
+                <AffinoSelect
+                  :model-value="paginationPageSize"
+                  class="datagrid-controls__select datagrid-controls__pagination-select"
+                  :options="paginationPageSizeOptions"
+                  @update:model-value="setPaginationPageSize(Number($event))"
+                />
+              </label>
+              <label>
+                <span>Page</span>
+                <div class="datagrid-controls__pagination-row">
+                  <button
+                    type="button"
+                    :disabled="!paginationSnapshot?.enabled || (paginationSnapshot?.currentPage ?? 0) <= 0"
+                    @click="goPaginationPrev"
+                  >
+                    Prev
+                  </button>
+                  <input
+                    v-model.number="paginationTargetPage"
+                    type="number"
+                    min="1"
+                    :max="Math.max(1, paginationSnapshot?.pageCount ?? 1)"
+                    @keydown.enter.prevent="applyPaginationTargetPage(paginationTargetPage)"
+                  />
+                  <button
+                    type="button"
+                    :disabled="!paginationSnapshot?.enabled || (paginationSnapshot?.currentPage ?? 0) >= Math.max((paginationSnapshot?.pageCount ?? 1) - 1, 0)"
+                    @click="goPaginationNext"
+                  >
+                    Next
+                  </button>
+                </div>
+              </label>
+              <button type="button" class="datagrid-controls__pagination-roundtrip" @click="applyPaginationRoundtrip">
+                Snapshot roundtrip
+              </button>
+              <p class="datagrid-controls__pagination-meta">
+                Slice {{ paginationSliceSummary }} · Total {{ paginationSnapshot?.totalRowCount ?? 0 }}
+              </p>
+            </div>
+          </UiMenuContent>
+        </UiMenu>
       </label>
       <ThemeToggle variant="compact" @theme-change="applyDemoTheme" />
       <button type="button" @click="randomizeRuntime">Runtime shift</button>
@@ -3560,6 +4309,9 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <p class="datagrid-controls__filter-indicator" :data-active="isAdvancedFilterActive ? 'true' : 'false'">
         Advanced filter: {{ advancedFilterSummary }}
       </p>
+      <p class="datagrid-controls__filter-indicator" :data-active="hasSavedColumnState ? 'true' : 'false'">
+        Column state: {{ columnStateSummary }}
+      </p>
       <p class="datagrid-controls__status">{{ lastAction }} · Double-click any editable cell for inline edit.</p>
     </section>
 
@@ -3571,6 +4323,14 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <div>
         <dt>Filtered</dt>
         <dd>{{ filteredAndSortedRows.length }}</dd>
+      </div>
+      <div>
+        <dt>Page</dt>
+        <dd>{{ paginationSummary }}</dd>
+      </div>
+      <div>
+        <dt>Page slice</dt>
+        <dd>{{ paginationSliceSummary }}</dd>
       </div>
       <div>
         <dt>Window</dt>
@@ -3640,6 +4400,14 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         <dt>Active cell</dt>
         <dd>{{ activeCellLabel }}</dd>
       </div>
+      <div>
+        <dt>Row height</dt>
+        <dd>{{ rowHeightMode }} · {{ rowHeightPx }}px</dd>
+      </div>
+      <div>
+        <dt>Column state</dt>
+        <dd>{{ hasSavedColumnState ? "saved" : "none" }}</dd>
+      </div>
     </section>
 
     <section class="datagrid-stage">
@@ -3662,6 +4430,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
                 'datagrid-stage__cell--sortable': isSortableColumn(column.key),
                 'datagrid-stage__cell--filtered': isColumnFilterActive(column.key),
                 'datagrid-stage__cell--filter-open': activeFilterColumnKey === column.key,
+                'datagrid-stage__cell--column-drop-target': isColumnReorderDropTarget(column.key),
               }"
               :data-column-key="column.key"
               :id="getHeaderCellId(column.key)"
@@ -3671,6 +4440,8 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               :aria-sort="getHeaderAriaSort(column.key)"
               @click="onHeaderCellClick(column.key, $event)"
               @keydown="onHeaderCellKeyDown(column.key, $event)"
+              @dragover="onColumnReorderDragOver(column.key, $event)"
+              @drop="onColumnReorderDrop(column.key, $event)"
             >
             <template v-if="column.key === 'select'">
               <input
@@ -3683,6 +4454,19 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
               />
             </template>
             <template v-else>
+              <button
+                v-if="isColumnReorderEnabled(column.key)"
+                type="button"
+                class="datagrid-stage__column-drag-handle"
+                aria-label="Drag to reorder column"
+                draggable="true"
+                @click.stop
+                @mousedown.stop
+                @dragstart.stop="onColumnReorderDragStart(column.key, $event)"
+                @dragend.stop="onColumnReorderDragEnd"
+              >
+                ⋮⋮
+              </button>
               <span class="datagrid-stage__header-label">{{ column.column.label ?? column.key }}</span>
               <span
                 v-if="getHeaderSortDirection(column.key)"
@@ -3897,7 +4681,13 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <div
         ref="viewportRef"
         class="datagrid-stage__viewport"
-        :class="{ 'is-drag-selecting': isDragSelecting, 'is-fill-dragging': isFillDragging, 'is-range-moving': isRangeMoving, 'is-column-resizing': isColumnResizing }"
+        :class="{
+          'is-drag-selecting': isDragSelecting,
+          'is-fill-dragging': isFillDragging,
+          'is-range-moving': isRangeMoving,
+          'is-column-resizing': isColumnResizing,
+          'is-row-resizing': activeRowResize !== null,
+        }"
         tabindex="0"
         role="grid"
         aria-label="Datagrid viewport"
@@ -3942,10 +4732,13 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
           :class="{
             'is-selected': row.kind === 'leaf' && isRowSelected(String(row.rowId)),
             'datagrid-stage__row--group-start': isRuntimeGroupStartRow(row),
+            'datagrid-stage__row--drop-target': isRowReorderDropTarget(row),
           }"
           role="row"
           :aria-rowindex="getRowAriaIndex(row)"
-          :style="{ gridTemplateColumns: layerTrackTemplate }"
+          :style="resolveRowInlineStyle(row)"
+          @dragover="onRowReorderDragOver(row, $event)"
+          @drop="onRowReorderDrop(row, $event)"
         >
           <div
             v-for="layer in columnLayers"
@@ -3990,14 +4783,32 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             @dblclick="onDataCellDoubleClick(row, column.key, $event)"
           >
             <template v-if="column.key === 'select'">
-              <input
-                v-if="row.kind === 'leaf'"
-                type="checkbox"
-                class="datagrid-stage__checkbox"
-                :checked="isRowSelected(String(row.rowId))"
-                @change="onRowSelectChange(String(row.rowId), $event)"
-                :aria-label="`Select ${row.data.service}`"
-              />
+              <div v-if="row.kind === 'leaf'" class="datagrid-stage__select-tools">
+                <button
+                  type="button"
+                  class="datagrid-stage__row-drag-handle"
+                  draggable="true"
+                  aria-label="Drag to reorder row"
+                  @mousedown.stop
+                  @dragstart="onRowReorderDragStart(row, $event)"
+                  @dragend="onRowReorderDragEnd"
+                >
+                  ⋮⋮
+                </button>
+                <input
+                  type="checkbox"
+                  class="datagrid-stage__checkbox"
+                  :checked="isRowSelected(String(row.rowId))"
+                  @change="onRowSelectChange(String(row.rowId), $event)"
+                  :aria-label="`Select ${row.data.service}`"
+                />
+                <span
+                  v-if="isRowResizeEnabledForRow(row)"
+                  class="datagrid-stage__row-resize-handle"
+                  aria-hidden="true"
+                  @mousedown.stop.prevent="onRowResizeHandleMouseDown(row, $event)"
+                ></span>
+              </div>
               <span v-else aria-hidden="true"></span>
             </template>
 
