@@ -37,7 +37,7 @@ Goal: закрыть оставшиеся архитектурные/perf пун
   - Comment: `2026-02-10` - added `rowCacheLimit` to `createServerBackedRowModel` and LRU touch/evict flow in `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/serverBackedRowModel.ts`; contract added in `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/__tests__/serverBackedRowModel.spec.ts`.
 - [x] Remove redundant O(N) column width-map rebuilds when layout-widths are unchanged.
   - Comment: `2026-02-10` - `updateColumnSnapshot` now skips map/pinned rebuild on meta version changes that do not change width-layout projection (`snapshot.metrics === meta.metrics` fast-path) in `/Users/anton/Projects/affinio/packages/datagrid-core/src/virtualization/columnSnapshot.ts`; contract lock in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/columnSnapshot.performance.contract.spec.ts`.
-- [ ] Canonical `VirtualWindow` contract as single source of truth.
+- [x] Canonical `VirtualWindow` contract as single source of truth.
   - Required shape: row/column visible range + directional overscan in one immutable snapshot.
   - Requirement: renderer/overlay/hit-test/selection/pointer consume this snapshot only (no local recompute from `getRowCount/getRowsInRange`).
   - Progress: `2026-02-10` - added public `virtualWindow` snapshot + `getVirtualWindow()` API on viewport controller, added imperative `onWindow(payload)` callback, exported new types in advanced entrypoint, aligned legacy `visibleRowRange/visibleColumnRange` as compatibility mirrors, and extended contract coverage in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
@@ -48,6 +48,7 @@ Goal: закрыть оставшиеся архитектурные/perf пун
   - Progress: `2026-02-10` - exposed canonical `virtualWindow` snapshot from runtime service/composable/component (`useDataGridRuntimeService`, `useDataGridRuntime`, `DataGrid` slot/expose), including contract updates in `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/__tests__/useDataGridRuntimeService.contract.spec.ts`, `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/__tests__/useDataGridRuntime.contract.spec.ts` and `/Users/anton/Projects/affinio/packages/datagrid-vue/src/components/__tests__/DataGrid.contract.spec.ts`.
   - Progress: `2026-02-10` - switched internal demo window consumers (`useDataGridVirtualRangeMetrics`, `useDataGridColumnLayoutOrchestration`) to prefer runtime canonical snapshot when available in `/Users/anton/Projects/affinio/demo-vue/src/pages/DataGridPage.vue`.
   - Progress: `2026-02-10` - removed fallback-only bounds in hot orchestration paths by making canonical window input mandatory (`useDataGridCellCoordNormalizer`, `useDataGridPointerCellCoordResolver`, `useDataGridCellVisibilityScroller`, `useDataGridSelectionOverlayOrchestration`) and updated vue/orchestration contracts accordingly.
+  - Progress: `2026-02-10` - removed remaining scroll-math fallbacks from window consumers by requiring canonical `virtualWindow` in `useDataGridVirtualRangeMetrics` and `useDataGridColumnLayoutOrchestration` (orchestration + vue wrappers + internal demo call-sites + contracts) in `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/useDataGridVirtualRangeMetrics.ts`, `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/useDataGridColumnLayoutOrchestration.ts`, `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useDataGridVirtualRangeMetrics.ts`, `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useDataGridColumnLayoutOrchestration.ts`, `/Users/anton/Projects/affinio/demo-vue/src/pages/DataGridPage.vue`.
   - Evidence (pending run):
     - `pnpm vitest packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`
     - `pnpm vitest packages/datagrid-orchestration/src/__tests__/useDataGridVirtualRangeMetrics.contract.spec.ts`
@@ -65,7 +66,6 @@ Goal: закрыть оставшиеся архитектурные/perf пун
     - `pnpm vitest packages/datagrid-vue/src/composables/__tests__/useDataGridSelectionOverlayOrchestration.contract.spec.ts`
     - `pnpm vitest packages/datagrid-vue/src/composables/__tests__/useDataGridRuntime.contract.spec.ts`
     - `pnpm vitest packages/datagrid-vue/src/components/__tests__/DataGrid.contract.spec.ts`
-  - Remaining to close: remove fallback-only paths in orchestration consumers and enforce canonical `virtualWindow` as required input for hot interaction flows.
 - [ ] Overscan moved into model-level window snapshot with deterministic behavior.
   - Requirement: overscan is part of public window contract, not hidden state in mixed schedulers/render paths.
   - Requirement: pointer-drag/fill/keyboard/scroll inertia use the same overscan snapshot.

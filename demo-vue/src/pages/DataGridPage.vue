@@ -196,7 +196,6 @@ type AdvancedFilterPreset =
 type SetFilterApplyMode = "replace" | "add"
 
 const ROW_HEIGHT = 38
-const OVERSCAN = 8
 const DRAG_AUTO_SCROLL_EDGE_PX = 36
 const DRAG_AUTO_SCROLL_MAX_STEP_PX = 28
 const AUTO_SIZE_SAMPLE_LIMIT = 260
@@ -2509,8 +2508,7 @@ function resolveGroupBadgeText(row: DataGridRowNode<IncidentRow>): string {
 const columnLayoutOrchestration = useDataGridColumnLayoutOrchestration({
   columns: computed(() => columnSnapshot.value.visibleColumns),
   resolveColumnWidth,
-  viewportWidth,
-  scrollLeft,
+  virtualWindow: computed(() => runtimeVirtualWindow.value),
 })
 const {
   orderedColumns,
@@ -2527,11 +2525,8 @@ const navigableColumnIndexes = computed(() =>
     .map(entry => entry.index),
 )
 const virtualRangeMetrics = useDataGridVirtualRangeMetrics({
-  totalRows: computed(() => filteredAndSortedRows.value.length),
-  scrollTop,
-  viewportHeight,
+  virtualWindow: computed(() => runtimeVirtualWindow.value),
   rowHeight: ROW_HEIGHT,
-  overscan: OVERSCAN,
 })
 const {
   virtualRange,
@@ -2539,6 +2534,19 @@ const {
   spacerBottomHeight,
   rangeLabel,
 } = virtualRangeMetrics
+const resolveViewportRange = () => {
+  const total = Math.max(0, filteredAndSortedRows.value.length)
+  if (total <= 0) {
+    return { start: 0, end: 0 }
+  }
+  const start = Math.max(0, Math.min(total - 1, Math.floor(scrollTop.value / ROW_HEIGHT)))
+  const visibleCount = Math.max(1, Math.ceil(viewportHeight.value / ROW_HEIGHT))
+  const end = Math.max(start, Math.min(total - 1, start + visibleCount - 1))
+  return { start, end }
+}
+watch([scrollTop, viewportHeight, () => filteredAndSortedRows.value.length], () => {
+  api.setViewportRange(resolveViewportRange())
+}, { immediate: true })
 const visibleRowsSyncScheduler = useDataGridVisibleRowsSyncScheduler<IncidentRow, DataGridRowNode<IncidentRow>>({
   resolveRows() {
     return filteredAndSortedRows.value
