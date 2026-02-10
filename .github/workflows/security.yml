@@ -106,7 +106,7 @@ jobs:
         run: pnpm dlx cyclonedx-bom -o sbom.cdx.json
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: sbom-cyclonedx
           path: sbom.cdx.json
