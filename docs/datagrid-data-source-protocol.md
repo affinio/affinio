@@ -1,6 +1,6 @@
 # DataGrid Data Source Protocol
 
-Updated: `2026-02-08`
+Updated: `2026-02-10`
 
 This document defines the canonical data-source boundary for `@affino/datagrid-core`.
 
@@ -54,11 +54,21 @@ Import path:
 - `pullCompleted`
 - `pullAborted`
 - `pullDropped`
+- `pullCoalesced` (identical inflight pull requests reused without extra `pull()`)
+- `pullDeferred` (lower-priority pulls deferred behind higher-priority inflight request)
+- `rowCacheEvicted` (cache-limit evictions; used to observe bounded-cache pressure)
 - `pushApplied`
 - `invalidatedRows`
 - `inFlight`
+- `hasPendingPull`
+- `rowCacheSize`
+- `rowCacheLimit`
 
-These fields are monotonic counters except `inFlight`.
+Counters are monotonic except runtime-state fields:
+- `inFlight`
+- `hasPendingPull`
+- `rowCacheSize`
+- `rowCacheLimit`
 
 ## Testing Requirements
 
@@ -71,3 +81,4 @@ Required categories:
 - sustained viewport overload + abort-first validation
 - partial invalidation behavior
 - push stream application and invalidation-driven refetch
+- bounded cache contract under long viewport churn

@@ -180,6 +180,130 @@ a {
   white-space: pre;
 }
 
+.affino-datagrid-simple {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	border-radius: 0.9rem;
+	border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+	background: color-mix(in srgb, var(--surface, #0e121d) 75%, transparent);
+	padding: 0.75rem;
+	box-shadow: var(--shadow-soft, 0 25px 60px rgba(5, 6, 15, 0.65));
+}
+
+.affino-datagrid-simple__toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.affino-datagrid-simple__toolbar-action {
+	border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+	border-radius: 0.55rem;
+	background: color-mix(in srgb, var(--surface-button, #1a2234) 75%, transparent);
+	color: var(--text-primary, #edf2ff);
+	padding: 0.45rem 0.7rem;
+	cursor: pointer;
+	font-size: 0.82rem;
+}
+
+.affino-datagrid-simple__toolbar-action:hover {
+	border-color: var(--accent-strong, #38bdf8);
+}
+
+.affino-datagrid-simple__status {
+	color: var(--text-soft, rgba(237, 242, 255, 0.55));
+	font-size: 0.8rem;
+}
+
+.affino-datagrid-simple__metrics {
+	display: flex;
+	gap: 1rem;
+	color: var(--text-soft, rgba(237, 242, 255, 0.55));
+	font-size: 0.78rem;
+}
+
+.affino-datagrid-simple__viewport {
+	overflow: auto;
+	border-radius: 0.75rem;
+	border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+	background: color-mix(in srgb, var(--surface-alt, #151a26) 85%, transparent);
+	max-height: min(70vh, 620px);
+}
+
+.affino-datagrid-simple__table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.85rem;
+	color: var(--text-primary, #edf2ff);
+}
+
+.affino-datagrid-simple__table thead th {
+	position: sticky;
+	top: 0;
+	background: color-mix(in srgb, var(--surface-solid, #0e121d) 88%, transparent);
+	text-align: left;
+	font-weight: 600;
+	border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+	padding: 0.6rem 0.75rem;
+	z-index: 1;
+}
+
+.affino-datagrid-simple__table thead th small {
+	margin-left: 0.4rem;
+	color: var(--text-muted, rgba(237, 242, 255, 0.7));
+	font-size: 0.72rem;
+}
+
+.affino-datagrid-simple__cell {
+	padding: 0.55rem 0.75rem;
+	border-bottom: 1px solid color-mix(in srgb, var(--glass-border, rgba(255, 255, 255, 0.08)) 70%, transparent);
+}
+
+.affino-datagrid-simple__row.is-selected .affino-datagrid-simple__cell {
+	background: color-mix(in srgb, var(--accent, #8b5cf6) 18%, transparent);
+}
+
+.affino-datagrid-simple__row:hover .affino-datagrid-simple__cell {
+	background: color-mix(in srgb, var(--surface-card, #161e2e) 70%, transparent);
+}
+
+.affino-datagrid-simple__editor {
+	width: 100%;
+	border-radius: 0.45rem;
+	border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+	background: color-mix(in srgb, var(--surface-solid, #0e121d) 85%, transparent);
+	color: var(--text-primary, #edf2ff);
+	padding: 0.35rem 0.5rem;
+}
+
+.affino-datagrid-simple__menu {
+	position: fixed;
+	display: grid;
+	gap: 0.35rem;
+	padding: 0.45rem;
+	border-radius: 0.6rem;
+	border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+	background: color-mix(in srgb, var(--surface-solid, #0e121d) 92%, transparent);
+	box-shadow: 0 22px 60px rgba(2, 6, 23, 0.6);
+	z-index: 2000;
+}
+
+.affino-datagrid-simple__menu-item {
+	border: 0;
+	border-radius: 0.45rem;
+	background: transparent;
+	color: var(--text-primary, #edf2ff);
+	padding: 0.4rem 0.6rem;
+	text-align: left;
+	cursor: pointer;
+}
+
+.affino-datagrid-simple__menu-item:hover {
+	background: color-mix(in srgb, var(--accent, #8b5cf6) 20%, transparent);
+}
+
 .menu-demo-block {
   display: flex;
   flex-direction: column;
