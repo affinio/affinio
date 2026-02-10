@@ -408,14 +408,37 @@ let lastDragCoord: CellCoord | null = null
 let ensureCellVisibleByCoord: ((coord: CellCoord) => void) | null = null
 let resolveDisplayRowCount: () => number = () => 0
 let resolveVirtualWindowColumnTotal: () => number = () => 0
-let resolveCanonicalVirtualWindow: () => { rowTotal: number; colTotal: number } | null = () => null
+let resolveCanonicalVirtualWindow: () => {
+  rowStart: number
+  rowEnd: number
+  rowTotal: number
+  colStart: number
+  colEnd: number
+  colTotal: number
+  overscan: {
+    top: number
+    bottom: number
+    left: number
+    right: number
+  }
+} | null = () => null
 let resolveDisplayNodeAtIndex: (rowIndex: number) => DataGridRowNode<IncidentRow> | undefined = () => undefined
 let resolveDisplayLeafRowAtIndex: (rowIndex: number) => IncidentRow | undefined = () => undefined
 let materializeDisplayRows: () => readonly DataGridRowNode<IncidentRow>[] = () => []
 const resolveSharedVirtualWindow = () => (
   resolveCanonicalVirtualWindow() ?? {
+    rowStart: 0,
+    rowEnd: 0,
     rowTotal: resolveDisplayRowCount(),
+    colStart: 0,
+    colEnd: 0,
     colTotal: resolveVirtualWindowColumnTotal(),
+    overscan: {
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+    },
   }
 )
 const cellCoordNormalizer = useDataGridCellCoordNormalizer<CellCoord>({
@@ -734,7 +757,6 @@ const {
   activeFilterColumnLabel,
   columnFilterOperatorOptions,
   activeColumnFilterEnumOptions,
-  canApplyActiveColumnFilter,
   isColumnFilterActive,
   openColumnFilter,
   closeColumnFilterPanel,
@@ -2142,8 +2164,18 @@ resolveCanonicalVirtualWindow = () => {
     return null
   }
   return {
+    rowStart: snapshot.rowStart,
+    rowEnd: snapshot.rowEnd,
     rowTotal: snapshot.rowTotal,
+    colStart: snapshot.colStart,
+    colEnd: snapshot.colEnd,
     colTotal: snapshot.colTotal > 0 ? snapshot.colTotal : resolveVirtualWindowColumnTotal(),
+    overscan: {
+      top: snapshot.overscan.top,
+      bottom: snapshot.overscan.bottom,
+      left: snapshot.overscan.left,
+      right: snapshot.overscan.right,
+    },
   }
 }
 

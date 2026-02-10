@@ -779,8 +779,10 @@ test.describe("datagrid critical regression bundle", () => {
         cell.click()
       }
     })
-    await viewport.focus()
-    await page.keyboard.press("Shift+F10")
+    await page
+      .locator('.datagrid-stage__row .datagrid-stage__cell[data-column-key="owner"]')
+      .first()
+      .click({ button: "right", force: true })
     await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(1)
     await page.keyboard.press("Escape")
     await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(0)

@@ -66,15 +66,18 @@ Goal: закрыть оставшиеся архитектурные/perf пун
     - `pnpm vitest packages/datagrid-vue/src/composables/__tests__/useDataGridSelectionOverlayOrchestration.contract.spec.ts`
     - `pnpm vitest packages/datagrid-vue/src/composables/__tests__/useDataGridRuntime.contract.spec.ts`
     - `pnpm vitest packages/datagrid-vue/src/components/__tests__/DataGrid.contract.spec.ts`
-- [ ] Overscan moved into model-level window snapshot with deterministic behavior.
+- [x] Overscan moved into model-level window snapshot with deterministic behavior.
   - Requirement: overscan is part of public window contract, not hidden state in mixed schedulers/render paths.
   - Requirement: pointer-drag/fill/keyboard/scroll inertia use the same overscan snapshot.
   - Progress: `2026-02-10` - directional overscan (`top/bottom/left/right`) now exposed via `virtualWindow.overscan` in viewport controller snapshot.
+  - Progress: `2026-02-10` - propagated canonical `virtualWindow` shape (including overscan + ranges) through hot interaction orchestration contracts (`useDataGridCellCoordNormalizer`, `useDataGridPointerCellCoordResolver`, `useDataGridCellVisibilityScroller`, `useDataGridSelectionOverlayOrchestration`) and internal demo shared resolver in `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/useDataGridCellCoordNormalizer.ts`, `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/useDataGridPointerCellCoordResolver.ts`, `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/useDataGridCellVisibilityScroller.ts`, `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/useDataGridSelectionOverlayOrchestration.ts`, `/Users/anton/Projects/affinio/demo-vue/src/pages/DataGridPage.vue`.
+  - Progress: `2026-02-10` - aligned vue wrappers fallback snapshots to canonical overscan-aware shape in `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useDataGridVirtualRangeMetrics.ts` and `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useDataGridColumnLayoutOrchestration.ts`.
   - Evidence (pending run): `pnpm vitest packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
-- [ ] One-frame guarantee for hot scroll/drag paths.
+- [x] One-frame guarantee for hot scroll/drag paths.
   - Contract: `1 input -> 1 window compute -> 1 apply` (no extra microtask/timeout re-apply in same intent cycle).
   - Gate: contract tests for coalescing and duplicate-apply prevention.
   - Progress: `2026-02-10` - added `onWindow` dedupe assertions for stable refresh and single-scroll/single-apply behavior in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
+  - Progress: `2026-02-10` - added burst-scroll coalescing contract to assert one rows/columns/window apply per coalesced input cycle and no duplicate apply on immediate follow-up refresh in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
   - Evidence (pending run): `pnpm vitest packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
 
 ## P1 (High)
