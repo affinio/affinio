@@ -1,4 +1,9 @@
 import { expect, Locator, Page, test } from "@playwright/test"
+import {
+  DATA_GRID_DATA_ATTRS,
+  DATA_GRID_SELECTORS,
+  dataGridCellSelector,
+} from "@affino/datagrid-vue"
 
 const ROUTE = "/datagrid"
 
@@ -13,7 +18,7 @@ test.describe("datagrid long-session regressions", () => {
 
     await selectRowsPreset(page, "6400")
 
-    const viewport = page.locator(".datagrid-stage__viewport")
+    const viewport = page.locator(DATA_GRID_SELECTORS.viewport)
     await viewport.waitFor()
 
     const windowValue = metricValue(page, "Window")
@@ -29,9 +34,9 @@ test.describe("datagrid long-session regressions", () => {
 
     await expect.poll(async () => parseRangeStart(await readText(windowValue))).toBe(1)
 
-    await page.locator(".datagrid-stage__row").first().locator(".datagrid-stage__cell").nth(1).click()
+    await page.locator(DATA_GRID_SELECTORS.row).first().locator(DATA_GRID_SELECTORS.cell).nth(1).click()
     await expect(activeCellValue).toContainText("service")
-    await expect(page.locator(".datagrid-stage__empty")).toHaveCount(0)
+    await expect(page.locator(DATA_GRID_SELECTORS.emptyState)).toHaveCount(0)
     expect(pageErrors).toEqual([])
   })
 
@@ -43,7 +48,7 @@ test.describe("datagrid long-session regressions", () => {
 
     await page.goto(ROUTE)
 
-    const viewport = page.locator(".datagrid-stage__viewport")
+    const viewport = page.locator(DATA_GRID_SELECTORS.viewport)
     await viewport.waitFor()
 
     const columnWindowValue = metricValue(page, "Visible columns window")
@@ -62,10 +67,10 @@ test.describe("datagrid long-session regressions", () => {
 
     const targetCell = page
       .locator(
-        '.datagrid-stage__row .datagrid-stage__cell[data-row-id][data-column-key]:not([data-column-key="select"])'
+        `${DATA_GRID_SELECTORS.row} ${DATA_GRID_SELECTORS.cell}[${DATA_GRID_DATA_ATTRS.rowId}][${DATA_GRID_DATA_ATTRS.columnKey}]:not([${DATA_GRID_DATA_ATTRS.columnKey}="select"])`
       )
       .first()
-    const targetColumnKey = await targetCell.getAttribute("data-column-key")
+    const targetColumnKey = await targetCell.getAttribute(DATA_GRID_DATA_ATTRS.columnKey)
     expect(targetColumnKey).toBeTruthy()
     await targetCell.click()
     await expect(activeCellValue).toContainText(targetColumnKey ?? "")
@@ -830,11 +835,11 @@ test.describe("datagrid accessibility pass", () => {
     await cellLocator(page, "owner", 0).click()
     await page.keyboard.press("Shift+F10")
 
-    const menu = page.locator("[data-datagrid-copy-menu]")
+    const menu = page.locator(DATA_GRID_SELECTORS.copyMenu)
     await expect(menu).toHaveAttribute("role", "menu")
     await expect(menu).toHaveAttribute("aria-label", /Cell actions|Column actions/)
 
-    const menuItems = page.locator("[data-datagrid-menu-action]")
+    const menuItems = page.locator(DATA_GRID_SELECTORS.menuAction)
     await expect(menuItems.first()).toBeFocused()
     await page.keyboard.press("ArrowDown")
     await expect(menuItems.nth(1)).toBeFocused()
@@ -853,7 +858,7 @@ test.describe("datagrid accessibility pass", () => {
 
 function metricValue(page: Page, label: string): Locator {
   return page
-    .locator(".datagrid-metrics div")
+    .locator(`${DATA_GRID_SELECTORS.metrics} div`)
     .filter({ has: page.locator("dt", { hasText: label }) })
     .locator("dd")
     .first()
@@ -861,29 +866,29 @@ function metricValue(page: Page, label: string): Locator {
 
 function headerCell(page: Page, label: string): Locator {
   return page
-    .locator(".datagrid-stage__cell--header")
+    .locator(DATA_GRID_SELECTORS.headerCell)
     .filter({ hasText: label })
     .first()
 }
 
 function headerFilterTrigger(page: Page, columnKey: string): Locator {
   return page
-    .locator(`[data-datagrid-filter-trigger][data-column-key="${columnKey}"]`)
+    .locator(`[${DATA_GRID_DATA_ATTRS.filterTrigger}][${DATA_GRID_DATA_ATTRS.columnKey}="${columnKey}"]`)
     .first()
 }
 
 async function openHeaderFilter(page: Page, columnKey: string): Promise<void> {
   await headerFilterTrigger(page, columnKey).click()
-  await expect(page.locator("[data-datagrid-filter-panel]")).toHaveAttribute("data-column-key", columnKey)
+  await expect(page.locator(DATA_GRID_SELECTORS.filterPanel)).toHaveAttribute(DATA_GRID_DATA_ATTRS.columnKey, columnKey)
 }
 
 function cellLocator(page: Page, columnKey: string, rowIndex: number): Locator {
-  return page.locator(`.datagrid-stage__row .datagrid-stage__cell[data-column-key="${columnKey}"]`).nth(rowIndex)
+  return page.locator(`${DATA_GRID_SELECTORS.row} ${dataGridCellSelector(columnKey)}`).nth(rowIndex)
 }
 
 function leafCellLocator(page: Page, columnKey: string, rowIndex: number): Locator {
   return page
-    .locator(`.datagrid-stage__row:not(.datagrid-stage__row--group-start) .datagrid-stage__cell[data-column-key="${columnKey}"]`)
+    .locator(`${DATA_GRID_SELECTORS.row}:not(.datagrid-stage__row--group-start) ${dataGridCellSelector(columnKey)}`)
     .nth(rowIndex)
 }
 
@@ -941,7 +946,7 @@ async function altDragRangeWithAutoScroll(page: Page, fromCell: Locator, viewpor
 
 async function dragFillHandle(page: Page, fromCell: Locator, toCell: Locator): Promise<void> {
   await fromCell.hover()
-  const handle = fromCell.locator(".datagrid-stage__selection-handle--cell").first()
+  const handle = fromCell.locator(DATA_GRID_SELECTORS.selectionHandleCell).first()
   await expect(handle).toBeVisible()
   const handleBox = await boundingBox(handle)
   const targetBox = await boundingBox(toCell)
@@ -1024,7 +1029,7 @@ async function prepareGroupedVirtualizedSession(page: Page): Promise<void> {
     .locator('input[type="checkbox"]')
     .check()
 
-  const viewport = page.locator(".datagrid-stage__viewport")
+  const viewport = page.locator(DATA_GRID_SELECTORS.viewport)
   await viewport.waitFor()
   await runLongVerticalSession(viewport)
   await runLongHorizontalSession(viewport)

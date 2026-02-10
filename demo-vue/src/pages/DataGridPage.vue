@@ -25,6 +25,8 @@ import {
   resolveGridThemeTokens,
 } from "@affino/datagrid-theme"
 import {
+  DATA_GRID_DATA_ATTRS,
+  DATA_GRID_SELECTORS,
   useDataGridContextMenu,
   useDataGridRuntime,
 } from "@affino/datagrid-vue"
@@ -986,7 +988,7 @@ function openHeaderFilterMenuFromContextMenu(columnKey: string): void {
   openColumnFilter(columnKey)
   nextTick(() => {
     const trigger = headerRef.value?.querySelector<HTMLButtonElement>(
-      `[data-datagrid-filter-trigger][data-column-key="${columnKey}"]`,
+      `[${DATA_GRID_DATA_ATTRS.filterTrigger}][${DATA_GRID_DATA_ATTRS.columnKey}="${columnKey}"]`,
     )
     trigger?.click()
   })
@@ -1284,7 +1286,7 @@ const {
 const commitInlineEdit = () => {
   const currentEditor = inlineEditor.value
   if (currentEditor && viewportRef.value) {
-    const selector = `[data-inline-editor-row-id="${currentEditor.rowId}"][data-inline-editor-column-key="${currentEditor.columnKey}"]`
+    const selector = `[${DATA_GRID_DATA_ATTRS.inlineEditorRowId}="${currentEditor.rowId}"][${DATA_GRID_DATA_ATTRS.inlineEditorColumnKey}="${currentEditor.columnKey}"]`
     const host = viewportRef.value.querySelector(selector)
     const input = host && (host.matches("input,textarea,select") ? host : host.querySelector("input,textarea,select"))
     if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement || input instanceof HTMLSelectElement) {
@@ -1590,7 +1592,7 @@ const cellPointerDownRouter = useDataGridCellPointerDownRouter<DataGridRowNode<I
   },
   isRangeMoveModifierActive,
   isEditorInteractionTarget(target) {
-    return !!target?.closest(".datagrid-stage__editor") || !!target?.closest(".datagrid-stage__enum-trigger")
+    return !!target?.closest(DATA_GRID_SELECTORS.inlineEditor) || !!target?.closest(DATA_GRID_SELECTORS.enumTrigger)
   },
   hasInlineEditor() {
     return inlineEditor.value !== null
@@ -1632,7 +1634,7 @@ const onDataCellMouseDown = (row: DataGridRowNode<IncidentRow>, columnKey: strin
   if (row.kind === "group") {
     if (columnKey !== "select" && isTreeGroupToggleCell(row, columnKey)) {
       const eventTarget = event.target as Element | null
-      if (eventTarget?.closest('[data-datagrid-tree-toggle="true"]')) {
+      if (eventTarget?.closest(`[${DATA_GRID_DATA_ATTRS.treeToggle}="true"]`)) {
         return false
       }
     }
@@ -1692,7 +1694,7 @@ const onDataCellDoubleClick = (row: DataGridRowNode<IncidentRow>, columnKey: str
   if (row.kind === "group") {
     if (columnKey !== "select" && isTreeGroupToggleCell(row, columnKey)) {
       const eventTarget = event.target as Element | null
-      if (eventTarget?.closest('[data-datagrid-tree-toggle="true"]')) {
+      if (eventTarget?.closest(`[${DATA_GRID_DATA_ATTRS.treeToggle}="true"]`)) {
         return
       }
       event.preventDefault()

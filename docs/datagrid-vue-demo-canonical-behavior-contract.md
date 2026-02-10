@@ -94,6 +94,11 @@ This document fixes the canonical interaction behavior that must be preserved wh
 
 ## 7. Observable UI Contract (Selectors)
 
+Source of truth for demo parity selectors is now exported from:
+
+- `/Users/anton/Projects/affinio/packages/datagrid-vue/src/contracts/dataGridSelectors.ts`
+- `@affino/datagrid-vue` (`DATA_GRID_SELECTORS`, `DATA_GRID_DATA_ATTRS`, selector helpers)
+
 - Viewport: `.datagrid-stage__viewport`
 - Rows: `.datagrid-stage__row`
 - Cells: `.datagrid-stage__cell`

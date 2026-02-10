@@ -40,7 +40,7 @@ Covered by `datagrid-sheets-baseline-feature-pipeline-checklist.md`:
 
 - [x] Publish a single parity matrix for AG Grid parity (not demo-only).
 - [x] Add `quality:lock:datagrid:parity` gate: tests + perf + determinism + e2e.
-- [ ] Move demo parity selectors into `@affino/datagrid-vue` with stable IDs.
+- [x] Move demo parity selectors into `@affino/datagrid-vue` with stable IDs.
 
 Exit criteria:
 - Green parity matrix in CI, pinned+virtualized scenarios included.
@@ -48,6 +48,7 @@ Exit criteria:
 Comment:
 - `2026-02-10`: published cross-framework parity matrix in `/Users/anton/Projects/affinio/docs/datagrid-parity-matrix.md` (core + vue + laravel coverage rows).
 - `2026-02-10`: added root parity lock command `quality:lock:datagrid:parity` in `/Users/anton/Projects/affinio/package.json`.
+- `2026-02-10`: extracted canonical demo selector contract into `/Users/anton/Projects/affinio/packages/datagrid-vue/src/contracts/dataGridSelectors.ts`, exported via `@affino/datagrid-vue`, and updated demo/e2e consumers to use contract selectors.
 
 ### Phase 1 — Rows & Data (Community Baseline)
 

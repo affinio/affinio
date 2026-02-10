@@ -81,8 +81,10 @@ Fail-fast behavior:
   - report freshness,
   - required suites presence (`vue-adapters`, `laravel-morph`, `interaction-models`, `row-models`),
   - `ok=true` for harness summary and each required suite,
-  - JSON artifact integrity for each suite.
-- CI `benchmark-regression` job is blocking for merge readiness.
+  - JSON artifact integrity for each suite,
+  - finite CI variance/heap budgets in harness + per-suite artifacts,
+  - aggregate variance/heap envelopes against declared budgets.
+- CI `quality-gates` parity lock run is blocking for merge readiness.
 
 ## CI Integration
 
@@ -90,13 +92,12 @@ Workflow:
 - `.github/workflows/ci.yml`
 
 Jobs:
-- `quality-gates`: architecture acceptance + contracts + coverage + critical-path interaction checks.
-- `benchmark-regression`: datagrid harness + uploaded performance artifacts.
+- `quality-gates`: `quality:lock:datagrid:parity` (architecture acceptance + contracts + coverage + critical interaction checks + benchmark regression + parity e2e).
 
 ## Latest Result Status
 
 Source of truth:
-- CI artifact bundle `benchmark-regression` from the latest pipeline run.
+- CI artifact bundle `datagrid-quality-gates` from the latest pipeline run.
 
 Status in this local environment:
 - Benchmarks were not executed locally because `node/npm` are unavailable.

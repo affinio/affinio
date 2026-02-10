@@ -1,4 +1,9 @@
 import { expect, Locator, Page, test } from "@playwright/test"
+import {
+  DATA_GRID_DATA_ATTRS,
+  DATA_GRID_SELECTORS,
+  dataGridCellSelector,
+} from "@affino/datagrid-vue"
 
 const ROUTE = "/datagrid"
 
@@ -15,7 +20,7 @@ test.describe("datagrid interaction contracts", () => {
     await expect(metricValue(page, "Selection anchor")).toContainText("owner")
     await expect(metricValue(page, "Active cell")).toContainText("R2")
     await expect(metricValue(page, "Active cell")).toContainText("region")
-    await expect(page.locator(".datagrid-stage__selection-overlay--main")).toHaveCount(1)
+    await expect(page.locator(DATA_GRID_SELECTORS.selectionOverlayMain)).toHaveCount(1)
   })
 
   test("fill handle drag applies value extension and reports action", async ({ page }) => {
@@ -26,14 +31,14 @@ test.describe("datagrid interaction contracts", () => {
     const target = cellLocator(page, "deployment", 1)
     const windowValue = metricValue(page, "Window")
     await expect.poll(async () => await readText(windowValue)).not.toBe("1-1")
-    await expect.poll(async () => page.locator('.datagrid-stage__cell[data-column-key="deployment"]').count()).toBeGreaterThan(1)
+    await expect.poll(async () => page.locator(dataGridCellSelector("deployment")).count()).toBeGreaterThan(1)
     const sourceValue = await readText(source)
 
     await source.click()
     await dragFillHandle(page, source, target)
 
     await expect(target).toHaveText(sourceValue)
-    await expect(page.locator(".datagrid-controls__status")).toContainText("Fill applied")
+    await expect(page.locator(DATA_GRID_SELECTORS.status)).toContainText("Fill applied")
   })
 
   test("inline editor commits value on Enter without layout regression", async ({ page }) => {
@@ -43,13 +48,13 @@ test.describe("datagrid interaction contracts", () => {
     await ownerCell.dblclick()
 
     const editor = page
-      .locator('.datagrid-stage__editor-input[data-inline-editor-column-key="owner"]')
+      .locator(`${DATA_GRID_SELECTORS.inlineEditorInput}[${DATA_GRID_DATA_ATTRS.inlineEditorColumnKey}="owner"]`)
       .first()
     await expect(editor).toBeVisible()
     await editor.fill("qa-owner-demo")
     await editor.press("Enter")
 
-    await expect(page.locator(".datagrid-controls__status")).toContainText("Saved owner")
+    await expect(page.locator(DATA_GRID_SELECTORS.status)).toContainText("Saved owner")
   })
 
   test("pinned column remains sticky during long horizontal scroll", async ({ page }) => {
@@ -61,8 +66,8 @@ test.describe("datagrid interaction contracts", () => {
       .locator('input[type="checkbox"]')
       .check()
 
-    const viewport = page.locator(".datagrid-stage__viewport")
-    const statusCell = page.locator('.datagrid-stage__row .datagrid-stage__cell[data-column-key="status"]').first()
+    const viewport = page.locator(DATA_GRID_SELECTORS.viewport)
+    const statusCell = page.locator(`${DATA_GRID_SELECTORS.row} ${dataGridCellSelector("status")}`).first()
 
     const before = await boundingBox(statusCell)
     await runLongHorizontalSession(viewport)
@@ -77,7 +82,7 @@ test.describe("datagrid interaction contracts", () => {
 
     await selectControlOption(page, "Rows", "6400")
 
-    const viewport = page.locator(".datagrid-stage__viewport")
+    const viewport = page.locator(DATA_GRID_SELECTORS.viewport)
     const rowWindow = metricValue(page, "Window")
     const columnWindow = metricValue(page, "Visible columns window")
 
@@ -94,19 +99,19 @@ test.describe("datagrid interaction contracts", () => {
 
 function metricValue(page: Page, label: string): Locator {
   return page
-    .locator(".datagrid-metrics div")
+    .locator(`${DATA_GRID_SELECTORS.metrics} div`)
     .filter({ has: page.locator("dt", { hasText: label }) })
     .locator("dd")
     .first()
 }
 
 function cellLocator(page: Page, columnKey: string, rowIndex: number): Locator {
-  return page.locator(`.datagrid-stage__row .datagrid-stage__cell[data-column-key="${columnKey}"]`).nth(rowIndex)
+  return page.locator(`${DATA_GRID_SELECTORS.row} ${dataGridCellSelector(columnKey)}`).nth(rowIndex)
 }
 
 async function dragFillHandle(page: Page, fromCell: Locator, toCell: Locator): Promise<void> {
   await fromCell.hover()
-  const handle = fromCell.locator(".datagrid-stage__selection-handle--cell").first()
+  const handle = fromCell.locator(DATA_GRID_SELECTORS.selectionHandleCell).first()
   await expect(handle).toBeVisible()
   await expect(toCell).toBeVisible()
   const handleBox = await boundingBox(handle)

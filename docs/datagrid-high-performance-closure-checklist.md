@@ -103,19 +103,31 @@ Goal: закрыть оставшиеся архитектурные/perf пун
   - Evidence (pending run):
     - `pnpm vitest packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`
     - `pnpm vitest packages/datagrid-core/src/viewport/__tests__/modelBridge.contract.spec.ts`
-- [ ] Unify range-engine internals for copy/paste/cut/fill/move to one canonical transaction-aware pipeline.
+- [x] Unify range-engine internals for copy/paste/cut/fill/move to one canonical transaction-aware pipeline.
   - Progress: `2026-02-10` - extracted shared kernel for deterministic range iteration + mutable row store (`dataGridRangeMutationKernel`) and rewired both clipboard mutations (`copy/paste/cut/clear` path) and range mutation engine (`fill/move` path) to consume it instead of duplicated local row-mutation loops in `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/dataGridRangeMutationKernel.ts`, `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/useDataGridClipboardMutations.ts`, `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/useDataGridRangeMutationEngine.ts`.
   - Progress: `2026-02-10` - added kernel contract coverage in `/Users/anton/Projects/affinio/packages/datagrid-orchestration/src/__tests__/dataGridRangeMutationKernel.contract.spec.ts`.
-  - Evidence (pending run):
+  - Evidence:
     - `pnpm --filter @affino/datagrid-orchestration exec vitest run --config vitest.config.ts src/__tests__/dataGridRangeMutationKernel.contract.spec.ts src/__tests__/useDataGridClipboardMutations.contract.spec.ts src/__tests__/useDataGridRangeMutationEngine.contract.spec.ts`
-- [ ] Expand derived/value caches (filter predicates, sort keys, group meta) with bounded invalidation.
+- [x] Expand derived/value caches (filter predicates, sort keys, group meta) with bounded invalidation.
   - Progress: `2026-02-10` - client row model now caches compiled filter predicate by serialized filter snapshot (bounded single-slot cache with automatic invalidation on filter model key change), materializes sort keys once per row per sort pass instead of re-reading row fields inside comparator loops, and caches grouped field values per projection pass (`rowId::field`) to avoid duplicate group-value reads in grouped projection in `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/clientRowModel.ts`.
   - Progress: `2026-02-10` - added projection contract for sort-key materialization in `/Users/anton/Projects/affinio/packages/datagrid-core/src/models/__tests__/clientRowModel.spec.ts`.
-  - Evidence (pending run):
+  - Evidence:
     - `pnpm --filter @affino/datagrid-core exec vitest run --config vitest.config.ts src/models/__tests__/clientRowModel.spec.ts`
 
 ## P2 (Hardening)
 
 - [ ] Strengthen CI perf gates (variance + memory growth) for parity lock.
-- [ ] Finish stable selector contract extraction from demo into `@affino/datagrid-vue`.
+  - Progress: `2026-02-10` - strengthened benchmark gate script to validate finite CI variance/heap budgets and enforce aggregate variance/heap envelopes from suite artifacts (not only `ok` flags), in `/Users/anton/Projects/affinio/scripts/check-datagrid-benchmark-report.mjs`.
+  - Progress: `2026-02-10` - updated performance gate docs with new runtime gate checks in `/Users/anton/Projects/affinio/docs/datagrid-performance-gates.md`.
+  - Evidence (pending run):
+    - `pnpm run bench:datagrid:harness:ci:gate`
+- [x] Finish stable selector contract extraction from demo into `@affino/datagrid-vue`.
+  - Progress: `2026-02-10` - extracted stable selector contract into `/Users/anton/Projects/affinio/packages/datagrid-vue/src/contracts/dataGridSelectors.ts`, exported through `/Users/anton/Projects/affinio/packages/datagrid-vue/src/public.ts`, and switched Vue demo/runtime e2e usage to package-level selector constants in `/Users/anton/Projects/affinio/demo-vue/src/pages/DataGridPage.vue`, `/Users/anton/Projects/affinio/tests/e2e/datagrid.interactions.spec.ts`, and `/Users/anton/Projects/affinio/tests/e2e/datagrid.regression.spec.ts`.
+  - Evidence:
+    - `pnpm -C /Users/anton/Projects/affinio --filter @affino/datagrid-vue exec vitest run --config vitest.config.ts src/contracts/__tests__/dataGridSelectors.contract.spec.ts`
+    - `pnpm -C /Users/anton/Projects/affinio --filter @affino/datagrid-vue run type-check:public`
+    - `pnpm -C /Users/anton/Projects/affinio exec playwright test tests/e2e/datagrid.interactions.spec.ts tests/e2e/datagrid.regression.spec.ts`
 - [ ] Complete cross-framework parity lock rollout (`quality:lock:datagrid:parity`) in CI workflow.
+  - Progress: `2026-02-10` - CI workflow now runs parity lock directly in `quality-gates` job (`pnpm run quality:lock:datagrid:parity`), uploads perf artifacts from the same blocking job, and removes separate duplicate benchmark-regression stage in `/Users/anton/Projects/affinio/.github/workflows/ci.yml`.
+  - Evidence (pending run):
+    - `.github/workflows/ci.yml` pipeline run with green `quality-gates` job on PR/branch.
