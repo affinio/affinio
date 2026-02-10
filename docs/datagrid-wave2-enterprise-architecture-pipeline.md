@@ -64,6 +64,7 @@ Progress:
   - `invalidates derived sort cache on row revision to avoid stale sort values`.
 - `2026-02-10` - added derived-cache hot-path benchmark `/Users/anton/Projects/affinio/scripts/bench-datagrid-derived-cache.mjs` (stable-cache vs invalidated-cache latency + hit-rate metrics) and assert entrypoint `pnpm run bench:datagrid:derived-cache:assert`; artifact: `/Users/anton/Projects/affinio/artifacts/performance/bench-datagrid-derived-cache.json`.
 - `2026-02-10` - stabilized derived-cache benchmark total-latency signal by reusing one shared synthetic dataset across warmup/seed scenarios (removes row-generation noise from elapsed budget while preserving cache hit/miss contracts) in `/Users/anton/Projects/affinio/scripts/bench-datagrid-derived-cache.mjs`.
+- `2026-02-10` - hardened derived-cache elapsed budget gate against single-seed noise: `PERF_BUDGET_TOTAL_MS` now checks aggregate elapsed `p95` across seeds instead of immediate per-seed fail, keeping regression sensitivity with lower flake rate in `/Users/anton/Projects/affinio/scripts/bench-datagrid-derived-cache.mjs`.
 
 ## 03. Range-Based Invalidation Guarantees (`target >= 9.4`)
 
@@ -138,6 +139,7 @@ Progress:
 - `2026-02-10` - added versioned baseline lock `/Users/anton/Projects/affinio/docs/perf/datagrid-benchmark-baseline.json` and wired perf-contract static guard in `/Users/anton/Projects/affinio/scripts/check-datagrid-perf-contracts.mjs` to prevent drift-gate removal.
 - `2026-02-10` - updated perf gate documentation `/Users/anton/Projects/affinio/docs/datagrid-performance-gates.md` to include baseline drift lock contract.
 - `2026-02-10` - row-model benchmark synthetic server source switched to bounded block cache (`BENCH_SERVER_CACHE_BLOCK_LIMIT`, default `96`) to remove unbounded cache growth noise from heap-delta signal in `/Users/anton/Projects/affinio/scripts/bench-datagrid-rowmodels.mjs`.
+- `2026-02-10` - row-model `window-shift` benchmark switched to reusable visible-row object pool (`updateReusableVisibleRows + slice`) to reduce allocator noise and make heap/elapsed signal reflect model work instead of row object construction churn in `/Users/anton/Projects/affinio/scripts/bench-datagrid-rowmodels.mjs`.
 
 ## Close Log
 
