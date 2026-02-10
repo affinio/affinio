@@ -93,6 +93,7 @@ Goal: закрыть оставшиеся архитектурные/perf пун
   - Resize single column must not trigger row-window recompute.
   - Vertical scroll must not trigger full column-layout recompute.
   - Bridge/controller invalidation should be narrowed from force-refresh to affected axis/range.
+  - Progress: `2026-02-10` - controller now short-circuits horizontal recompute/apply for vertical-only updates using horizontal structure/motion invalidation gates, with contract coverage for axis-scoped callback behavior (vertical-only => rows/window without columns, horizontal-only => columns/window without rows, width resize => columns without rows) in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts` and `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
 - [ ] Unify range-engine internals for copy/paste/cut/fill/move to one canonical transaction-aware pipeline.
 - [ ] Expand derived/value caches (filter predicates, sort keys, group meta) with bounded invalidation.
 
