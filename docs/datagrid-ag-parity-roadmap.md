@@ -1,6 +1,6 @@
 # DataGrid AG Grid Parity Roadmap (Minimum)
 
-Updated: `2026-02-08`
+Updated: `2026-02-10`
 Scope: `@affino/datagrid-core` + `@affino/datagrid-vue` + demo parity baseline.
 Goal: минимальный набор для AG Grid parity (community baseline + узкий enterprise минимум).
 
@@ -30,14 +30,24 @@ Covered by `datagrid-sheets-baseline-feature-pipeline-checklist.md`:
 
 ## Roadmap (Minimum AG Grid Parity)
 
+## Priority Ladder (P0 -> P2)
+
+- `P0` (release blockers): parity infra + hard gates + stable selectors.
+- `P1` (community baseline gaps): rows/columns/filtering/edit/export parity.
+- `P2` (production hardening + enterprise minimum): a11y/i18n/rtl + enterprise opt-in.
+
 ### Phase 0 — Parity Infrastructure (Now)
 
-- [ ] Publish a single parity matrix for AG Grid parity (not demo-only).
-- [ ] Add `quality:lock:datagrid:parity` gate: tests + perf + determinism + e2e.
+- [x] Publish a single parity matrix for AG Grid parity (not demo-only).
+- [x] Add `quality:lock:datagrid:parity` gate: tests + perf + determinism + e2e.
 - [ ] Move demo parity selectors into `@affino/datagrid-vue` with stable IDs.
 
 Exit criteria:
 - Green parity matrix in CI, pinned+virtualized scenarios included.
+
+Comment:
+- `2026-02-10`: published cross-framework parity matrix in `/Users/anton/Projects/affinio/docs/datagrid-parity-matrix.md` (core + vue + laravel coverage rows).
+- `2026-02-10`: added root parity lock command `quality:lock:datagrid:parity` in `/Users/anton/Projects/affinio/package.json`.
 
 ### Phase 1 — Rows & Data (Community Baseline)
 
@@ -123,4 +133,3 @@ Exit criteria:
 4) Phase 5 (export) — CSV minimal parity.
 5) Phase 6 (a11y/i18n) — production-readiness.
 6) Phase 7 (enterprise minimum) — only if needed for parity claims.
-

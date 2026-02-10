@@ -2,6 +2,9 @@
 
 Scope: `@affino/datagrid-core` + `@affino/datagrid-vue`
 
+Parity umbrella matrix:
+- `docs/datagrid-parity-matrix.md`
+
 ## Architecture Acceptance Gate
 
 Fail-fast architecture acceptance:
@@ -70,6 +73,7 @@ Critical e2e scenarios:
 Command:
 - `pnpm run quality:gates:datagrid`
 - `pnpm run quality:lock:datagrid` (architecture + perf contracts + strict contract matrix + coverage + critical e2e)
+- `pnpm run quality:lock:datagrid:parity` (quality lock + benchmark regression + datagrid parity e2e matrix)
 
 ## Benchmark Regression
 
