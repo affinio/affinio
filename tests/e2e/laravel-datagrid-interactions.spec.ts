@@ -25,11 +25,11 @@ test.describe("laravel datagrid interactions", () => {
     await editor.press("Enter")
     await expect(sourceCell).toHaveText(editedValue)
 
+    const viewport = page.locator("[data-datagrid-viewport]")
     await sourceCell.click()
-    await page.keyboard.down("Shift")
-    await page.keyboard.press("ArrowDown")
-    await page.keyboard.press("ArrowRight")
-    await page.keyboard.up("Shift")
+    await viewport.focus()
+    await page.keyboard.press("Shift+ArrowDown")
+    await page.keyboard.press("Shift+ArrowRight")
     await expect(page.locator("[data-datagrid-selected]")).toHaveText("4")
     await expect(page.locator("[data-datagrid-anchor]")).toContainText("owner")
     await expect(page.locator("[data-datagrid-selection-overlay]")).toBeVisible()
@@ -138,10 +138,15 @@ test.describe("laravel datagrid interactions", () => {
   test("fill handle extends active cell value down the range", async ({ page }) => {
     await page.goto("http://127.0.0.1:4180/datagrid")
 
-    const deploymentCells = page.locator('[data-datagrid-column-key="deployment"]')
-    const sourceCell = deploymentCells.nth(0)
-    const targetCell = deploymentCells.nth(2)
-    const middleCell = deploymentCells.nth(1)
+    const sourceCell = page.locator(
+      '[data-datagrid-cell="true"][data-datagrid-column-key="deployment"][data-datagrid-row-index="0"]'
+    )
+    const middleCell = page.locator(
+      '[data-datagrid-cell="true"][data-datagrid-column-key="deployment"][data-datagrid-row-index="1"]'
+    )
+    const targetCell = page.locator(
+      '[data-datagrid-cell="true"][data-datagrid-column-key="deployment"][data-datagrid-row-index="2"]'
+    )
 
     const sourceValue = ((await sourceCell.textContent()) ?? "").trim()
 
@@ -151,16 +156,7 @@ test.describe("laravel datagrid interactions", () => {
     const handle = sourceCell.locator(".affino-datagrid-demo__fill-handle")
     await expect(handle).toBeVisible()
 
-    const handleBox = await handle.boundingBox()
-    const targetBox = await targetCell.boundingBox()
-    if (!handleBox || !targetBox) {
-      throw new Error("Unable to resolve fill-handle drag coordinates")
-    }
-
-    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 })
-    await page.mouse.up()
+    await handle.dragTo(targetCell)
 
     await expect(middleCell).toHaveText(sourceValue)
     await expect(targetCell).toHaveText(sourceValue)
@@ -180,25 +176,19 @@ test.describe("laravel datagrid interactions", () => {
     const handle = sourceCell.locator(".affino-datagrid-demo__fill-handle")
     await expect(handle).toBeVisible()
 
-    const handleBox = await handle.boundingBox()
     const viewportBox = await viewport.boundingBox()
-    if (!handleBox || !viewportBox) {
+    if (!viewportBox) {
       throw new Error("Unable to resolve viewport/handle geometry for fill autoscroll")
     }
 
     await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBe(0)
 
-    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
-    await page.mouse.down()
-    for (let step = 0; step < 10; step += 1) {
-      await page.mouse.move(
-        viewportBox.x + viewportBox.width / 2,
-        viewportBox.y + viewportBox.height - 2,
-        { steps: 2 },
-      )
-      await page.waitForTimeout(24)
-    }
-    await page.mouse.up()
+    await handle.dragTo(viewport, {
+      targetPosition: {
+        x: viewportBox.width / 2,
+        y: Math.max(2, viewportBox.height - 2),
+      },
+    })
 
     await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
     await expect(page.locator("[data-datagrid-status]")).toContainText("Filled range")

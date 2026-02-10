@@ -206,7 +206,7 @@ const AUTO_SIZE_MAX_WIDTH = 640
 const GRID_HINT_ID = "datagrid-a11y-hint"
 const FILTER_PANEL_TITLE_ID = "datagrid-filter-panel-title"
 
-const rowCount = ref(10000)
+const rowCount = ref(2400)
 const columnCount = ref(20)
 const seed = ref(1)
 const query = ref("")
@@ -220,7 +220,7 @@ const sortState = ref<readonly DataGridSortState[]>([
 const pinStatusColumn = ref(false)
 const pinUpdatedAtRight = ref(false)
 const lastAction = ref("Ready")
-const rowCountOptions = [10000, 50000, 100000] as const
+const rowCountOptions = [2400, 6400, 10000] as const
 const columnCountOptions = [10, 20, 50] as const
 const sortPresetOptions = [
   { value: "latency-desc", label: "Latency desc" },
@@ -408,15 +408,20 @@ const shouldClearSourceOnRangeMove = ref(true)
 let lastDragCoord: CellCoord | null = null
 let ensureCellVisibleByCoord: ((coord: CellCoord) => void) | null = null
 let resolveDisplayRowCount: () => number = () => 0
+let resolveVirtualWindowColumnTotal: () => number = () => 0
+let resolveCanonicalVirtualWindow: () => { rowTotal: number; colTotal: number } | null = () => null
 let resolveDisplayNodeAtIndex: (rowIndex: number) => DataGridRowNode<IncidentRow> | undefined = () => undefined
 let resolveDisplayLeafRowAtIndex: (rowIndex: number) => IncidentRow | undefined = () => undefined
 let materializeDisplayRows: () => readonly DataGridRowNode<IncidentRow>[] = () => []
+const resolveSharedVirtualWindow = () => (
+  resolveCanonicalVirtualWindow() ?? {
+    rowTotal: resolveDisplayRowCount(),
+    colTotal: resolveVirtualWindowColumnTotal(),
+  }
+)
 const cellCoordNormalizer = useDataGridCellCoordNormalizer<CellCoord>({
-  resolveRowCount() {
-    return resolveDisplayRowCount()
-  },
-  resolveColumnCount() {
-    return orderedColumns.value.length
+  resolveVirtualWindow() {
+    return resolveSharedVirtualWindow()
   },
 })
 const {
@@ -932,8 +937,38 @@ function applySetFilterSelection(): void {
   applyActiveColumnFilter()
 }
 
+const headerFilterMenus = new Map<string, { controller: { open: (reason?: "pointer" | "keyboard" | "programmatic") => void } }>()
+
+function registerHeaderFilterMenu(columnKey: string, instance: unknown): void {
+  const menu = instance as { controller?: { open: (reason?: "pointer" | "keyboard" | "programmatic") => void } } | null
+  if (menu?.controller) {
+    headerFilterMenus.set(columnKey, menu as { controller: { open: (reason?: "pointer" | "keyboard" | "programmatic") => void } })
+    return
+  }
+  headerFilterMenus.delete(columnKey)
+}
+
 function openHeaderFilterMenu(columnKey: string): void {
   openColumnFilter(columnKey)
+  nextTick(() => {
+    headerFilterMenus.get(columnKey)?.controller.open("pointer")
+  })
+}
+
+function onHeaderFilterMenuOpen(columnKey: string): void {
+  if (activeFilterColumnKey.value !== columnKey) {
+    openColumnFilter(columnKey)
+  }
+}
+
+function openHeaderFilterMenuFromContextMenu(columnKey: string): void {
+  openColumnFilter(columnKey)
+  nextTick(() => {
+    const trigger = headerRef.value?.querySelector<HTMLButtonElement>(
+      `[data-datagrid-filter-trigger][data-column-key="${columnKey}"]`,
+    )
+    trigger?.click()
+  })
 }
 
 function onHeaderFilterMenuClose(columnKey: string): void {
@@ -1429,7 +1464,7 @@ const {
 const headerContextActions = useDataGridHeaderContextActions({
   isSortableColumn,
   applyExplicitSort,
-  openColumnFilter,
+  openColumnFilter: openHeaderFilterMenuFromContextMenu,
   estimateColumnAutoWidth,
   setColumnWidth,
   closeContextMenu: closeCopyContextMenu,
@@ -1799,14 +1834,14 @@ const pointerCellCoordResolver = useDataGridPointerCellCoordResolver<CellCoord>(
   resolveViewportElement() {
     return viewportRef.value
   },
-  resolveRowCount() {
-    return resolveDisplayRowCount()
-  },
   resolveColumnMetrics() {
     return orderedColumnMetrics.value
   },
   resolveColumns() {
     return orderedColumns.value
+  },
+  resolveVirtualWindow() {
+    return resolveSharedVirtualWindow()
   },
   resolveHeaderHeight() {
     return bodyViewportHeaderOffset.value
@@ -1840,6 +1875,9 @@ const cellVisibilityScroller = useDataGridCellVisibilityScroller<CellCoord>({
   },
   resolveColumnMetric(columnIndex) {
     return orderedColumnMetrics.value[columnIndex] ?? null
+  },
+  resolveVirtualWindow() {
+    return resolveSharedVirtualWindow()
   },
   resolveHeaderHeight() {
     return bodyViewportHeaderOffset.value
@@ -2090,6 +2128,7 @@ const {
   rowModel,
   api,
   columnSnapshot,
+  virtualWindow: runtimeVirtualWindow,
   setRows: setRuntimeRows,
   syncRowsInRange: syncRuntimeRowsInRange,
 } = useDataGridRuntime<IncidentRow>({
@@ -2098,6 +2137,16 @@ const {
     transaction: history.transactionService,
   },
 })
+resolveCanonicalVirtualWindow = () => {
+  const snapshot = runtimeVirtualWindow.value
+  if (!snapshot) {
+    return null
+  }
+  return {
+    rowTotal: snapshot.rowTotal,
+    colTotal: snapshot.colTotal > 0 ? snapshot.colTotal : resolveVirtualWindowColumnTotal(),
+  }
+}
 
 function applyColumnVisibilityPreset(preset: ColumnVisibilityPreset): void {
   const maxColumns = Math.max(1, Math.min(columnCount.value, DATA_GRID_COLUMNS.length))
@@ -2470,6 +2519,7 @@ const {
   layerTrackTemplate,
   visibleColumnsWindow,
 } = columnLayoutOrchestration
+resolveVirtualWindowColumnTotal = () => orderedColumns.value.length
 const navigableColumnIndexes = computed(() =>
   orderedColumns.value
     .map((column, index) => ({ column, index }))
@@ -2811,6 +2861,7 @@ const selectionOverlayOrchestration = useDataGridSelectionOverlayOrchestration({
   rangeMovePreviewRange,
   rangeMoveBaseRange,
   isRangeMoving,
+  virtualWindow: computed(() => resolveSharedVirtualWindow()),
 })
 const {
   cellSelectionOverlaySegments,
@@ -2991,8 +3042,7 @@ const viewportScrollLifecycle = useDataGridViewportScrollLifecycle({
 let isViewportBootstrapping = true
 const onViewportScroll = (event: Event) => {
   if (isViewportBootstrapping) {
-    resetViewportScrollPosition()
-    return
+    isViewportBootstrapping = false
   }
   viewportScrollLifecycle.onViewportScroll(event)
   syncHeaderViewportScroll()
@@ -3052,10 +3102,12 @@ watch(rowCount, () => {
 })
 
 watch(pinStatusColumn, value => {
+  applyColumnVisibilityPreset(columnVisibilityPreset.value)
   api.setColumnPin("status", value ? "left" : "none")
   lastAction.value = value ? "Pinned status column" : "Unpinned status column"
 })
 watch(pinUpdatedAtRight, value => {
+  applyColumnVisibilityPreset(columnVisibilityPreset.value)
   api.setColumnPin("updatedAt", value ? "right" : "none")
   lastAction.value = value ? "Pinned updatedAt right" : "Unpinned updatedAt"
 })
@@ -3536,7 +3588,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
     </section>
 
     <section class="datagrid-stage">
-      <div ref="headerViewportRef" class="datagrid-stage__header-viewport">
+      <div ref="headerViewportRef" class="datagrid-stage__header-viewport" @contextmenu="onViewportContextMenu">
         <div ref="headerRef" class="datagrid-stage__header" role="row" :style="{ gridTemplateColumns: layerTrackTemplate }">
           <div
             v-for="layer in columnLayers"
@@ -3590,7 +3642,10 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
                   {{ getHeaderSortPriority(column.key) }}
                 </span>
               </span>
-              <UiMenu :callbacks="{ onClose: () => onHeaderFilterMenuClose(column.key) }">
+              <UiMenu
+                :ref="(el: unknown) => registerHeaderFilterMenu(column.key, el)"
+                :callbacks="{ onClose: () => onHeaderFilterMenuClose(column.key), onOpen: () => onHeaderFilterMenuOpen(column.key) }"
+              >
                 <UiMenuTrigger as-child>
                   <button
                     type="button"
@@ -3730,35 +3785,38 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
                       </div>
                     </section>
                     <div class="datagrid-column-filter__actions">
-                      <UiMenuItem
+                      <button
+                        type="button"
                         data-datagrid-filter-apply
-                        :disabled="!canApplyActiveColumnFilter"
-                        @select="applyActiveColumnFilter"
+                        @click.stop.prevent="applyActiveColumnFilter"
                       >
                         Apply
-                      </UiMenuItem>
-                      <UiMenuItem
+                      </button>
+                      <button
+                        type="button"
                         class="ghost"
                         data-datagrid-filter-reset
-                        @select="resetActiveColumnFilter"
+                        @click.stop.prevent="resetActiveColumnFilter"
                       >
                         Reset
-                      </UiMenuItem>
-                      <UiMenuItem
+                      </button>
+                      <button
+                        type="button"
                         class="ghost"
                         data-datagrid-filter-clear-all
                         :disabled="!hasColumnFilters"
-                        @select="clearAllColumnFilters"
+                        @click.stop.prevent="clearAllColumnFilters"
                       >
                         Clear all
-                      </UiMenuItem>
-                      <UiMenuItem
+                      </button>
+                      <button
+                        type="button"
                         class="ghost"
                         data-datagrid-filter-close
-                        @select="closeColumnFilterPanel"
+                        @click.stop.prevent="closeColumnFilterPanel"
                       >
                         Close
-                      </UiMenuItem>
+                      </button>
                     </div>
                   </template>
                 </UiMenuContent>

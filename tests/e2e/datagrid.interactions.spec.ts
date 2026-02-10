@@ -143,9 +143,19 @@ async function selectControlOption(page: Page, label: string, option: string): P
   const control = page
     .locator(".datagrid-controls label")
     .filter({ has: page.locator("span", { hasText: label }) })
-  const trigger = control.locator("[data-affino-listbox-trigger]")
-  await trigger.click()
-  await page.locator("[data-affino-listbox-option]", { hasText: option }).first().click()
+  const listboxTrigger = control.locator("[data-affino-listbox-trigger]")
+  if (await listboxTrigger.count()) {
+    await listboxTrigger.click()
+    await page
+      .locator('[data-affino-listbox-surface] [data-affino-listbox-option]', { hasText: option })
+      .first()
+      .click()
+    return
+  }
+
+  const menuTrigger = control.locator(".datagrid-controls__menu-trigger")
+  await menuTrigger.click()
+  await page.locator('[role="menuitem"]', { hasText: option }).first().click()
 }
 
 async function boundingBox(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {

@@ -1171,19 +1171,121 @@ function mountDatagridDemo(root) {
         }
     };
 
+    const resolvePointerCellCoordFromViewport = (clientX, clientY) => {
+        const viewportRect = viewport.getBoundingClientRect();
+        if (viewportRect.width <= 0 || viewportRect.height <= 0) {
+            return null;
+        }
+
+        const localX = clientX - viewportRect.left;
+        const localY = clientY - viewportRect.top;
+        if (!Number.isFinite(localX) || !Number.isFinite(localY)) {
+            return null;
+        }
+        if (localX < 0 || localX > viewportRect.width || localY < 0 || localY > viewportRect.height) {
+            return null;
+        }
+
+        if (!activeRows.length) {
+            return null;
+        }
+
+        const rowIndex = clamp(
+            Math.floor((viewport.scrollTop + localY) / ROW_HEIGHT),
+            0,
+            Math.max(0, activeRows.length - 1),
+        );
+
+        const layout = useDataGridColumnLayoutOrchestration({
+            columns: resolveVisibleColumns(),
+            resolveColumnWidth,
+            viewportWidth: viewport.clientWidth,
+            scrollLeft: viewport.scrollLeft,
+        });
+        const columns = layout.orderedColumns ?? [];
+        const metrics = layout.orderedColumnMetrics ?? [];
+        if (!columns.length || !metrics.length) {
+            return {
+                rowIndex,
+                columnIndex: 0,
+            };
+        }
+
+        let leftWidth = 0;
+        let scrollWidth = 0;
+        let rightWidth = 0;
+        columns.forEach((column) => {
+            const width = resolveColumnWidth(column);
+            const pin = resolveColumnPin(column);
+            if (pin === "left") {
+                leftWidth += width;
+            } else if (pin === "right") {
+                rightWidth += width;
+            } else {
+                scrollWidth += width;
+            }
+        });
+
+        let columnIndex = -1;
+        for (let index = 0; index < columns.length; index += 1) {
+            const metric = metrics[index];
+            const column = columns[index];
+            if (!metric || !column) {
+                continue;
+            }
+            const pin = resolveColumnPin(column);
+            let visualStart = metric.start - viewport.scrollLeft;
+            let visualEnd = metric.end - viewport.scrollLeft;
+            if (pin === "left") {
+                visualStart = metric.start;
+                visualEnd = metric.end;
+            } else if (pin === "right") {
+                const offsetInsideRightLayer = metric.start - (leftWidth + scrollWidth);
+                visualStart = viewport.clientWidth - rightWidth + offsetInsideRightLayer;
+                visualEnd = visualStart + metric.width;
+            }
+
+            if (localX >= visualStart && localX <= visualEnd) {
+                columnIndex = index;
+                break;
+            }
+        }
+
+        if (columnIndex < 0) {
+            let closestDistance = Number.POSITIVE_INFINITY;
+            for (let index = 0; index < columns.length; index += 1) {
+                const metric = metrics[index];
+                if (!metric) {
+                    continue;
+                }
+                const center = metric.start + metric.width / 2;
+                const distance = Math.abs((viewport.scrollLeft + localX) - center);
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    columnIndex = index;
+                }
+            }
+        }
+
+        return {
+            rowIndex,
+            columnIndex: clamp(columnIndex, 0, Math.max(0, columns.length - 1)),
+        };
+    };
+
     const resolvePointerCellCoord = (clientX, clientY) => {
         const target = document.elementFromPoint(clientX, clientY);
         if (!(target instanceof Element)) {
-            return null;
+            return resolvePointerCellCoordFromViewport(clientX, clientY);
         }
         const cell = target.closest("[data-datagrid-cell='true']");
         if (!(cell instanceof HTMLElement)) {
-            return null;
+            return resolvePointerCellCoordFromViewport(clientX, clientY);
         }
         const rowIndex = Number(cell.dataset.datagridRowIndex);
         const columnIndex = Number(cell.dataset.datagridColumnIndex);
         if (!Number.isFinite(rowIndex) || !Number.isFinite(columnIndex)) {
-            return null;
+            return resolvePointerCellCoordFromViewport(clientX, clientY);
         }
         return {
             rowIndex,
@@ -1283,6 +1385,9 @@ function mountDatagridDemo(root) {
         window.removeEventListener("pointermove", onFillDragPointerMove, true);
         window.removeEventListener("pointerup", onFillDragPointerUp, true);
         window.removeEventListener("pointercancel", onFillDragPointerCancel, true);
+        window.removeEventListener("mousemove", onFillDragMouseMove, true);
+        window.removeEventListener("mouseup", onFillDragMouseUp, true);
+        window.removeEventListener("mouseleave", onFillDragMouseCancel, true);
         if (fillAutoScrollFrame !== null) {
             window.cancelAnimationFrame(fillAutoScrollFrame);
             fillAutoScrollFrame = null;
@@ -1301,7 +1406,26 @@ function mountDatagridDemo(root) {
     };
 
     const onFillDragPointerMove = (event) => {
-        if (!fillDragSession) {
+        if (!fillDragSession || fillDragSession.inputType !== "pointer") {
+            return;
+        }
+        fillPointerClient = {
+            x: event.clientX,
+            y: event.clientY,
+        };
+        const coord = resolvePointerCellCoord(event.clientX, event.clientY);
+        const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
+        if (!rangesEqual(nextPreview, fillPreviewRange)) {
+            fillPreviewRange = nextPreview;
+            requestRender();
+        }
+        if (fillAutoScrollFrame === null) {
+            fillAutoScrollFrame = window.requestAnimationFrame(runFillAutoScrollStep);
+        }
+    };
+
+    const onFillDragMouseMove = (event) => {
+        if (!fillDragSession || fillDragSession.inputType !== "mouse") {
             return;
         }
         fillPointerClient = {
@@ -1320,18 +1444,49 @@ function mountDatagridDemo(root) {
     };
 
     const onFillDragPointerUp = (event) => {
-        if (!fillDragSession) {
+        if (!fillDragSession || fillDragSession.inputType !== "pointer") {
             return;
+        }
+        const coord = resolvePointerCellCoord(event.clientX, event.clientY);
+        const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
+        if (!rangesEqual(nextPreview, fillPreviewRange)) {
+            fillPreviewRange = nextPreview;
+        }
+        event.preventDefault();
+        stopFillDrag(true);
+    };
+
+    const onFillDragMouseUp = (event) => {
+        if (!fillDragSession || fillDragSession.inputType !== "mouse") {
+            return;
+        }
+        const coord = resolvePointerCellCoord(event.clientX, event.clientY);
+        const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
+        if (!rangesEqual(nextPreview, fillPreviewRange)) {
+            fillPreviewRange = nextPreview;
         }
         event.preventDefault();
         stopFillDrag(true);
     };
 
     const onFillDragPointerCancel = () => {
+        if (!fillDragSession || fillDragSession.inputType !== "pointer") {
+            return;
+        }
+        stopFillDrag(false);
+    };
+
+    const onFillDragMouseCancel = () => {
+        if (!fillDragSession || fillDragSession.inputType !== "mouse") {
+            return;
+        }
         stopFillDrag(false);
     };
 
     const startFillDrag = (event) => {
+        if (fillDragSession) {
+            return;
+        }
         if (event.button !== 0) {
             return;
         }
@@ -1339,8 +1494,15 @@ function mountDatagridDemo(root) {
         if (!originRange) {
             return;
         }
+        const inputType =
+            event.type === "pointerdown"
+                ? event.pointerType === "mouse"
+                    ? "mouse"
+                    : "pointer"
+                : "mouse";
         fillDragSession = {
             originRange: { ...originRange },
+            inputType,
         };
         fillPreviewRange = null;
         fillPointerClient = {
@@ -1353,6 +1515,9 @@ function mountDatagridDemo(root) {
         window.addEventListener("pointermove", onFillDragPointerMove, true);
         window.addEventListener("pointerup", onFillDragPointerUp, true);
         window.addEventListener("pointercancel", onFillDragPointerCancel, true);
+        window.addEventListener("mousemove", onFillDragMouseMove, true);
+        window.addEventListener("mouseup", onFillDragMouseUp, true);
+        window.addEventListener("mouseleave", onFillDragMouseCancel, true);
         if (fillAutoScrollFrame === null) {
             fillAutoScrollFrame = window.requestAnimationFrame(runFillAutoScrollStep);
         }
@@ -2095,6 +2260,10 @@ function mountDatagridDemo(root) {
                             if (event.button !== 0) {
                                 return;
                             }
+                            if (event.target instanceof Element && event.target.closest("[data-datagrid-fill-handle]")) {
+                                startFillDrag(event);
+                                return;
+                            }
                             updateActiveCell(rowKey, column.key, rowIndex, {
                                 extendSelection: event.shiftKey && Boolean(selectionAnchor),
                             });
@@ -2129,6 +2298,7 @@ function mountDatagridDemo(root) {
                             handle.className = "affino-datagrid-demo__fill-handle";
                             handle.dataset.datagridFillHandle = "true";
                             handle.addEventListener("pointerdown", startFillDrag);
+                            handle.addEventListener("mousedown", startFillDrag);
                             cell.appendChild(handle);
                         }
                     }
