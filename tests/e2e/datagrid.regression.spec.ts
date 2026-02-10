@@ -768,6 +768,11 @@ test.describe("datagrid critical regression bundle", () => {
     await page.locator("[data-datagrid-filter-value]").fill("edge-gateway")
     await page.locator("[data-datagrid-filter-apply]").click()
     await expect(metricValue(page, "Column filters")).toHaveText("1")
+    const filterPanel = page.locator("[data-datagrid-filter-panel]")
+    if ((await filterPanel.count()) > 0) {
+      await page.keyboard.press("Escape")
+      await expect(filterPanel).toHaveCount(0)
+    }
 
     await viewport.evaluate(element => {
       element.scrollLeft = 0
@@ -779,13 +784,19 @@ test.describe("datagrid critical regression bundle", () => {
         cell.click()
       }
     })
-    await page
+    const ownerTargetCell = page
       .locator('.datagrid-stage__row .datagrid-stage__cell[data-column-key="owner"]')
       .first()
-      .click({ button: "right", force: true })
-    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(1)
+    const copyMenu = page.locator("[data-datagrid-copy-menu]")
+    await ownerTargetCell.click()
+    await viewport.focus()
+    await page.keyboard.press("Shift+F10")
+    if ((await copyMenu.count()) === 0) {
+      await ownerTargetCell.click({ button: "right", force: true })
+    }
+    await expect(copyMenu).toHaveCount(1)
     await page.keyboard.press("Escape")
-    await expect(page.locator("[data-datagrid-copy-menu]")).toHaveCount(0)
+    await expect(copyMenu).toHaveCount(0)
 
     expect(pageErrors).toEqual([])
   })

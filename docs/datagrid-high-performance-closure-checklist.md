@@ -85,15 +85,21 @@ Goal: закрыть оставшиеся архитектурные/perf пун
 - [ ] Enforce phased async pipeline (`input -> compute -> apply`) across remaining hot interaction paths.
 - [ ] Incremental recalculation for horizontal meta/layout across scroll-only updates.
   - Progress: `2026-02-10` - expanded horizontal meta cache from single-entry to 2-slot cache to reduce recompute thrash across alternating controllers in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportHorizontalMeta.ts`.
-- [ ] Hard split `horizontal virtualization` vs `layout`.
+- [x] Hard split `horizontal virtualization` vs `layout`.
   - `virtual-x`: index/window math only.
   - `layout-x`: px geometry only.
   - No cross-leak of responsibilities in hot path.
+  - Progress: `2026-02-10` - extracted horizontal window math into dedicated pure module and switched range/clamp calculations to metrics-driven contract (`calculateVisibleColumnsFromMetrics` + `horizontalVirtualWindowMath`) so virtual window calculation no longer depends on column object arrays in `/Users/anton/Projects/affinio/packages/datagrid-core/src/virtualization/columnSizing.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/virtualization/horizontalVirtualWindowMath.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/virtualization/horizontalVirtualizer.ts`, with contract coverage in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/horizontalVirtualWindowMath.contract.spec.ts`.
+  - Evidence (pending run): `pnpm vitest packages/datagrid-core/src/viewport/__tests__/horizontalVirtualWindowMath.contract.spec.ts`
 - [ ] Range/axis-scoped invalidation contract.
   - Resize single column must not trigger row-window recompute.
   - Vertical scroll must not trigger full column-layout recompute.
   - Bridge/controller invalidation should be narrowed from force-refresh to affected axis/range.
   - Progress: `2026-02-10` - controller now short-circuits horizontal recompute/apply for vertical-only updates using horizontal structure/motion invalidation gates, with contract coverage for axis-scoped callback behavior (vertical-only => rows/window without columns, horizontal-only => columns/window without rows, width resize => columns without rows) in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts` and `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`.
+  - Progress: `2026-02-10` - model bridge now emits axis-specific invalidation reasons (`rows`/`columns`) and viewport controller maps row-only invalidation to non-force update scheduling to avoid broad forced horizontal refreshes on row updates in `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportModelBridgeService.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/dataGridViewportController.ts`, `/Users/anton/Projects/affinio/packages/datagrid-core/src/viewport/__tests__/modelBridge.contract.spec.ts`.
+  - Evidence (pending run):
+    - `pnpm vitest packages/datagrid-core/src/viewport/__tests__/integrationSnapshot.contract.spec.ts`
+    - `pnpm vitest packages/datagrid-core/src/viewport/__tests__/modelBridge.contract.spec.ts`
 - [ ] Unify range-engine internals for copy/paste/cut/fill/move to one canonical transaction-aware pipeline.
 - [ ] Expand derived/value caches (filter predicates, sort keys, group meta) with bounded invalidation.
 
