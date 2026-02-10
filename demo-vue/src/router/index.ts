@@ -35,6 +35,31 @@ const router = createRouter({
       component: () => import("@/pages/DataGridSugarPage.vue"),
     },
     {
+      path: "/datagrid/must-have/pagination",
+      name: "datagrid-must-have-pagination",
+      component: () => import("@/pages/datagrid/DataGridMustHavePaginationPage.vue"),
+    },
+    {
+      path: "/datagrid/must-have/filtering",
+      name: "datagrid-must-have-filtering",
+      component: () => import("@/pages/datagrid/DataGridMustHaveFilteringPage.vue"),
+    },
+    {
+      path: "/datagrid/must-have/column-state",
+      name: "datagrid-must-have-column-state",
+      component: () => import("@/pages/datagrid/DataGridMustHaveColumnStatePage.vue"),
+    },
+    {
+      path: "/datagrid/must-have/reorder",
+      name: "datagrid-must-have-reorder",
+      component: () => import("@/pages/datagrid/DataGridMustHaveReorderPage.vue"),
+    },
+    {
+      path: "/datagrid/must-have/row-height",
+      name: "datagrid-must-have-row-height",
+      component: () => import("@/pages/datagrid/DataGridMustHaveRowHeightPage.vue"),
+    },
+    {
       path: "/dialogs",
       name: "dialog-demo",
       component: () => import("@/pages/DialogPage.vue"),

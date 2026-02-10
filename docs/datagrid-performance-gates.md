@@ -74,15 +74,20 @@ Perf-contract fail-fast gate:
 - `pnpm run quality:perf:datagrid`
 - Script: `scripts/check-datagrid-perf-contracts.mjs`
 - Report: `artifacts/quality/datagrid-perf-contracts-report.json`
+- Includes static guard for benchmark harness task matrix (`vue-adapters`, `laravel-morph`, `interaction-models`, `row-models`) and mode-scoped budget wiring.
 
 Fail-fast behavior:
 - Harness exits non-zero when any benchmark fails budget checks.
 - Runtime report gate (`scripts/check-datagrid-benchmark-report.mjs`) validates:
   - report freshness,
   - required suites presence (`vue-adapters`, `laravel-morph`, `interaction-models`, `row-models`),
+  - harness report consistency (no duplicate task ids, valid durations, status/ok consistency),
+  - presence and completeness of `budgets.byTask` map for required suites,
   - `ok=true` for harness summary and each required suite,
   - JSON artifact integrity for each suite,
+  - per-suite artifact freshness,
   - finite CI variance/heap budgets in harness + per-suite artifacts,
+  - no `Infinity` literals in CI budget payloads (shared + per-suite),
   - aggregate variance/heap envelopes against declared budgets.
 - CI `quality-gates` parity lock run is blocking for merge readiness.
 

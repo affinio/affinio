@@ -2564,10 +2564,27 @@ const virtualRangeMetrics = useDataGridVirtualRangeMetrics({
 })
 const {
   virtualRange,
-  spacerTopHeight,
-  spacerBottomHeight,
   rangeLabel,
 } = virtualRangeMetrics
+const renderRange = computed(() => {
+  const total = Math.max(0, filteredAndSortedRows.value.length)
+  if (total <= 0) {
+    return { start: 0, end: -1 }
+  }
+  const range = resolveViewportRange()
+  return {
+    start: Math.max(0, Math.min(total - 1, range.start)),
+    end: Math.max(0, Math.min(total - 1, range.end)),
+  }
+})
+const renderSpacerTopHeight = computed(() => Math.max(0, renderRange.value.start * ROW_HEIGHT))
+const renderSpacerBottomHeight = computed(() => {
+  const total = Math.max(0, filteredAndSortedRows.value.length)
+  if (total === 0 || renderRange.value.end < renderRange.value.start) {
+    return 0
+  }
+  return Math.max(0, (total - (renderRange.value.end + 1)) * ROW_HEIGHT)
+})
 const resolveViewportRange = () => {
   const total = Math.max(0, filteredAndSortedRows.value.length)
   if (total <= 0) {
@@ -2578,15 +2595,12 @@ const resolveViewportRange = () => {
   const end = Math.max(start, Math.min(total - 1, start + visibleCount - 1))
   return { start, end }
 }
-watch([scrollTop, viewportHeight, () => filteredAndSortedRows.value.length], () => {
-  api.setViewportRange(resolveViewportRange())
-}, { immediate: true })
 const visibleRowsSyncScheduler = useDataGridVisibleRowsSyncScheduler<IncidentRow, DataGridRowNode<IncidentRow>>({
   resolveRows() {
     return filteredAndSortedRows.value
   },
   resolveRange() {
-    return virtualRange.value
+    return renderRange.value
   },
   setRows(rows) {
     setRuntimeRows(rows)
@@ -2603,7 +2617,6 @@ const visibleRowsSyncScheduler = useDataGridVisibleRowsSyncScheduler<IncidentRow
 })
 const {
   syncVisibleRows,
-  scheduleVisibleRowsSync,
   resetVisibleRowsSyncCache,
   dispose: disposeVisibleRowsSyncScheduler,
 } = visibleRowsSyncScheduler
@@ -3222,11 +3235,11 @@ watch(sourceRows, () => {
 })
 
 watch(
-  [filteredAndSortedRows, virtualRange],
+  [filteredAndSortedRows, renderRange],
   () => {
-    scheduleVisibleRowsSync()
+    syncVisibleRows()
   },
-  { immediate: true },
+  { immediate: true, flush: "sync" },
 )
 
 let themeObserver: MutationObserver | null = null
@@ -3920,7 +3933,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             :style="segment.style"
           ></div>
         </div>
-        <div :style="{ height: `${spacerTopHeight}px` }"></div>
+        <div :style="{ height: `${renderSpacerTopHeight}px` }"></div>
 
         <div
           v-for="row in visibleRows"
@@ -4089,7 +4102,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         </div>
 
         <div v-if="visibleRows.length === 0" class="datagrid-stage__empty">No rows matched current filters.</div>
-        <div :style="{ height: `${spacerBottomHeight}px` }"></div>
+        <div :style="{ height: `${renderSpacerBottomHeight}px` }"></div>
       </div>
       <div
         v-if="isSelectionBadgeVisible"

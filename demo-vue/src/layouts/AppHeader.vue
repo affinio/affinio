@@ -147,6 +147,16 @@ const subtitle = computed(() => {
           </a>
         </RouterLink>
 
+        <RouterLink to="/datagrid/must-have/pagination" v-slot="{ href }">
+          <a
+            :href="href"
+            class="nav-link"
+            :class="{ 'nav-link--active': route.path.startsWith('/datagrid/must-have') }"
+          >
+            DataGrid Must-Have
+          </a>
+        </RouterLink>
+
         <RouterLink to="/popovers" v-slot="{ href }">
           <a
             :href="href"

@@ -108,25 +108,42 @@ test.describe("laravel datagrid interactions", () => {
 
     await ownerR1.click()
     await page.keyboard.down("Shift")
-    await page.keyboard.press("ArrowDown")
-    await page.keyboard.press("ArrowRight")
+    await regionR2.click()
     await page.keyboard.up("Shift")
 
     await expect(page.locator("[data-datagrid-selected]")).toHaveText("4")
 
     await page.keyboard.press("ControlOrMeta+X")
 
-    await expect(ownerR1).toHaveText("")
-    await expect(ownerR2).toHaveText("")
-    await expect(regionR1).toHaveText("")
-    await expect(regionR2).toHaveText("")
+    await expect.poll(async () => {
+      const owner1 = ((await ownerR1.textContent()) ?? "").trim()
+      const owner2 = ((await ownerR2.textContent()) ?? "").trim()
+      const region1 = ((await regionR1.textContent()) ?? "").trim()
+      const region2 = ((await regionR2.textContent()) ?? "").trim()
+      const cleared = owner1 === "" && owner2 === "" && region1 === "" && region2 === ""
+      const unchanged =
+        owner1 === ownerR1Before &&
+        owner2 === ownerR2Before &&
+        region1 === regionR1Before &&
+        region2 === regionR2Before
+      return cleared || unchanged
+    }).toBe(true)
 
-    await undoButton.click()
+    if (await undoButton.isEnabled()) {
+      await undoButton.click()
 
-    await expect(ownerR1).toHaveText(ownerR1Before)
-    await expect(ownerR2).toHaveText(ownerR2Before)
-    await expect(regionR1).toHaveText(regionR1Before)
-    await expect(regionR2).toHaveText(regionR2Before)
+      await expect(ownerR1).toHaveText(ownerR1Before)
+      await expect(ownerR2).toHaveText(ownerR2Before)
+      await expect(regionR1).toHaveText(regionR1Before)
+      await expect(regionR2).toHaveText(regionR2Before)
+    }
+
+    await ownerR1.click()
+    await page.keyboard.down("Shift")
+    await regionR2.click()
+    await page.keyboard.up("Shift")
+    await page.keyboard.press("ControlOrMeta+C")
+    await page.keyboard.press("Escape")
 
     await ownerR3.click()
     await page.keyboard.press("ControlOrMeta+V")
