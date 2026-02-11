@@ -3155,8 +3155,12 @@ const resolveViewportRange = () => {
   }
   const start = Math.max(0, Math.min(total - 1, Math.floor(scrollTop.value / rowHeightPx.value)))
   const visibleCount = Math.max(1, Math.ceil(viewportHeight.value / rowHeightPx.value))
+  const overscanTop = runtimeVirtualWindow.value?.overscan.top ?? 2
+  const overscanBottom = runtimeVirtualWindow.value?.overscan.bottom ?? 2
   const end = Math.max(start, Math.min(total - 1, start + visibleCount - 1))
-  return { start, end }
+  const startWithOverscan = Math.max(0, start - overscanTop)
+  const endWithOverscan = Math.max(startWithOverscan, Math.min(total - 1, end + overscanBottom))
+  return { start: startWithOverscan, end: endWithOverscan }
 }
 const visibleRowsSyncScheduler = useDataGridVisibleRowsSyncScheduler<IncidentRow, DataGridRowNode<IncidentRow>>({
   resolveRows() {
@@ -3417,6 +3421,9 @@ const {
   isCellInMovePreview,
   shouldShowFillHandle,
 } = cellVisualStatePredicates
+const shouldRenderFillHandle = (row: DataGridRowNode<IncidentRow>, columnKey: string): boolean => (
+  isFillDragging.value ? isRangeEndCell(row, columnKey) : shouldShowFillHandle(row, columnKey)
+)
 
 const isQuickFilterActive = computed(() => normalizedQuickFilter.value.length > 0)
 const quickFilterStatus = computed(() => {
@@ -4876,7 +4883,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             </button>
 
             <span
-              v-if="row.kind === 'leaf' && shouldShowFillHandle(row, column.key)"
+              v-if="row.kind === 'leaf' && shouldRenderFillHandle(row, column.key)"
               class="datagrid-stage__selection-handle datagrid-stage__selection-handle--cell"
               aria-hidden="true"
               @mousedown.stop.prevent="onSelectionHandleMouseDown"

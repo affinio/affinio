@@ -1,19 +1,20 @@
 # DataGrid Vue Sugar Playbook
 
-Updated: `2026-02-09`
+Updated: `2026-02-11`
 Package: `@affino/datagrid-vue`
 Scope: junior-friendly integration through `useAffinoDataGrid`.
 
 ## Status Note (2026-02-11)
 
-Sugar is production-usable for row-oriented workflows (selection/clipboard/editing/filtering/tree/summary/visibility), and now includes explicit pagination, column-state and history wrappers.
-
-Implemented in sugar, but still needs final parity hardening against full internal demo e2e bundle:
+Sugar idealization and UX hardening pipelines are closed (`S1 -> S10`, `U1 -> U8`), and sugar is production-usable for practical AG/Sheets baseline workflows:
 
 1. Cell-range engine (`cellSelection`: anchor/focus/range + bindings).
 2. Range-centric clipboard/fill/move (`cellRange`: copy/cut/paste/clear + fill/move preview/apply).
+3. Keyboard navigation + spreadsheet shortcuts (`features.keyboardNavigation`).
+4. Pagination, column-state roundtrip, history wrappers.
+5. Advanced filter helpers, tree/group controls, summary, visibility and row-height controls.
 
-Parity closure plan: `/Users/anton/Projects/affinio/docs/datagrid-vue-sugar-idealization-pipeline-checklist.md`.
+Closure source of truth: `/Users/anton/Projects/affinio/docs/datagrid-vue-sugar-idealization-pipeline-checklist.md`.
 
 ## 1) Quick Start (60 sec)
 
@@ -113,6 +114,21 @@ const grid = useAffinoDataGrid({
       mode: "auto",
       base: 40,
     },
+    interactions: {
+      enabled: true,
+      range: { enabled: true, fill: true, move: true },
+    },
+    headerFilters: {
+      enabled: true,
+      maxUniqueValues: 300,
+    },
+    feedback: {
+      enabled: true,
+      maxEvents: 120,
+    },
+    statusBar: {
+      enabled: true,
+    },
     keyboardNavigation: true,
   },
 })
@@ -144,6 +160,63 @@ if (grid.features.rowHeight.supported.value) {
 // keyboardNavigation=true enables built-in:
 // Cmd/Ctrl+C/X/V, Delete/Backspace, Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z, Cmd/Ctrl+Y
 // plus arrow/home/end/page/tab/enter selection navigation.
+```
+
+## 2.1) Range Interactions + Resize Bindings (U1/U2)
+
+```ts
+// range interactions are declarative:
+// features.interactions.range = { enabled, fill, move }
+
+const fillHandle = grid.bindings.rangeHandle({
+  rowIndex,
+  columnKey: "owner",
+  mode: "fill",
+})
+
+const moveHandle = grid.bindings.rangeHandle({
+  rowIndex,
+  columnKey: "owner",
+  mode: "move",
+})
+
+const rangeSurface = grid.bindings.rangeSurface({
+  rowIndex,
+  columnKey: "owner",
+})
+
+const colResize = grid.bindings.columnResizeHandle("owner")
+const rowResize = grid.bindings.rowResizeHandle(String(row.rowId))
+```
+
+Notes:
+
+1. `rangeHandle` + `rangeSurface` remove page-local pointer lifecycle code.
+2. Column/row resize includes keyboard and double-click autosize behavior.
+
+## 2.2) Header Filters + Feedback + Status Bar + Layout Profiles (U3/U4/U7/U8)
+
+```ts
+grid.features.headerFilters.open("severity")
+grid.features.headerFilters.setQuery("high")
+grid.features.headerFilters.selectOnlyValue("severity", "critical")
+grid.features.headerFilters.applyNumber("latencyMs", {
+  operator: "between",
+  value: 100,
+  value2: 400,
+})
+
+const lastAction = grid.feedback?.lastAction.value ?? "Ready"
+const events = grid.feedback?.events.value ?? []
+
+const profile = grid.layoutProfiles?.capture("Incident triage")
+if (profile) {
+  grid.layoutProfiles?.apply(profile.id)
+}
+
+const metrics = grid.statusBar?.metrics.value
+const selectedCells = metrics?.selectedCells ?? 0
+const avgLatency = metrics?.getAggregate("latencyMs", "avg")
 ```
 
 ## 3) Pagination, Column State, History (S1)
@@ -272,6 +345,28 @@ grid.features.filtering.helpers.apply(expression, { mergeMode: "replace" })
 const snapshot = grid.features.summary.selected.value
 const avgLatency = snapshot?.columns["latencyMs"]?.aggregations.avg?.value ?? null
 const ownersCount = snapshot?.columns["owner"]?.aggregations.countDistinct?.value ?? null
+```
+
+## 6.1) Context Menu Parity + Enum Editor (U5/U6)
+
+```ts
+// keyboard/pointer-open parity
+grid.contextMenu.openForActiveCell?.({ zone: "cell" })
+grid.contextMenu.openForHeader?.("owner")
+
+const isDisabled = grid.contextMenu.isActionDisabled?.("paste") ?? false
+const reason = grid.contextMenu.getActionDisabledReason?.("paste") ?? null
+const groups = grid.contextMenu.groupedActions?.value ?? []
+
+// enum editor contract
+const enumEditor = grid.features.editing.enumEditor
+const primitive = enumEditor?.primitive.value ?? "affino-listbox"
+const options = enumEditor?.resolveOptions({
+  row,
+  rowKey: String(row.rowId),
+  columnKey: "severity",
+  value: row.severity,
+}) ?? []
 ```
 
 ## 7) Column Visibility

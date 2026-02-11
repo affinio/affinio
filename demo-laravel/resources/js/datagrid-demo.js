@@ -1061,7 +1061,14 @@ function mountDatagridDemo(root) {
             return;
         }
         const text = await readClipboardText();
-        const matrix = parseClipboardMatrix(text);
+        const rawMatrix = parseClipboardMatrix(text);
+        const fallbackMatrix = Array.isArray(clipboardState?.matrix) ? clipboardState.matrix : null;
+        const hasPayload = rawMatrix.some((row) =>
+            row.some((cell) => String(cell ?? "").trim().length > 0),
+        );
+        const matrix = !hasPayload && fallbackMatrix && fallbackMatrix.length
+            ? fallbackMatrix
+            : rawMatrix;
         const matrixHeight = Math.max(1, matrix.length);
         const matrixWidth = Math.max(1, matrix[0]?.length ?? 1);
         const columns = resolveVisibleColumns();
