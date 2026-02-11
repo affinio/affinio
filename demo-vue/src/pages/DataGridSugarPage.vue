@@ -5,6 +5,7 @@ import type {
   DataGridColumnDef,
   DataGridColumnPin,
 } from "@affino/datagrid-core"
+import { applyGridTheme, resolveGridThemeTokens, sugarTheme } from "@affino/datagrid-theme"
 import {
   useAffinoDataGrid,
   type AffinoDataGridEditSession,
@@ -261,6 +262,20 @@ const gridStage = computed(() => (
   grid as unknown as UseAffinoDataGridResult<RowLike>
 ))
 
+const themeRootRef = ref<HTMLElement | null>(null)
+let themeObserver: MutationObserver | null = null
+
+const applySugarTheme = (): void => {
+  if (!themeRootRef.value) {
+    return
+  }
+  const tokens = resolveGridThemeTokens(
+    sugarTheme,
+    typeof document === "undefined" ? undefined : { document },
+  )
+  applyGridTheme(themeRootRef.value, tokens)
+}
+
 const quickQuery = ref("")
 const quickSeverity = ref<readonly string[]>([])
 const groupBy = ref<(typeof GROUP_BY_OPTIONS)[number]>("none")
@@ -299,10 +314,22 @@ const handleDocumentPointerDown = (event: PointerEvent): void => {
 }
 
 onMounted(() => {
+  applySugarTheme()
+  if (typeof document !== "undefined") {
+    themeObserver = new MutationObserver(() => {
+      applySugarTheme()
+    })
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class"],
+    })
+  }
   window.addEventListener("pointerdown", handleDocumentPointerDown, true)
 })
 
 onBeforeUnmount(() => {
+  themeObserver?.disconnect()
+  themeObserver = null
   window.removeEventListener("pointerdown", handleDocumentPointerDown, true)
 })
 
@@ -431,7 +458,7 @@ const setColumnPin = (columnKey: string, pin: DataGridColumnPin): void => {
 </script>
 
 <template>
-  <section class="datagrid-sugar-page">
+  <section ref="themeRootRef" class="datagrid-sugar-page">
     <header ref="toolbarRef" class="datagrid-sugar-toolbar">
       <div class="datagrid-sugar-panel">
         <button
