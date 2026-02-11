@@ -1,10 +1,21 @@
 <script setup lang="ts">
-import { computed, ref, watch, type ComponentPublicInstance } from "vue"
+import {
+  computed,
+  effectScope,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+  ref,
+  unref,
+  watch,
+  type ComponentPublicInstance,
+} from "vue"
 import type {
   DataGridColumnPin,
   DataGridRowNode,
 } from "@affino/datagrid-core"
 import type { UseAffinoDataGridResult } from "@affino/datagrid-vue"
+import { useFloatingPopover, usePopoverController } from "@affino/popover-vue"
 
 type RowLike = {
   rowId?: string | number
@@ -21,10 +32,12 @@ interface HeaderFilterStateLike {
 }
 
 const props = defineProps<{
-  grid: UseAffinoDataGridResult<any>
+  grid: UseAffinoDataGridResult<RowLike>
+  showPagination?: boolean
 }>()
 
-const grid = computed(() => props.grid as UseAffinoDataGridResult<RowLike>)
+const grid = computed(() => props.grid)
+const showPagination = computed(() => props.showPagination ?? true)
 
 const headerTextValue = ref("")
 const headerNumberMin = ref("")
@@ -83,12 +96,80 @@ const pinnedOffsets = computed(() => {
   return { leftOffsets, rightOffsets }
 })
 
+const rowModelRevision = ref(0)
+const viewportRef = ref<HTMLElement | null>(null)
+const viewportMetrics = ref<{ scrollTop: number; height: number }>({ scrollTop: 0, height: 0 })
+
+const baseRowHeight = computed(() => grid.value.features.rowHeight.base.value)
+
+const renderRange = computed(() => {
+  const total = grid.value.rowModel.getRowCount()
+  if (total <= 0) {
+    return { start: 0, end: 0, total: 0 }
+  }
+  const height = viewportMetrics.value.height
+  if (height <= 0) {
+    return { start: 0, end: Math.max(0, total - 1), total }
+  }
+  const rowHeight = Math.max(1, baseRowHeight.value)
+  const overscan = 6
+  const start = Math.max(0, Math.floor(viewportMetrics.value.scrollTop / rowHeight) - overscan)
+  const visible = Math.ceil(height / rowHeight) + overscan * 2
+  const end = Math.min(total - 1, start + visible)
+  return { start, end, total }
+})
+
+const renderRangeStart = computed(() => renderRange.value.start)
+const topSpacerHeight = computed(() => renderRange.value.start * baseRowHeight.value)
+const bottomSpacerHeight = computed(() => {
+  const total = renderRange.value.total
+  const end = renderRange.value.end
+  if (total <= 0) {
+    return 0
+  }
+  return Math.max(0, (total - end - 1) * baseRowHeight.value)
+})
+
 const renderedRows = computed(() => {
-  const count = grid.value.rowModel.getRowCount()
-  if (count <= 0) {
+  rowModelRevision.value
+  const range = renderRange.value
+  if (range.total <= 0) {
     return [] as readonly DataGridRowNode<RowLike>[]
   }
-  return grid.value.rowModel.getRowsInRange({ start: 0, end: count - 1 }) as readonly DataGridRowNode<RowLike>[]
+  return grid.value.rowModel.getRowsInRange({ start: range.start, end: range.end }) as readonly DataGridRowNode<RowLike>[]
+})
+
+onMounted(() => {
+  const unsubscribe = grid.value.rowModel.subscribe(snapshot => {
+    rowModelRevision.value = snapshot.revision
+  })
+  const updateMetrics = () => {
+    if (!viewportRef.value) {
+      return
+    }
+    viewportMetrics.value = {
+      scrollTop: viewportRef.value.scrollTop,
+      height: viewportRef.value.clientHeight,
+    }
+  }
+  const handleScroll = () => {
+    updateMetrics()
+  }
+  updateMetrics()
+  viewportRef.value?.addEventListener("scroll", handleScroll, { passive: true })
+
+  let resizeObserver: ResizeObserver | null = null
+  if (typeof ResizeObserver !== "undefined" && viewportRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      updateMetrics()
+    })
+    resizeObserver.observe(viewportRef.value)
+  }
+  onBeforeUnmount(() => {
+    unsubscribe()
+    viewportRef.value?.removeEventListener("scroll", handleScroll)
+    resizeObserver?.disconnect()
+  })
 })
 
 const leafRowKeys = computed(() => (
@@ -108,6 +189,8 @@ const someVisibleRowsSelected = computed(() => (
 ))
 
 const selectionRange = computed(() => grid.value.cellSelection.range.value)
+
+const resolveRenderedRowIndex = (index: number): number => index + renderRangeStart.value
 
 const shouldShowRangeHandles = (rowIndex: number, columnIndex: number): boolean => {
   const range = selectionRange.value
@@ -157,14 +240,14 @@ const bindRangeSurface = (
   return grid.value.bindings.rangeSurface({ rowIndex, columnKey })
 }
 
-const composeHandlers = <T extends (...args: any[]) => void>(
-  ...handlers: Array<T | undefined>
-): T => {
-  return ((...args: any[]) => {
+const composeHandlers = <Args extends unknown[]>(
+  ...handlers: Array<((...args: Args) => void) | undefined>
+): ((...args: Args) => void) => {
+  return ((...args: Args) => {
     for (const handler of handlers) {
       handler?.(...args)
     }
-  }) as T
+  })
 }
 
 const bindLeafCell = (
@@ -176,6 +259,8 @@ const bindLeafCell = (
     return {
       "data-row-key": String(row.rowId ?? ""),
       "data-column-key": columnKey,
+      "data-row-index": rowIndex,
+      "data-col-key": columnKey,
       tabindex: -1,
     }
   }
@@ -193,6 +278,8 @@ const bindLeafCell = (
     ...dataCell,
     ...selectionCell,
     ...rangeSurface,
+    "data-row-index": rowIndex,
+    "data-col-key": columnKey,
     tabindex: 0,
     onFocus: () => {
       const rowKey = String(row.rowId ?? "")
@@ -268,11 +355,6 @@ const resolveHeaderCellStyle = (columnKey: string, pin: DataGridColumnPin): Reco
   ...resolvePinnedCellStyle(columnKey, pin, true),
 })
 
-const resolveRowCellStyle = (columnKey: string, pin: DataGridColumnPin): Record<string, string> => ({
-  minHeight: `${grid.value.features.rowHeight.base.value}px`,
-  ...resolvePinnedCellStyle(columnKey, pin, false),
-})
-
 const resolveSort = (columnKey: string): "none" | "ascending" | "descending" => (
   grid.value.bindings.headerSort(columnKey)["aria-sort"]
 )
@@ -292,6 +374,155 @@ const headerFilterState = computed<HeaderFilterStateLike>(() => headerFilter.val
   query: "",
   operator: "contains",
   type: "text",
+})
+
+const activeEditSession = computed(() => grid.value.features.editing.activeSession.value)
+const lastEditCellKey = ref<{ rowKey: string; columnKey: string } | null>(null)
+const editorRefs = new Map<string, HTMLInputElement>()
+
+const setEditorRef = (rowKey: string, columnKey: string, value: unknown): void => {
+  const element = value instanceof HTMLInputElement
+    ? value
+    : (value && typeof value === "object" && "$el" in (value as Record<string, unknown>)
+        ? (value as { $el?: unknown }).$el
+        : null)
+  const key = `${rowKey}:${columnKey}`
+  if (element instanceof HTMLInputElement) {
+    editorRefs.set(key, element)
+  } else {
+    editorRefs.delete(key)
+  }
+}
+
+watch(
+  () => activeEditSession.value,
+  (session, previous) => {
+    if (!session) {
+      if (previous) {
+        lastEditCellKey.value = {
+          rowKey: previous.rowKey,
+          columnKey: previous.columnKey,
+        }
+        nextTick(() => {
+          const target = document.querySelector<HTMLElement>(
+            `[data-row-key="${lastEditCellKey.value?.rowKey ?? ""}"][data-column-key="${lastEditCellKey.value?.columnKey ?? ""}"]`,
+          )
+          target?.focus({ preventScroll: true })
+        })
+      }
+      return
+    }
+    const key = `${session.rowKey}:${session.columnKey}`
+    lastEditCellKey.value = { rowKey: session.rowKey, columnKey: session.columnKey }
+    nextTick(() => {
+      editorRefs.get(key)?.focus({ preventScroll: true })
+    })
+  },
+)
+
+type HeaderFilterPopover = {
+  controller: ReturnType<typeof usePopoverController>
+  floating: ReturnType<typeof useFloatingPopover>
+  scope: ReturnType<typeof effectScope>
+}
+
+const headerFilterTriggerRefs = new Map<string, HTMLElement>()
+
+const headerFilterPopover: HeaderFilterPopover = (() => {
+  const scope = effectScope()
+  let controller!: ReturnType<typeof usePopoverController>
+  let floating!: ReturnType<typeof useFloatingPopover>
+
+  scope.run(() => {
+    controller = usePopoverController({
+      id: "datagrid-sugar-filter",
+      role: "dialog",
+      modal: false,
+      closeOnEscape: true,
+      closeOnInteractOutside: true,
+      overlayKind: "popover",
+      overlayEntryTraits: {
+        ownerId: "datagrid-sugar-filter",
+        priority: 70,
+        returnFocus: false,
+      },
+    })
+
+    floating = useFloatingPopover(controller, {
+      placement: "bottom",
+      align: "start",
+      gutter: 8,
+      lockScroll: false,
+      returnFocus: false,
+    })
+  })
+
+  return { controller, floating, scope }
+})()
+
+const headerFilterContentStyle = computed<Record<string, string>>(() => (
+  unref(headerFilterPopover.floating.contentStyle)
+))
+
+const headerFilterTeleportTarget = computed<string | HTMLElement | null>(() => (
+  unref(headerFilterPopover.floating.teleportTarget)
+))
+
+const setHeaderFilterTriggerRef = (columnKey: string, value: unknown): void => {
+  const element = value instanceof HTMLElement
+    ? value
+    : (value && typeof value === "object" && "$el" in (value as Record<string, unknown>)
+        ? (value as { $el?: unknown }).$el
+        : null)
+  if (element instanceof HTMLElement) {
+    headerFilterTriggerRefs.set(columnKey, element)
+    if (headerFilterState.value.columnKey === columnKey) {
+      headerFilterPopover.floating.triggerRef.value = element
+    }
+  } else {
+    headerFilterTriggerRefs.delete(columnKey)
+  }
+}
+
+const setHeaderFilterContentRef = (value: unknown): void => {
+  const element = value instanceof HTMLElement
+    ? value
+    : (value && typeof value === "object" && "$el" in (value as Record<string, unknown>)
+        ? (value as { $el?: unknown }).$el
+        : null)
+  headerFilterPopover.floating.contentRef.value = element instanceof HTMLElement ? element : null
+}
+
+watch(
+  () => ({
+    open: headerFilterState.value.open,
+    columnKey: headerFilterState.value.columnKey,
+  }),
+  ({ open, columnKey }) => {
+    if (!open || !columnKey) {
+      headerFilterPopover.controller.close("programmatic")
+      return
+    }
+    headerFilterPopover.floating.triggerRef.value = headerFilterTriggerRefs.get(columnKey) ?? null
+    headerFilterPopover.controller.open("programmatic")
+    nextTick(() => {
+      headerFilterPopover.floating.updatePosition()
+    })
+  },
+)
+
+watch(
+  () => headerFilterPopover.controller.state.value.open,
+  (open) => {
+    if (!open && headerFilterState.value.open) {
+      headerFilter.value?.close()
+    }
+  },
+)
+
+onBeforeUnmount(() => {
+  headerFilterPopover.scope.stop()
+  headerFilterTriggerRefs.clear()
 })
 
 watch(
@@ -325,7 +556,11 @@ const openedHeaderValues = computed(() => {
     .filter(value => value.label.toLowerCase().includes(query))
 })
 
-const openHeaderFilter = (columnKey: string): void => {
+const openHeaderFilter = (columnKey: string, event?: Event): void => {
+  const target = event?.currentTarget
+  if (target instanceof HTMLElement) {
+    headerFilterPopover.floating.triggerRef.value = target
+  }
   headerFilter.value?.toggle(columnKey)
 }
 
@@ -402,22 +637,102 @@ const bindContextMenuRef = (value: Element | ComponentPublicInstance | null): vo
   grid.value.bindings.contextMenuRef(value as Element | null)
 }
 
-const headerFilterFloatingStyle = computed<Record<string, string>>(() => {
-  if (!headerFilterState.value.open) {
-    return { top: "0px", right: "0px" }
+const visibleColumnCount = computed(() => visibleColumns.value.length)
+
+const rowHeights = ref<Record<string, number>>({})
+const rowResizeState = ref<{
+  rowKey: string
+  startY: number
+  startHeight: number
+} | null>(null)
+
+const resolveRowHeight = (rowKey: string): number => {
+  const custom = rowHeights.value[rowKey]
+  if (typeof custom === "number" && Number.isFinite(custom) && custom > 0) {
+    return Math.max(24, Math.round(custom))
   }
-  return {
-    top: "70px",
-    right: "16px",
-  }
+  return grid.value.features.rowHeight.base.value
+}
+
+const resolveRowCellStyleForRow = (
+  rowKey: string,
+  columnKey: string,
+  pin: DataGridColumnPin,
+): Record<string, string> => ({
+  minHeight: `${resolveRowHeight(rowKey)}px`,
+  ...resolvePinnedCellStyle(columnKey, pin, false),
 })
 
-const visibleColumnCount = computed(() => visibleColumns.value.length)
+const updateRowHeight = (rowKey: string, height: number): void => {
+  rowHeights.value = {
+    ...rowHeights.value,
+    [rowKey]: Math.max(24, Math.round(height)),
+  }
+}
+
+const resetRowHeight = (rowKey: string): void => {
+  const next = { ...rowHeights.value }
+  delete next[rowKey]
+  rowHeights.value = next
+}
+
+const onRowResizeMove = (event: MouseEvent): void => {
+  const state = rowResizeState.value
+  if (!state) {
+    return
+  }
+  const delta = event.clientY - state.startY
+  updateRowHeight(state.rowKey, state.startHeight + delta)
+}
+
+const onRowResizeEnd = (): void => {
+  if (!rowResizeState.value) {
+    return
+  }
+  rowResizeState.value = null
+  if (typeof window !== "undefined") {
+    window.removeEventListener("mousemove", onRowResizeMove)
+    window.removeEventListener("mouseup", onRowResizeEnd)
+  }
+}
+
+const startRowResize = (rowKey: string, event: MouseEvent): void => {
+  event.preventDefault()
+  rowResizeState.value = {
+    rowKey,
+    startY: event.clientY,
+    startHeight: resolveRowHeight(rowKey),
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("mousemove", onRowResizeMove)
+    window.addEventListener("mouseup", onRowResizeEnd)
+  }
+}
+
+const bindRowResizeHandle = (rowKey: string): Record<string, unknown> => ({
+  role: "separator",
+  tabindex: 0,
+  "aria-orientation": "horizontal",
+  "data-row-key": rowKey,
+  onMousedown: (event: MouseEvent) => {
+    startRowResize(rowKey, event)
+  },
+  onDblclick: () => {
+    resetRowHeight(rowKey)
+  },
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== "undefined") {
+    window.removeEventListener("mousemove", onRowResizeMove)
+    window.removeEventListener("mouseup", onRowResizeEnd)
+  }
+})
 </script>
 
 <template>
   <main class="datagrid-sugar-stage" role="grid" aria-label="Affino DataGrid sugar demo">
-    <div class="datagrid-sugar-stage__viewport">
+    <div ref="viewportRef" class="datagrid-sugar-stage__viewport">
       <div class="datagrid-sugar-stage__header" :style="{ gridTemplateColumns }">
         <div
           v-for="column in visibleColumns"
@@ -454,7 +769,11 @@ const visibleColumnCount = computed(() => visibleColumns.value.length)
               <button
                 type="button"
                 class="datagrid-sugar-stage__header-filter"
-                @click.stop="openHeaderFilter(column.key)"
+                :ref="(el) => setHeaderFilterTriggerRef(column.key, el)"
+                v-bind="headerFilterPopover.controller.getTriggerProps()"
+                :aria-expanded="headerFilterState.columnKey === column.key ? 'true' : 'false'"
+                @click.stop="openHeaderFilter(column.key, $event)"
+                @keydown.stop
               >
                 ⌕
               </button>
@@ -465,8 +784,14 @@ const visibleColumnCount = computed(() => visibleColumns.value.length)
       </div>
 
       <div
+        v-if="topSpacerHeight > 0"
+        class="datagrid-sugar-stage__spacer"
+        :style="{ height: `${topSpacerHeight}px` }"
+      ></div>
+
+      <div
         v-for="(rowNode, rowIndex) in renderedRows"
-        :key="resolveNodeKey(rowNode, rowIndex)"
+        :key="resolveNodeKey(rowNode, resolveRenderedRowIndex(rowIndex))"
         class="datagrid-sugar-stage__row"
         :style="{ gridTemplateColumns }"
       >
@@ -493,20 +818,20 @@ const visibleColumnCount = computed(() => visibleColumns.value.length)
             class="datagrid-sugar-stage__cell"
             :class="{
               'is-select': column.key === 'select',
-              'is-selected': grid.cellSelection.isCellSelected(rowIndex, columnIndex),
-              'is-preview': isCellInPreview(rowIndex, columnIndex),
+              'is-selected': grid.cellSelection.isCellSelected(resolveRenderedRowIndex(rowIndex), columnIndex),
+              'is-preview': isCellInPreview(resolveRenderedRowIndex(rowIndex), columnIndex),
               'is-editing': grid.bindings.isCellEditing(String(rowNode.rowId), column.key),
               'is-pinned-left': column.pin === 'left',
               'is-pinned-right': column.pin === 'right',
             }"
-            :style="resolveRowCellStyle(column.key, column.pin)"
-            v-bind="bindLeafCell(rowNode.data, rowIndex, column.key)"
+            :style="resolveRowCellStyleForRow(String(rowNode.rowId ?? rowNode.rowKey ?? resolveRenderedRowIndex(rowIndex)), column.key, column.pin)"
+            v-bind="bindLeafCell(rowNode.data, resolveRenderedRowIndex(rowIndex), column.key)"
           >
             <template v-if="column.key === 'select'">
               <button
                 type="button"
                 class="datagrid-sugar-stage__drag"
-                v-bind="grid.bindings.rowReorder(rowNode.data, rowIndex)"
+                v-bind="grid.bindings.rowReorder(rowNode.data, resolveRenderedRowIndex(rowIndex))"
                 aria-label="Reorder row"
               >
                 ⋮⋮
@@ -517,36 +842,48 @@ const visibleColumnCount = computed(() => visibleColumns.value.length)
                 :checked="grid.features.selection.isSelectedByKey(String(rowNode.rowId))"
                 @change="onToggleRowSelectedChange(String(rowNode.rowId), $event)"
               />
-              <span class="datagrid-sugar-stage__row-resize-handle" v-bind="grid.bindings.rowResizeHandle?.(String(rowNode.rowId)) ?? {}"></span>
+              <span
+                class="datagrid-sugar-stage__row-resize-handle"
+                v-bind="bindRowResizeHandle(String(rowNode.rowId ?? rowNode.rowKey ?? resolveRenderedRowIndex(rowIndex)))"
+              ></span>
             </template>
 
             <input
               v-else-if="grid.bindings.isCellEditing(String(rowNode.rowId), column.key)"
               class="datagrid-sugar-stage__editor"
+              :ref="(el) => setEditorRef(String(rowNode.rowId), column.key, el)"
               v-bind="grid.bindings.inlineEditor({
                 rowKey: String(rowNode.rowId),
                 columnKey: column.key,
                 commitOnBlur: true,
               })"
+              @keydown.stop
+              @mousedown.stop
               autofocus
             />
 
             <span v-else>{{ resolveDisplayValue(rowNode.data, column.key) }}</span>
 
-            <template v-if="shouldShowRangeHandles(rowIndex, columnIndex)">
-              <span class="datagrid-sugar-stage__selection-handle" v-bind="bindRangeHandle(rowIndex, column.key, 'fill')"></span>
-              <span class="datagrid-sugar-stage__selection-handle is-move" v-bind="bindRangeHandle(rowIndex, column.key, 'move')"></span>
+            <template v-if="shouldShowRangeHandles(resolveRenderedRowIndex(rowIndex), columnIndex)">
+              <span class="datagrid-sugar-stage__selection-handle" v-bind="bindRangeHandle(resolveRenderedRowIndex(rowIndex), column.key, 'fill')"></span>
+              <span class="datagrid-sugar-stage__selection-handle is-move" v-bind="bindRangeHandle(resolveRenderedRowIndex(rowIndex), column.key, 'move')"></span>
             </template>
           </div>
         </template>
       </div>
+
+        <div
+          v-if="bottomSpacerHeight > 0"
+          class="datagrid-sugar-stage__spacer"
+          :style="{ height: `${bottomSpacerHeight}px` }"
+        ></div>
 
       <div v-if="renderedRows.length === 0" class="datagrid-sugar-stage__empty">
         No rows matched current filters.
       </div>
     </div>
 
-    <footer class="datagrid-sugar-stage__footer">
+    <footer v-if="showPagination" class="datagrid-sugar-stage__footer">
       <button type="button" @click="grid.pagination.goToFirstPage">First</button>
       <button type="button" @click="grid.pagination.goToPreviousPage">Prev</button>
       <span>Page {{ grid.pagination.snapshot.value.currentPage + 1 }} / {{ grid.pagination.snapshot.value.pageCount }}</span>
@@ -555,85 +892,91 @@ const visibleColumnCount = computed(() => visibleColumns.value.length)
     </footer>
   </main>
 
-  <section
-    v-if="headerFilterState.open && headerFilterState.columnKey"
-    class="datagrid-sugar-filter-popover"
-    :style="headerFilterFloatingStyle"
-    @mousedown.stop
-  >
-    <h4>{{ headerFilterState.columnKey }}</h4>
+  <Teleport :to="headerFilterTeleportTarget">
+    <section
+      v-if="headerFilterPopover.controller.state.value.open && headerFilterState.columnKey"
+      :ref="setHeaderFilterContentRef"
+      v-bind="headerFilterPopover.controller.getContentProps({ role: 'dialog', tabIndex: -1 })"
+      class="datagrid-sugar-filter-popover"
+      :style="headerFilterContentStyle"
+      @pointerdown.stop
+      @mousedown.stop
+      @click.stop
+    >
+      <h4>{{ headerFilterState.columnKey }}</h4>
 
-    <label>
-      <span>Operator</span>
-      <select
-        :value="headerFilterState.operator"
-        @change="onHeaderOperatorChange"
-      >
-        <option v-for="operator in openedHeaderOperators" :key="operator.value" :value="operator.value">
-          {{ operator.label }}
-        </option>
-      </select>
-    </label>
-
-    <template v-if="headerFilterState.type === 'set'">
       <label>
-        <span>Search values</span>
-        <input v-model="headerSetSearch" type="search" placeholder="Search..." />
+        <span>Operator</span>
+        <select
+          :value="headerFilterState.operator"
+          @change="onHeaderOperatorChange"
+        >
+          <option v-for="operator in openedHeaderOperators" :key="operator.value" :value="operator.value">
+            {{ operator.label }}
+          </option>
+        </select>
       </label>
-      <div class="datagrid-sugar-filter-popover__set">
-        <label v-for="entry in openedHeaderValues" :key="entry.key" class="datagrid-sugar-filter-popover__set-row">
-          <input
-            type="checkbox"
-            :checked="entry.selected"
-            @change="onHeaderSetValueChange(entry.value, $event)"
-          />
-          <span>{{ entry.label }} ({{ entry.count }})</span>
-          <button
-            type="button"
-            class="is-link"
-            @click="grid.features.headerFilters?.selectOnlyValue(headerFilterState.columnKey!, entry.value)"
-          >
-            Only
-          </button>
+
+      <template v-if="headerFilterState.type === 'set'">
+        <label>
+          <span>Search values</span>
+          <input v-model="headerSetSearch" type="search" placeholder="Search..." />
         </label>
+        <div class="datagrid-sugar-filter-popover__set">
+          <label v-for="entry in openedHeaderValues" :key="entry.key" class="datagrid-sugar-filter-popover__set-row">
+            <input
+              type="checkbox"
+              :checked="entry.selected"
+              @change="onHeaderSetValueChange(entry.value, $event)"
+            />
+            <span>{{ entry.label }} ({{ entry.count }})</span>
+            <button
+              type="button"
+              class="is-link"
+              @click="grid.features.headerFilters?.selectOnlyValue(headerFilterState.columnKey!, entry.value)"
+            >
+              Only
+            </button>
+          </label>
+        </div>
+      </template>
+
+      <template v-else-if="headerFilterState.type === 'number'">
+        <label>
+          <span>Min</span>
+          <input v-model="headerNumberMin" type="number" />
+        </label>
+        <label>
+          <span>Max</span>
+          <input v-model="headerNumberMax" type="number" />
+        </label>
+      </template>
+
+      <template v-else-if="headerFilterState.type === 'date'">
+        <label>
+          <span>From</span>
+          <input v-model="headerDateFrom" type="date" />
+        </label>
+        <label>
+          <span>To</span>
+          <input v-model="headerDateTo" type="date" />
+        </label>
+      </template>
+
+      <template v-else>
+        <label>
+          <span>Contains</span>
+          <input v-model="headerTextValue" type="text" placeholder="contains..." />
+        </label>
+      </template>
+
+      <div class="datagrid-sugar-filter-popover__actions">
+        <button type="button" class="is-primary" @click="applyOpenedHeaderFilter">Apply</button>
+        <button type="button" class="is-ghost" @click="clearOpenedHeaderFilter">Reset</button>
+        <button type="button" class="is-ghost" @click="grid.features.headerFilters?.close()">Close</button>
       </div>
-    </template>
-
-    <template v-else-if="headerFilterState.type === 'number'">
-      <label>
-        <span>Min</span>
-        <input v-model="headerNumberMin" type="number" />
-      </label>
-      <label>
-        <span>Max</span>
-        <input v-model="headerNumberMax" type="number" />
-      </label>
-    </template>
-
-    <template v-else-if="headerFilterState.type === 'date'">
-      <label>
-        <span>From</span>
-        <input v-model="headerDateFrom" type="date" />
-      </label>
-      <label>
-        <span>To</span>
-        <input v-model="headerDateTo" type="date" />
-      </label>
-    </template>
-
-    <template v-else>
-      <label>
-        <span>Contains</span>
-        <input v-model="headerTextValue" type="text" placeholder="contains..." />
-      </label>
-    </template>
-
-    <div class="datagrid-sugar-filter-popover__actions">
-      <button type="button" class="is-primary" @click="applyOpenedHeaderFilter">Apply</button>
-      <button type="button" class="is-ghost" @click="clearOpenedHeaderFilter">Reset</button>
-      <button type="button" class="is-ghost" @click="grid.features.headerFilters?.close()">Close</button>
-    </div>
-  </section>
+    </section>
+  </Teleport>
 
   <section
     v-if="contextMenuOpen"
@@ -694,6 +1037,10 @@ const visibleColumnCount = computed(() => visibleColumns.value.length)
   width: max-content;
   min-width: 100%;
   border-bottom: 1px solid color-mix(in srgb, var(--datagrid-cell-border-color, rgba(148, 163, 184, 0.25)) 82%, transparent);
+}
+
+.datagrid-sugar-stage__spacer {
+  width: 100%;
 }
 
 .datagrid-sugar-stage__cell {
@@ -831,11 +1178,14 @@ const visibleColumnCount = computed(() => visibleColumns.value.length)
 
 .datagrid-sugar-stage__editor {
   width: 100%;
-  border: 1px solid var(--datagrid-editor-border, rgba(148, 163, 184, 0.5));
+  height: 100%;
+  border: 0;
+  outline: none;
   border-radius: 0.38rem;
   padding: 0.24rem 0.34rem;
   background: var(--datagrid-editor-bg, rgba(8, 10, 18, 0.96));
   color: var(--datagrid-text-primary, #e2e8f0);
+  box-shadow: inset 0 0 0 1px var(--datagrid-editor-border, rgba(148, 163, 184, 0.5));
 }
 
 .datagrid-sugar-stage__selection-handle {

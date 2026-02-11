@@ -444,6 +444,40 @@ Hotkeys users expect:
 
 Use this to choose the right layer:
 
-1. `useAffinoDataGrid` (sugar): fastest integration, stable API, enough for most product grids.
-2. `@affino/datagrid-orchestration` (advanced): custom UX flows, framework-specific shells, controlled complexity.
-3. Internal demo patterns (internal): experimental or parity-tracking logic; not semver-stable surface.
+1. `useAffinoDataGridMinimal` (minimal sugar): stable baseline for fast setup without advanced UX layers.
+2. `useAffinoDataGrid` (sugar): full sugar API including advanced UX, events hub, layouts, history, range/clipboard, and context menu.
+3. `@affino/datagrid-orchestration` (advanced): custom UX flows, framework-specific shells, controlled complexity.
+4. Internal demo patterns (internal): experimental or parity-tracking logic; not semver-stable surface.
+
+### Minimal vs full sugar
+
+Use `useAffinoDataGridMinimal` when you want a small, stable surface and do not need the advanced UX bundles.
+
+```ts
+import { useAffinoDataGridMinimal } from "@affino/datagrid-vue"
+
+const grid = useAffinoDataGridMinimal({
+  rows,
+  columns,
+  features: {
+    selection: { enabled: true },
+    sorting: { enabled: true },
+    filtering: { enabled: true },
+  },
+})
+```
+
+Use `useAffinoDataGrid` when you need advanced UX layers:
+
+- event hub (`grid.events`)
+- history (`grid.history`)
+- range + clipboard (`grid.cellRange`)
+- layouts (`grid.layoutProfiles`)
+- status bar (`grid.statusBar`)
+- context menu orchestration (`grid.contextMenu`)
+
+```ts
+import { useAffinoDataGrid } from "@affino/datagrid-vue"
+
+const grid = useAffinoDataGrid({ rows, columns })
+```

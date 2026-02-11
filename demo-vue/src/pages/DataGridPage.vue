@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { computed, effectScope, nextTick, onBeforeUnmount, onMounted, ref, unref, watch } from "vue"
 import AffinoSelect from "@/components/AffinoSelect.vue"
 import ThemeToggle from "@/components/ThemeToggle.vue"
+import { useFloatingPopover, usePopoverController } from "@affino/popover-vue"
 import {
   UiMenu,
   UiMenuTrigger,
@@ -1003,45 +1004,132 @@ function applySetFilterSelection(): void {
   applyActiveColumnFilter()
 }
 
-const headerFilterMenus = new Map<string, { controller: { open: (reason?: "pointer" | "keyboard" | "programmatic") => void } }>()
-
-function registerHeaderFilterMenu(columnKey: string, instance: unknown): void {
-  const menu = instance as { controller?: { open: (reason?: "pointer" | "keyboard" | "programmatic") => void } } | null
-  if (menu?.controller) {
-    headerFilterMenus.set(columnKey, menu as { controller: { open: (reason?: "pointer" | "keyboard" | "programmatic") => void } })
-    return
-  }
-  headerFilterMenus.delete(columnKey)
+type HeaderFilterPopover = {
+  controller: ReturnType<typeof usePopoverController>
+  floating: ReturnType<typeof useFloatingPopover>
+  scope: ReturnType<typeof effectScope>
 }
 
-function openHeaderFilterMenu(columnKey: string): void {
-  openColumnFilter(columnKey)
-  nextTick(() => {
-    headerFilterMenus.get(columnKey)?.controller.open("pointer")
+const headerFilterPopovers = new Map<string, HeaderFilterPopover>()
+
+function createHeaderFilterPopover(columnKey: string): HeaderFilterPopover {
+  const scope = effectScope()
+  let controller!: ReturnType<typeof usePopoverController>
+  let floating!: ReturnType<typeof useFloatingPopover>
+
+  scope.run(() => {
+    controller = usePopoverController({
+      id: `datagrid-filter-${columnKey}`,
+      role: "dialog",
+      modal: false,
+      closeOnEscape: true,
+      closeOnInteractOutside: true,
+      overlayKind: "popover",
+      overlayEntryTraits: {
+        ownerId: "datagrid-filter",
+        priority: 80,
+        returnFocus: false,
+        data: { columnKey },
+      },
+    })
+
+    floating = useFloatingPopover(controller, {
+      placement: "bottom",
+      align: "start",
+      gutter: 8,
+      lockScroll: false,
+      returnFocus: false,
+    })
+
+    watch(
+      () => controller.state.value.open,
+      (open) => {
+        if (open) {
+          if (activeFilterColumnKey.value !== columnKey) {
+            openColumnFilter(columnKey)
+          }
+          nextTick(() => {
+            floating.updatePosition()
+          })
+          return
+        }
+        if (activeFilterColumnKey.value === columnKey) {
+          closeColumnFilterPanel()
+        }
+      },
+    )
   })
+
+  return { controller, floating, scope }
 }
 
-function onHeaderFilterMenuOpen(columnKey: string): void {
+function getHeaderFilterPopover(columnKey: string): HeaderFilterPopover {
+  const existing = headerFilterPopovers.get(columnKey)
+  if (existing) {
+    return existing
+  }
+  const created = createHeaderFilterPopover(columnKey)
+  headerFilterPopovers.set(columnKey, created)
+  return created
+}
+
+function getHeaderFilterContentStyle(columnKey: string): Record<string, string> {
+  return unref(getHeaderFilterPopover(columnKey).floating.contentStyle)
+}
+
+function getHeaderFilterTeleportTarget(columnKey: string): string | HTMLElement | null {
+  return unref(getHeaderFilterPopover(columnKey).floating.teleportTarget)
+}
+
+function setHeaderFilterTriggerRef(columnKey: string, value: unknown): void {
+  const element = value instanceof HTMLElement
+    ? value
+    : (value && typeof value === "object" && "$el" in (value as Record<string, unknown>)
+        ? (value as { $el?: unknown }).$el
+        : null)
+  getHeaderFilterPopover(columnKey).floating.triggerRef.value = element instanceof HTMLElement ? element : null
+}
+
+function setHeaderFilterContentRef(columnKey: string, value: unknown): void {
+  const element = value instanceof HTMLElement
+    ? value
+    : (value && typeof value === "object" && "$el" in (value as Record<string, unknown>)
+        ? (value as { $el?: unknown }).$el
+        : null)
+  getHeaderFilterPopover(columnKey).floating.contentRef.value = element instanceof HTMLElement ? element : null
+}
+
+function openHeaderFilterPopover(
+  columnKey: string,
+  reason: "pointer" | "keyboard" | "programmatic" = "pointer",
+): void {
+  const popover = getHeaderFilterPopover(columnKey)
   if (activeFilterColumnKey.value !== columnKey) {
     openColumnFilter(columnKey)
   }
-}
-
-function openHeaderFilterMenuFromContextMenu(columnKey: string): void {
-  openColumnFilter(columnKey)
+  popover.controller.open(reason)
   nextTick(() => {
-    const trigger = headerRef.value?.querySelector<HTMLButtonElement>(
-      `[${DATA_GRID_DATA_ATTRS.filterTrigger}][${DATA_GRID_DATA_ATTRS.columnKey}="${columnKey}"]`,
-    )
-    trigger?.click()
+    popover.floating.updatePosition()
   })
 }
 
-function onHeaderFilterMenuClose(columnKey: string): void {
-  if (activeFilterColumnKey.value !== columnKey) {
-    return
-  }
+function closeHeaderFilterPopover(
+  columnKey: string,
+  reason: "pointer" | "keyboard" | "programmatic" = "programmatic",
+): void {
+  headerFilterPopovers.get(columnKey)?.controller.close(reason)
+}
+
+function openHeaderFilterMenuFromContextMenu(columnKey: string): void {
+  openHeaderFilterPopover(columnKey, "programmatic")
+}
+
+function closeColumnFilterPopover(): void {
+  const key = activeFilterColumnKey.value
   closeColumnFilterPanel()
+  if (key) {
+    closeHeaderFilterPopover(key, "programmatic")
+  }
 }
 
 const {
@@ -1054,7 +1142,7 @@ const {
   onContextMenuKeyDown,
 } = useDataGridContextMenu({
   isColumnResizable,
-  onBeforeOpen: closeColumnFilterPanel,
+  onBeforeOpen: closeColumnFilterPopover,
 })
 
 const selectionComparators = useDataGridSelectionComparators<CellCoord, CellSelectionRange>()
@@ -3153,10 +3241,12 @@ const resolveViewportRange = () => {
   if (total <= 0) {
     return { start: 0, end: 0 }
   }
+  const viewport = viewportRef.value
+  const viewportBodyHeight = viewport ? viewport.clientHeight : viewportHeight.value
   const start = Math.max(0, Math.min(total - 1, Math.floor(scrollTop.value / rowHeightPx.value)))
-  const visibleCount = Math.max(1, Math.ceil(viewportHeight.value / rowHeightPx.value))
-  const overscanTop = runtimeVirtualWindow.value?.overscan.top ?? 2
-  const overscanBottom = runtimeVirtualWindow.value?.overscan.bottom ?? 2
+  const visibleCount = Math.max(1, Math.ceil(viewportBodyHeight / rowHeightPx.value))
+  const overscanTop = Math.max(2, runtimeVirtualWindow.value?.overscan.top ?? 0)
+  const overscanBottom = Math.max(2, runtimeVirtualWindow.value?.overscan.bottom ?? 0)
   const end = Math.max(start, Math.min(total - 1, start + visibleCount - 1))
   const startWithOverscan = Math.max(0, start - overscanTop)
   const endWithOverscan = Math.max(startWithOverscan, Math.min(total - 1, end + overscanBottom))
@@ -3184,6 +3274,7 @@ const visibleRowsSyncScheduler = useDataGridVisibleRowsSyncScheduler<IncidentRow
 })
 const {
   syncVisibleRows,
+  scheduleVisibleRowsSync,
   resetVisibleRowsSyncCache,
   dispose: disposeVisibleRowsSyncScheduler,
 } = visibleRowsSyncScheduler
@@ -3821,14 +3912,14 @@ watch(sourceRows, () => {
   syncPaginationState()
 })
 
-watch(
-  [filteredAndSortedRows, renderRange],
-  () => {
-    syncVisibleRows()
-    syncPaginationState()
-  },
-  { immediate: true, flush: "sync" },
-)
+watch(filteredAndSortedRows, () => {
+  syncVisibleRows()
+  syncPaginationState()
+}, { immediate: true, flush: "sync" })
+
+watch(renderRange, () => {
+  scheduleVisibleRowsSync()
+}, { flush: "sync" })
 
 let themeObserver: MutationObserver | null = null
 
@@ -3900,6 +3991,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   themeObserver?.disconnect()
   themeObserver = null
+  headerFilterPopovers.forEach(popover => {
+    popover.scope.stop()
+  })
+  headerFilterPopovers.clear()
   stopFillSelection(false)
   stopDragSelection()
   stopRangeMove(false)
@@ -4486,28 +4581,28 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
                   {{ getHeaderSortPriority(column.key) }}
                 </span>
               </span>
-              <UiMenu
-                :ref="(el: unknown) => registerHeaderFilterMenu(column.key, el)"
-                :callbacks="{ onClose: () => onHeaderFilterMenuClose(column.key), onOpen: () => onHeaderFilterMenuOpen(column.key) }"
+              <button
+                :ref="(el) => setHeaderFilterTriggerRef(column.key, el)"
+                v-bind="getHeaderFilterPopover(column.key).controller.getTriggerProps()"
+                type="button"
+                class="datagrid-stage__filter-trigger"
+                :class="{ 'is-active': isColumnFilterActive(column.key) }"
+                :data-column-key="column.key"
+                data-datagrid-filter-trigger
+                :aria-label="`Filter ${column.column.label ?? column.key}`"
+                :aria-expanded="activeFilterColumnKey === column.key ? 'true' : 'false'"
+                @click.stop="openHeaderFilterPopover(column.key, 'pointer')"
+                @keydown.stop
               >
-                <UiMenuTrigger as-child>
-                  <button
-                    type="button"
-                    class="datagrid-stage__filter-trigger"
-                    :class="{ 'is-active': isColumnFilterActive(column.key) }"
-                    :data-column-key="column.key"
-                    data-datagrid-filter-trigger
-                    :aria-label="`Filter ${column.column.label ?? column.key}`"
-                    :aria-expanded="activeFilterColumnKey === column.key ? 'true' : 'false'"
-                    @click.stop="openHeaderFilterMenu(column.key)"
-                    @keydown.stop
-                  >
-                    F
-                  </button>
-                </UiMenuTrigger>
-                <UiMenuContent
+                F
+              </button>
+              <Teleport :to="getHeaderFilterTeleportTarget(column.key)">
+                <div
+                  v-if="getHeaderFilterPopover(column.key).controller.state.value.open"
+                  :ref="(el) => setHeaderFilterContentRef(column.key, el)"
+                  v-bind="getHeaderFilterPopover(column.key).controller.getContentProps({ role: 'dialog', tabIndex: -1 })"
+                  :style="getHeaderFilterContentStyle(column.key)"
                   class="ui-menu-content datagrid-column-filter datagrid-column-filter--menu"
-                  side-offset="6"
                   :data-datagrid-filter-panel="activeFilterColumnKey === column.key ? 'true' : null"
                   :data-column-key="activeFilterColumnKey === column.key ? column.key : null"
                   :aria-labelledby="FILTER_PANEL_TITLE_ID"
@@ -4657,14 +4752,14 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
                         type="button"
                         class="ghost"
                         data-datagrid-filter-close
-                        @click.stop.prevent="closeColumnFilterPanel"
+                        @click.stop.prevent="closeColumnFilterPopover"
                       >
                         Close
                       </button>
                     </div>
                   </template>
-                </UiMenuContent>
-              </UiMenu>
+                </div>
+              </Teleport>
               <button
                 v-if="isColumnResizable(column.key)"
                 type="button"
@@ -4728,7 +4823,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             :style="segment.style"
           ></div>
         </div>
-        <div :style="{ height: `${renderSpacerTopHeight}px` }"></div>
+        <div data-datagrid-spacer-top :style="{ height: `${renderSpacerTopHeight}px` }"></div>
 
         <div
           v-for="row in visibleRows"
@@ -4777,6 +4872,8 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             }"
             :data-column-key="column.key"
             :data-row-id="row.rowId"
+            :data-row-index="resolveRowIndex(row)"
+            :data-column-index="resolveColumnIndex(column.key)"
             :id="getGridCellId(String(row.rowId), column.key)"
             role="gridcell"
             :aria-colindex="getColumnAriaIndex(column.key)"
@@ -4918,7 +5015,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         </div>
 
         <div v-if="visibleRows.length === 0" class="datagrid-stage__empty">No rows matched current filters.</div>
-        <div :style="{ height: `${renderSpacerBottomHeight}px` }"></div>
+        <div data-datagrid-spacer-bottom :style="{ height: `${renderSpacerBottomHeight}px` }"></div>
       </div>
       <div
         v-if="isSelectionBadgeVisible"

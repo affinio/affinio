@@ -985,6 +985,7 @@ function mountDatagridDemo(root) {
             text,
             columnKey: activeCell.columnKey,
             value: matrix[0]?.[0] ?? "",
+            updatedAt: Date.now(),
         };
         if (navigator.clipboard?.writeText) {
             try {
@@ -1066,9 +1067,21 @@ function mountDatagridDemo(root) {
         const hasPayload = rawMatrix.some((row) =>
             row.some((cell) => String(cell ?? "").trim().length > 0),
         );
-        const matrix = !hasPayload && fallbackMatrix && fallbackMatrix.length
+        const internalFresh = Boolean(
+            clipboardState &&
+            typeof clipboardState.updatedAt === "number" &&
+            Date.now() - clipboardState.updatedAt < 30000,
+        );
+        const internalHasPayload = Boolean(
+            fallbackMatrix && fallbackMatrix.some((row) =>
+                row.some((cell) => String(cell ?? "").trim().length > 0),
+            ),
+        );
+        const matrix = internalFresh && internalHasPayload
             ? fallbackMatrix
-            : rawMatrix;
+            : (!hasPayload && fallbackMatrix && fallbackMatrix.length
+                ? fallbackMatrix
+                : rawMatrix);
         const matrixHeight = Math.max(1, matrix.length);
         const matrixWidth = Math.max(1, matrix[0]?.length ?? 1);
         const columns = resolveVisibleColumns();

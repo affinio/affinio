@@ -1,6 +1,6 @@
 # DataGrid Versioned Public Protocol
 
-Updated: `2026-02-08`
+Updated: `2026-02-11`
 
 This document defines semver-safe public protocol rules for:
 
@@ -21,6 +21,12 @@ Tier 2 (advanced, power-user APIs):
 
 Tier 3 (internal, unsafe):
 - `@affino/datagrid-core/internal`
+
+Event tier contract (stable export):
+- `DATAGRID_EVENT_TIERS`
+- `DATAGRID_EVENT_TIER_ENTRYPOINTS`
+- `DataGridStableEventMap`
+- `DataGridEventEnvelope`
 
 ## Semver Rules
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import type {
   DataGridAdvancedFilterExpression,
   DataGridColumnDef,
@@ -9,8 +9,13 @@ import {
   useAffinoDataGrid,
   type AffinoDataGridEditSession,
   type AffinoDataGridFeatures,
+  type UseAffinoDataGridResult,
 } from "@affino/datagrid-vue"
 import DataGridSugarStage from "../components/DataGridSugarStage.vue"
+
+interface RowLike {
+  rowId?: string | number
+}
 
 interface SugarGridRow {
   rowId: string
@@ -35,12 +40,13 @@ interface SugarGridRow {
   channel: "#noc" | "#platform-alerts" | "#payments-oncall" | "#incident-bridge"
   runbook: "RB-101" | "RB-204" | "RB-305" | "RB-410" | "RB-512"
   updatedAt: string
+  [key: string]: unknown
 }
 
 const GROUP_BY_OPTIONS = ["none", "region", "owner", "team", "severity", "status"] as const
 const SEVERITY_OPTIONS = ["critical", "high", "medium", "low"] as const
 
-const columns = ref<readonly DataGridColumnDef[]>([
+const BASE_COLUMNS: readonly DataGridColumnDef[] = [
   { key: "select", label: "", width: 54, pin: "left" },
   { key: "service", label: "Service", width: 230, pin: "left" },
   { key: "owner", label: "Owner", width: 170 },
@@ -63,45 +69,85 @@ const columns = ref<readonly DataGridColumnDef[]>([
   { key: "channel", label: "Channel", width: 170 },
   { key: "runbook", label: "Runbook", width: 120 },
   { key: "updatedAt", label: "Updated", width: 170, pin: "right" },
-])
+]
 
-const rows = ref<SugarGridRow[]>(
-  Array.from({ length: 520 }, (_, index) => {
-    const severity = SEVERITY_OPTIONS[index % SEVERITY_OPTIONS.length] ?? "medium"
-    const regions: SugarGridRow["region"][] = ["us-east", "us-west", "eu-central", "ap-south"]
-    const envs: SugarGridRow["environment"][] = ["prod", "stage", "dev"]
-    const owners = ["NOC", "SRE", "Platform", "Payments", "Core", "Infra"]
-    const teams: SugarGridRow["team"][] = ["platform", "payments", "core", "growth", "infra"]
-    const statusCycle: SugarGridRow["status"][] = ["healthy", "degraded", "incident"]
-    const channels: SugarGridRow["channel"][] = ["#noc", "#platform-alerts", "#payments-oncall", "#incident-bridge"]
-    const runbooks: SugarGridRow["runbook"][] = ["RB-101", "RB-204", "RB-305", "RB-410", "RB-512"]
+const ROW_COUNT_PRESETS = [1000, 10000, 50000] as const
+const COLUMN_COUNT_PRESETS = [10, 50, 100] as const
 
-    return {
-      rowId: `row-${index + 1}`,
-      service: `service-${(index % 37) + 1}`,
-      owner: owners[index % owners.length] ?? "NOC",
-      team: teams[index % teams.length] ?? "platform",
-      region: regions[index % regions.length] ?? "us-east",
-      environment: envs[index % envs.length] ?? "prod",
-      deployment: `release-2026.${(index % 12) + 1}.${(index % 9) + 1}`,
-      severity,
-      status: statusCycle[(index + 1) % statusCycle.length] ?? "healthy",
-      latencyMs: 40 + ((index * 7) % 260),
-      errorRatePct: Number((((index * 1.8) % 18) + (severity === "critical" ? 7 : 0)).toFixed(2)),
-      availabilityPct: Number((99.99 - ((index * 13) % 160) / 100).toFixed(2)),
-      cpuPct: 18 + ((index * 17) % 78),
-      memoryPct: 24 + ((index * 19) % 69),
-      throughputRps: 60 + ((index * 37) % 1900),
-      mttrMin: 7 + ((index * 5) % 91),
-      sloBurnRate: Number((0.3 + ((index * 3) % 34) / 10).toFixed(2)),
-      incidents24h: (index * 3) % 24,
-      queueDepth: (index * 29) % 520,
-      channel: channels[index % channels.length] ?? "#noc",
-      runbook: runbooks[index % runbooks.length] ?? "RB-101",
-      updatedAt: `2026-02-${String((index % 28) + 1).padStart(2, "0")} ${String((index * 7) % 24).padStart(2, "0")}:${String((index * 11) % 60).padStart(2, "0")}`,
+const rowCount = ref(520)
+const columnCount = ref(Math.max(1, BASE_COLUMNS.length))
+
+const buildColumns = (count: number): readonly DataGridColumnDef[] => {
+  const normalized = Math.max(1, Math.round(count))
+  const baseSlice = BASE_COLUMNS.slice(0, Math.min(normalized, BASE_COLUMNS.length))
+  if (normalized <= BASE_COLUMNS.length) {
+    return baseSlice
+  }
+  const extras: DataGridColumnDef[] = []
+  for (let index = BASE_COLUMNS.length; index < normalized; index += 1) {
+    const extraIndex = index - BASE_COLUMNS.length + 1
+    extras.push({
+      key: `extra${extraIndex}`,
+      label: `Extra ${extraIndex}`,
+      width: 140,
+    })
+  }
+  return [...baseSlice, ...extras]
+}
+
+const buildRow = (index: number, columns: readonly DataGridColumnDef[]): SugarGridRow => {
+  const severity = SEVERITY_OPTIONS[index % SEVERITY_OPTIONS.length] ?? "medium"
+  const regions: SugarGridRow["region"][] = ["us-east", "us-west", "eu-central", "ap-south"]
+  const envs: SugarGridRow["environment"][] = ["prod", "stage", "dev"]
+  const owners = ["NOC", "SRE", "Platform", "Payments", "Core", "Infra"]
+  const teams: SugarGridRow["team"][] = ["platform", "payments", "core", "growth", "infra"]
+  const statusCycle: SugarGridRow["status"][] = ["healthy", "degraded", "incident"]
+  const channels: SugarGridRow["channel"][] = ["#noc", "#platform-alerts", "#payments-oncall", "#incident-bridge"]
+  const runbooks: SugarGridRow["runbook"][] = ["RB-101", "RB-204", "RB-305", "RB-410", "RB-512"]
+
+  const row: SugarGridRow = {
+    rowId: `row-${index + 1}`,
+    service: `service-${(index % 37) + 1}`,
+    owner: owners[index % owners.length] ?? "NOC",
+    team: teams[index % teams.length] ?? "platform",
+    region: regions[index % regions.length] ?? "us-east",
+    environment: envs[index % envs.length] ?? "prod",
+    deployment: `release-2026.${(index % 12) + 1}.${(index % 9) + 1}`,
+    severity,
+    status: statusCycle[(index + 1) % statusCycle.length] ?? "healthy",
+    latencyMs: 40 + ((index * 7) % 260),
+    errorRatePct: Number((((index * 1.8) % 18) + (severity === "critical" ? 7 : 0)).toFixed(2)),
+    availabilityPct: Number((99.99 - ((index * 13) % 160) / 100).toFixed(2)),
+    cpuPct: 18 + ((index * 17) % 78),
+    memoryPct: 24 + ((index * 19) % 69),
+    throughputRps: 60 + ((index * 37) % 1900),
+    mttrMin: 7 + ((index * 5) % 91),
+    sloBurnRate: Number((0.3 + ((index * 3) % 34) / 10).toFixed(2)),
+    incidents24h: (index * 3) % 24,
+    queueDepth: (index * 29) % 520,
+    channel: channels[index % channels.length] ?? "#noc",
+    runbook: runbooks[index % runbooks.length] ?? "RB-101",
+    updatedAt: `2026-02-${String((index % 28) + 1).padStart(2, "0")} ${String((index * 7) % 24).padStart(2, "0")}:${String((index * 11) % 60).padStart(2, "0")}`,
+  }
+
+  for (const column of columns) {
+    if (column.key === "select") {
+      continue
     }
-  }),
+    if (!(column.key in row)) {
+      row[column.key] = `${column.key}-${index + 1}`
+    }
+  }
+
+  return row
+}
+
+const buildRows = (count: number, columns: readonly DataGridColumnDef[]): SugarGridRow[] => (
+  Array.from({ length: Math.max(0, Math.round(count)) }, (_, index) => buildRow(index, columns))
 )
+
+const columns = ref<readonly DataGridColumnDef[]>(buildColumns(columnCount.value))
+const rows = ref<SugarGridRow[]>(buildRows(rowCount.value, columns.value))
 
 const resolveRowKey = (row: SugarGridRow): string => row.rowId
 
@@ -211,17 +257,70 @@ const grid = useAffinoDataGrid<SugarGridRow>({
   initialSortState: [{ key: "latencyMs", direction: "desc" }],
 })
 
+const gridStage = computed(() => (
+  grid as unknown as UseAffinoDataGridResult<RowLike>
+))
+
 const quickQuery = ref("")
 const quickSeverity = ref<readonly string[]>([])
 const groupBy = ref<(typeof GROUP_BY_OPTIONS)[number]>("none")
 const pageSize = ref(50)
+const usePagination = ref(true)
 const rowHeightMode = ref<"fixed" | "auto">("fixed")
 const rowHeightBase = ref(36)
 const layoutName = ref("Incident triage")
 const selectedLayoutId = ref("")
+const paginationMode = computed({
+  get: () => (usePagination.value ? "pagination" : "virtual"),
+  set: (value: "pagination" | "virtual") => {
+    usePagination.value = value === "pagination"
+  },
+})
+const toolbarRef = ref<HTMLElement | null>(null)
+const activePanel = ref<"quick" | "layout" | "metrics" | null>(null)
+
+const togglePanel = (panel: "quick" | "layout" | "metrics"): void => {
+  activePanel.value = activePanel.value === panel ? null : panel
+}
+
+const closePanels = (): void => {
+  activePanel.value = null
+}
+
+const handleDocumentPointerDown = (event: PointerEvent): void => {
+  const target = event.target as Node | null
+  if (!target || !toolbarRef.value) {
+    closePanels()
+    return
+  }
+  if (!toolbarRef.value.contains(target)) {
+    closePanels()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener("pointerdown", handleDocumentPointerDown, true)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener("pointerdown", handleDocumentPointerDown, true)
+})
 
 watch(pageSize, next => {
-  grid.pagination.setPageSize(next)
+  if (usePagination.value) {
+    grid.pagination.setPageSize(next)
+  }
+}, { immediate: true })
+
+watch(usePagination, (enabled) => {
+  if (enabled) {
+    grid.pagination.setPageSize(pageSize.value)
+    grid.pagination.setCurrentPage(0)
+  } else {
+    grid.pagination.set(null)
+    grid.pagination.setPageSize(null)
+    grid.pagination.setCurrentPage(0)
+  }
 }, { immediate: true })
 
 watch(groupBy, next => {
@@ -243,6 +342,24 @@ watch(rowHeightMode, next => {
 watch(rowHeightBase, next => {
   grid.features.rowHeight.setBase(Math.max(24, Math.min(80, Math.round(next))))
 })
+
+watch(rowCount, next => {
+  rows.value = buildRows(next, columns.value)
+})
+
+watch(columnCount, next => {
+  const nextColumns = buildColumns(next)
+  columns.value = nextColumns
+  rows.value = buildRows(rowCount.value, nextColumns)
+})
+
+const setRowCountPreset = (value: number): void => {
+  rowCount.value = value
+}
+
+const setColumnCountPreset = (value: number): void => {
+  columnCount.value = value
+}
 
 const applyQuickFilter = (): void => {
   const helpers = grid.features.filtering.helpers
@@ -268,12 +385,14 @@ const applyQuickFilter = (): void => {
   }
 
   helpers.apply(expression, { mergeMode: "replace" })
+  closePanels()
 }
 
 const clearQuickFilter = (): void => {
   quickQuery.value = ""
   quickSeverity.value = []
   grid.features.filtering.clear()
+  closePanels()
 }
 
 const captureLayout = (): void => {
@@ -281,6 +400,7 @@ const captureLayout = (): void => {
   if (profile) {
     selectedLayoutId.value = profile.id
   }
+  closePanels()
 }
 
 const applySelectedLayout = (): void => {
@@ -288,6 +408,7 @@ const applySelectedLayout = (): void => {
     return
   }
   grid.layoutProfiles?.apply(selectedLayoutId.value)
+  closePanels()
 }
 
 const removeSelectedLayout = (): void => {
@@ -298,6 +419,7 @@ const removeSelectedLayout = (): void => {
   if (!grid.layoutProfiles?.profiles.value.some(entry => entry.id === selectedLayoutId.value)) {
     selectedLayoutId.value = ""
   }
+  closePanels()
 }
 
 const statusMetrics = computed(() => grid.statusBar?.metrics.value ?? null)
@@ -310,118 +432,197 @@ const setColumnPin = (columnKey: string, pin: DataGridColumnPin): void => {
 
 <template>
   <section class="datagrid-sugar-page">
-    <header class="datagrid-sugar-toolbar">
-      <details class="datagrid-sugar-panel" open>
-        <summary>Quick Severity Filter</summary>
-        <div class="datagrid-sugar-panel__body">
-          <label>
-            <span>Quick query</span>
-            <input v-model="quickQuery" type="text" placeholder="service / owner / team" />
-          </label>
-          <div class="datagrid-sugar-chip-list">
-            <label v-for="severity in SEVERITY_OPTIONS" :key="severity" class="datagrid-sugar-chip">
-              <input v-model="quickSeverity" type="checkbox" :value="severity" />
-              <span>{{ severity }}</span>
+    <header ref="toolbarRef" class="datagrid-sugar-toolbar">
+      <div class="datagrid-sugar-panel">
+        <button
+          type="button"
+          class="datagrid-sugar-panel__trigger"
+          :aria-expanded="activePanel === 'quick' ? 'true' : 'false'"
+          @click.stop="togglePanel('quick')"
+        >
+          Quick Severity Filter
+        </button>
+        <div
+          v-if="activePanel === 'quick'"
+          class="datagrid-sugar-panel__content"
+          @click.stop
+        >
+          <div class="datagrid-sugar-panel__body">
+            <label>
+              <span>Quick query</span>
+              <input v-model="quickQuery" type="text" placeholder="service / owner / team" />
             </label>
-          </div>
-          <div class="datagrid-sugar-panel__actions">
-            <button type="button" class="is-primary" @click="applyQuickFilter">Apply</button>
-            <button type="button" class="is-ghost" @click="clearQuickFilter">Clear</button>
+            <div class="datagrid-sugar-chip-list">
+              <label v-for="severity in SEVERITY_OPTIONS" :key="severity" class="datagrid-sugar-chip">
+                <input v-model="quickSeverity" type="checkbox" :value="severity" />
+                <span>{{ severity }}</span>
+              </label>
+            </div>
+            <div class="datagrid-sugar-panel__actions">
+              <button type="button" class="is-primary" @click="applyQuickFilter">Apply</button>
+              <button type="button" class="is-ghost" @click="clearQuickFilter">Clear</button>
+            </div>
           </div>
         </div>
-      </details>
+      </div>
 
-      <details class="datagrid-sugar-panel">
-        <summary>Layout</summary>
-        <div class="datagrid-sugar-panel__body">
-          <label>
-            <span>Group by</span>
-            <select v-model="groupBy">
-              <option v-for="option in GROUP_BY_OPTIONS" :key="option" :value="option">{{ option }}</option>
-            </select>
-          </label>
-          <label>
-            <span>Page size</span>
-            <select v-model.number="pageSize">
-              <option :value="25">25</option>
-              <option :value="50">50</option>
-              <option :value="100">100</option>
-              <option :value="200">200</option>
-            </select>
-          </label>
-          <label>
-            <span>Row height mode</span>
-            <select v-model="rowHeightMode">
-              <option value="fixed">fixed</option>
-              <option value="auto">auto</option>
-            </select>
-          </label>
-          <label>
-            <span>Row height: {{ rowHeightBase }}px</span>
-            <input v-model.number="rowHeightBase" type="range" min="24" max="80" step="1" />
-          </label>
-          <div class="datagrid-sugar-panel__actions">
-            <button type="button" class="is-ghost" @click="setColumnPin('service', 'left')">Pin service left</button>
-            <button type="button" class="is-ghost" @click="setColumnPin('updatedAt', 'right')">Pin updated right</button>
-            <button type="button" class="is-ghost" @click="setColumnPin('service', 'none')">Unpin service</button>
-          </div>
-          <label>
-            <span>Layout profile</span>
-            <input v-model="layoutName" type="text" placeholder="Layout name" />
-          </label>
-          <label>
-            <span>Saved profiles</span>
-            <select v-model="selectedLayoutId">
-              <option value="">Select profile...</option>
-              <option v-for="profile in grid.layoutProfiles?.profiles.value ?? []" :key="profile.id" :value="profile.id">
-                {{ profile.name }}
-              </option>
-            </select>
-          </label>
-          <div class="datagrid-sugar-panel__actions">
-            <button type="button" class="is-primary" @click="captureLayout">Save</button>
-            <button type="button" class="is-ghost" @click="applySelectedLayout">Apply</button>
-            <button type="button" class="is-ghost" @click="removeSelectedLayout">Remove</button>
+      <div class="datagrid-sugar-panel">
+        <button
+          type="button"
+          class="datagrid-sugar-panel__trigger"
+          :aria-expanded="activePanel === 'layout' ? 'true' : 'false'"
+          @click.stop="togglePanel('layout')"
+        >
+          Layout
+        </button>
+        <div
+          v-if="activePanel === 'layout'"
+          class="datagrid-sugar-panel__content"
+          @click.stop
+        >
+          <div class="datagrid-sugar-panel__body">
+            <label>
+              <span>Group by</span>
+              <select v-model="groupBy">
+                <option v-for="option in GROUP_BY_OPTIONS" :key="option" :value="option">{{ option }}</option>
+              </select>
+            </label>
+            <label>
+              <span>Page size</span>
+              <select v-model.number="pageSize">
+                <option :value="25">25</option>
+                <option :value="50">50</option>
+                <option :value="100">100</option>
+                <option :value="200">200</option>
+              </select>
+            </label>
+            <label>
+              <span>Navigation mode</span>
+              <select v-model="paginationMode">
+                <option value="pagination">Pagination</option>
+                <option value="virtual">Virtual scroll</option>
+              </select>
+            </label>
+            <label>
+              <span>Row count</span>
+              <input v-model.number="rowCount" type="number" min="0" step="100" />
+            </label>
+            <div class="datagrid-sugar-panel__actions">
+              <button
+                v-for="preset in ROW_COUNT_PRESETS"
+                :key="`rows:${preset}`"
+                type="button"
+                class="is-ghost"
+                @click="setRowCountPreset(preset)"
+              >
+                {{ preset.toLocaleString() }} rows
+              </button>
+            </div>
+            <label>
+              <span>Column count</span>
+              <input v-model.number="columnCount" type="number" min="1" step="5" />
+            </label>
+            <div class="datagrid-sugar-panel__actions">
+              <button
+                v-for="preset in COLUMN_COUNT_PRESETS"
+                :key="`cols:${preset}`"
+                type="button"
+                class="is-ghost"
+                @click="setColumnCountPreset(preset)"
+              >
+                {{ preset.toLocaleString() }} cols
+              </button>
+            </div>
+            <label>
+              <span>Row height mode</span>
+              <select v-model="rowHeightMode">
+                <option value="fixed">fixed</option>
+                <option value="auto">auto</option>
+              </select>
+            </label>
+            <label>
+              <span>Row height: {{ rowHeightBase }}px</span>
+              <input v-model.number="rowHeightBase" type="range" min="24" max="80" step="1" />
+            </label>
+            <div class="datagrid-sugar-panel__actions">
+              <button type="button" class="is-ghost" @click="setColumnPin('service', 'left')">Pin service left</button>
+              <button type="button" class="is-ghost" @click="setColumnPin('updatedAt', 'right')">Pin updated right</button>
+              <button type="button" class="is-ghost" @click="setColumnPin('service', 'none')">Unpin service</button>
+            </div>
+            <label>
+              <span>Layout profile</span>
+              <input v-model="layoutName" type="text" placeholder="Layout name" />
+            </label>
+            <label>
+              <span>Saved profiles</span>
+              <select v-model="selectedLayoutId">
+                <option value="">Select profile...</option>
+                <option v-for="profile in grid.layoutProfiles?.profiles.value ?? []" :key="profile.id" :value="profile.id">
+                  {{ profile.name }}
+                </option>
+              </select>
+            </label>
+            <div class="datagrid-sugar-panel__actions">
+              <button type="button" class="is-primary" @click="captureLayout">Save</button>
+              <button type="button" class="is-ghost" @click="applySelectedLayout">Apply</button>
+              <button type="button" class="is-ghost" @click="removeSelectedLayout">Remove</button>
+            </div>
           </div>
         </div>
-      </details>
+      </div>
 
-      <details class="datagrid-sugar-panel">
-        <summary>Metrics</summary>
-        <div class="datagrid-sugar-panel__body datagrid-sugar-metrics">
-          <div>
-            <dt>Total rows</dt>
-            <dd>{{ statusMetrics?.rowsTotal ?? 0 }}</dd>
+      <div class="datagrid-sugar-panel">
+        <button
+          type="button"
+          class="datagrid-sugar-panel__trigger"
+          :aria-expanded="activePanel === 'metrics' ? 'true' : 'false'"
+          @click.stop="togglePanel('metrics')"
+        >
+          Metrics
+        </button>
+        <div
+          v-if="activePanel === 'metrics'"
+          class="datagrid-sugar-panel__content"
+          @click.stop
+        >
+          <div class="datagrid-sugar-panel__body datagrid-sugar-metrics">
+            <div>
+              <dt>Total rows</dt>
+              <dd>{{ statusMetrics?.rowsTotal ?? 0 }}</dd>
+            </div>
+            <div>
+              <dt>Filtered</dt>
+              <dd>{{ statusMetrics?.rowsFiltered ?? 0 }}</dd>
+            </div>
+            <div>
+              <dt>Visible columns</dt>
+              <dd>{{ statusMetrics?.columnsVisible ?? 0 }}</dd>
+            </div>
+            <div>
+              <dt>Selected cells</dt>
+              <dd>{{ statusMetrics?.selectedCells ?? 0 }}</dd>
+            </div>
+            <div>
+              <dt>Latency avg</dt>
+              <dd>{{ statusMetrics?.getAggregate('latencyMs', 'avg') ?? '—' }}</dd>
+            </div>
+            <div>
+              <dt>Error max</dt>
+              <dd>{{ statusMetrics?.getAggregate('errorRatePct', 'max') ?? '—' }}</dd>
+            </div>
+            <div class="datagrid-sugar-metrics__status">
+              <dt>Last action</dt>
+              <dd>{{ feedbackLastAction }}</dd>
+            </div>
           </div>
-          <div>
-            <dt>Filtered</dt>
-            <dd>{{ statusMetrics?.rowsFiltered ?? 0 }}</dd>
-          </div>
-          <div>
-            <dt>Visible columns</dt>
-            <dd>{{ statusMetrics?.columnsVisible ?? 0 }}</dd>
-          </div>
-          <div>
-            <dt>Selected cells</dt>
-            <dd>{{ statusMetrics?.selectedCells ?? 0 }}</dd>
-          </div>
-          <div>
-            <dt>Latency avg</dt>
-            <dd>{{ statusMetrics?.getAggregate('latencyMs', 'avg') ?? '—' }}</dd>
-          </div>
-          <div>
-            <dt>Error max</dt>
-            <dd>{{ statusMetrics?.getAggregate('errorRatePct', 'max') ?? '—' }}</dd>
-          </div>
-          <div class="datagrid-sugar-metrics__status">
-            <dt>Last action</dt>
-            <dd>{{ feedbackLastAction }}</dd>
+          <div class="datagrid-sugar-panel__actions">
+            <button type="button" class="is-ghost" @click="closePanels">Close</button>
           </div>
         </div>
-      </details>
+      </div>
     </header>
 
-    <DataGridSugarStage :grid="grid" />
+    <DataGridSugarStage :grid="gridStage" :showPagination="usePagination" />
   </section>
 </template>
 
@@ -440,28 +641,39 @@ const setColumnPin = (columnKey: string, pin: DataGridColumnPin): void => {
   grid-template-columns: repeat(3, minmax(260px, 1fr));
   gap: 0.55rem;
   min-width: 0;
+  position: relative;
+  z-index: 5;
 }
 
 .datagrid-sugar-panel {
+  min-width: 0;
+  position: relative;
+}
+
+.datagrid-sugar-panel__trigger {
+  width: 100%;
+  text-align: left;
   border: 1px solid var(--datagrid-glass-border, rgba(148, 163, 184, 0.28));
   border-radius: 0.75rem;
   background: color-mix(in srgb, var(--datagrid-controls-bg, rgba(11, 18, 32, 0.82)) 92%, transparent);
-  min-width: 0;
-}
-
-.datagrid-sugar-panel > summary {
-  list-style: none;
   cursor: pointer;
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--datagrid-text-soft, #94a3b8);
   padding: 0.48rem 0.62rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--datagrid-glass-border, rgba(148, 163, 184, 0.24)) 70%, transparent);
 }
 
-.datagrid-sugar-panel > summary::-webkit-details-marker {
-  display: none;
+.datagrid-sugar-panel__content {
+  border: 1px solid var(--datagrid-glass-border, rgba(148, 163, 184, 0.28));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--datagrid-controls-bg, rgba(11, 18, 32, 0.92)) 92%, transparent);
+  padding: 0;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 100%;
+  z-index: 10;
 }
 
 .datagrid-sugar-panel__body {
