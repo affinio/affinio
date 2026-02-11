@@ -39,6 +39,7 @@ const grid = useAffinoDataGrid({
     selection: true,
     clipboard: true,
     editing: true,
+    keyboardNavigation: true,
   },
 })
 
@@ -112,6 +113,7 @@ const grid = useAffinoDataGrid({
       mode: "auto",
       base: 40,
     },
+    keyboardNavigation: true,
   },
 })
 
@@ -138,6 +140,10 @@ if (grid.features.rowHeight.supported.value) {
   grid.features.rowHeight.setBase(42)
   grid.features.rowHeight.measureVisible()
 }
+
+// keyboardNavigation=true enables built-in:
+// Cmd/Ctrl+C/X/V, Delete/Backspace, Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z, Cmd/Ctrl+Y
+// plus arrow/home/end/page/tab/enter selection navigation.
 ```
 
 ## 3) Pagination, Column State, History (S1)

@@ -32,4 +32,3 @@ const range = orchestration.selection.getRange()
 - Validate `rowIndex`/`colKey` against the current model.
 - Use runtime events to inspect transitions.
 
-Next: [/datagrid/fill-handle](/datagrid/fill-handle)

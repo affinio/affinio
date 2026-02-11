@@ -35,4 +35,3 @@ title: Migration и compatibility
 - Сравните `sort/filter/group` модели.
 - Используйте runtime‑events для диагностики.
 
-Дальше: [/datagrid](/datagrid/)

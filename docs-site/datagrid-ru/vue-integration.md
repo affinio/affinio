@@ -50,6 +50,7 @@ const features = {
     enabled: true,
     mode: "cell",
   },
+  keyboardNavigation: true,
 }
 ```
 
@@ -90,6 +91,5 @@ function onGridAction(payload: {
 
 Для кастомной разметки и виртуализации используйте `useAffinoDataGridUi` и собственный рендер.
 
-Полный playbook по sugar‑API: [/datagrid/vue-sugar-playbook](/datagrid/vue-sugar-playbook)
+Полный playbook по sugar‑API: [/datagrid-ru/vue-sugar-playbook](/datagrid-ru/vue-sugar-playbook)
 
-Дальше: [/datagrid/orchestration](/datagrid/orchestration)

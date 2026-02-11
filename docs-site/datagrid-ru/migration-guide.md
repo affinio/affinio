@@ -36,4 +36,3 @@ title: Migration guide
 - `pnpm run test:matrix:integration`
 - `pnpm run quality:gates:datagrid`
 
-Дальше: [/datagrid/migration-compat](/datagrid/migration-compat)

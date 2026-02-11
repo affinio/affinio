@@ -26,4 +26,3 @@ Artifacts:
 
 `pnpm run quality:perf:datagrid` validates budgets and reports.
 
-Next: [/datagrid/performance-diagnostics](/datagrid/performance-diagnostics)

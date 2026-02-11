@@ -32,6 +32,7 @@ const grid = useAffinoDataGrid({
     selection: true,
     clipboard: true,
     editing: true,
+    keyboardNavigation: true,
   },
 })
 ```
@@ -90,6 +91,7 @@ const grid = useAffinoDataGrid({
       mode: "auto",
       base: 40,
     },
+    keyboardNavigation: true,
   },
 })
 
@@ -110,6 +112,10 @@ const noisyServicesFilter: DataGridAdvancedFilterExpression = {
 }
 
 grid.features.filtering.setAdvancedExpression(noisyServicesFilter)
+
+// keyboardNavigation=true enables:
+// Cmd/Ctrl+C/X/V, Delete/Backspace, Cmd/Ctrl+Z/Cmd+Ctrl+Shift+Z/Cmd+Ctrl+Y
+// plus arrow/home/end/page/tab/enter selection navigation.
 ```
 
 ## 3) Pagination, column state, history
@@ -211,4 +217,3 @@ grid.features.visibility.toggleColumnVisible("region")
 4. `grid.bindings.contextMenuRoot()` + `grid.bindings.contextMenuAction(actionId)` — keyboard‑safe menu.
 5. `grid.bindings.actionButton(actionId)` — toolbar actions.
 
-Next: [/datagrid/vue-integration](/datagrid/vue-integration)

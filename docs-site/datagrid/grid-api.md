@@ -31,4 +31,3 @@ await api.start()
 For overlay/pinned geometry, use the advanced entrypoint:
 `createDataGridViewportController(...).getIntegrationSnapshot()`.
 
-Next: [/datagrid/runtime-events](/datagrid/runtime-events)

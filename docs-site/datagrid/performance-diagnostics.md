@@ -31,4 +31,3 @@ const count = api.getRowCount()
 
 Validate performance gates on large datasets and fixed profiles.
 
-Next: [/datagrid](/datagrid/)

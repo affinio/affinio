@@ -35,4 +35,3 @@ If you change the UI adapter:
 - Compare `sort/filter/group` models.
 - Use runtime events for diagnostics.
 
-Next: [/datagrid](/datagrid/)

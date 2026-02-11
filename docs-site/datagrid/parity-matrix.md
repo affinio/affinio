@@ -25,4 +25,3 @@ Unified parity matrix for Core/Vue/Laravel.
 pnpm run quality:lock:datagrid:parity
 ```
 
-Next: [/datagrid/quality-gates](/datagrid/quality-gates)

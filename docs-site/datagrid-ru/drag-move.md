@@ -26,4 +26,3 @@ orchestration.move.commit()
 - Не смешивайте drag‑move и fill‑handle.
 - Учитывайте виртуализацию при drag over.
 
-Дальше: [/datagrid/reordering](/datagrid/reordering)

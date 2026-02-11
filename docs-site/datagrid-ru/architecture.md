@@ -32,4 +32,3 @@ title: Архитектура и границы пакетов
 - Канонический `pin = left | right | none`.
 - Одна система координат (world/viewport/client).
 
-Дальше: [/datagrid/data-models](/datagrid/data-models)

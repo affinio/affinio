@@ -28,4 +28,3 @@ This section outlines testing strategy and minimal QA gates.
 - Large datasets.
 - Stress scenarios for resize/scroll.
 
-Next: [/datagrid](/datagrid/)

@@ -21,4 +21,3 @@ Contracts that protect hot paths in viewport/virtualization.
 
 Row models and interaction benchmarks must pass p95/p99 budgets.
 
-Next: [/datagrid/performance-gates](/datagrid/performance-gates)

@@ -51,4 +51,3 @@ API:
 - Tree — это проекция в виде group/leaf рядов.
 - Виртуализация всегда по flat‑стриму.
 
-Дальше: [/datagrid/grid-api](/datagrid/grid-api)

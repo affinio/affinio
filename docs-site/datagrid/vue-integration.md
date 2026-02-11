@@ -50,6 +50,7 @@ const features = {
     enabled: true,
     mode: "cell",
   },
+  keyboardNavigation: true,
 }
 ```
 
@@ -92,4 +93,3 @@ For custom markup and virtualization, use `useAffinoDataGridUi` and a custom ren
 
 Full sugar API playbook: [/datagrid/vue-sugar-playbook](/datagrid/vue-sugar-playbook)
 
-Next: [/datagrid/orchestration](/datagrid/orchestration)

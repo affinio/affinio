@@ -29,4 +29,3 @@ title: Troubleshooting / FAQ
 - Проверьте обработчик commit/edit.
 - Убедитесь, что `draft` кастится корректно (string→number/boolean).
 
-Дальше: [/datagrid](/datagrid/)

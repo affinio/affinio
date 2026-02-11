@@ -29,4 +29,3 @@ title: Troubleshooting / FAQ
 - Check commit/edit handlers.
 - Ensure `draft` is cast correctly (string→number/boolean).
 
-Next: [/datagrid](/datagrid/)

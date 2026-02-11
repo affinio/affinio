@@ -31,4 +31,3 @@ await api.start()
 Для overlay/пин‑геометрии используйте advanced‑entrypoint:
 `createDataGridViewportController(...).getIntegrationSnapshot()`.
 
-Дальше: [/datagrid/runtime-events](/datagrid/runtime-events)

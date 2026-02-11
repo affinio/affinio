@@ -15,7 +15,7 @@ Range‑engine отвечает за anchor/focus/range, а также за hot�
 ## 2) Базовые операции
 
 ```ts
-// псевдо‑операции на уровне orchestration
+// псевдо‑операции на уровне Interaction Orchestration Engine
 orchestration.selection.setAnchor({ rowIndex: 0, colKey: "service" })
 orchestration.selection.setFocus({ rowIndex: 5, colKey: "owner" })
 const range = orchestration.selection.getRange()
@@ -32,4 +32,3 @@ const range = orchestration.selection.getRange()
 - Проверяйте соответствие `rowIndex`/`colKey` текущей модели.
 - Используйте runtime‑events для инспекции переходов.
 
-Дальше: [/datagrid/fill-handle](/datagrid/fill-handle)

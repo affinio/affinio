@@ -33,4 +33,3 @@ Key quality checks for datagrid.
 - `pnpm run quality:gates:datagrid`
 - `pnpm run quality:lock:datagrid`
 
-Next: [/datagrid/performance-gates](/datagrid/performance-gates)

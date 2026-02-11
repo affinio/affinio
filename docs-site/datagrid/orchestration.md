@@ -1,10 +1,10 @@
 ---
-title: Interaction orchestration
+title: Interaction Orchestration Engine
 ---
 
-# Interaction orchestration
+# Interaction Orchestration Engine
 
-`@affino/datagrid-orchestration` connects Core to the adapter (Vue/React/etc.) and handles input, selection, clipboard, fill‑handle, and drag‑move.
+The Interaction Orchestration Engine (Interaction Runtime) connects Core to the adapter (Vue/React/etc.) and handles input, selection, clipboard, fill‑handle, and drag‑move.
 
 ## 1) Minimal setup
 
@@ -50,6 +50,5 @@ orchestration.fill.commit()
 
 ## 4) When to enable
 
-Enable orchestration in the UI adapter. Core remains deterministic and testable without DOM.
+Enable the Interaction Orchestration Engine in the UI adapter. Core remains deterministic and testable without DOM.
 
-Next: [/datagrid/viewport-a11y](/datagrid/viewport-a11y)

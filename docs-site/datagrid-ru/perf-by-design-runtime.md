@@ -21,4 +21,3 @@ title: Perf-by-design runtime
 
 Row‑models и interaction‑benchmarks должны проходить p95/p99 бюджеты.
 
-Дальше: [/datagrid/performance-gates](/datagrid/performance-gates)

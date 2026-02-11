@@ -26,4 +26,3 @@ orchestration.fill.commit()
 - Используйте визуальные подсказки для range.
 - Учитывайте виртуализацию при drag over.
 
-Дальше: [/datagrid/viewport-a11y](/datagrid/viewport-a11y)

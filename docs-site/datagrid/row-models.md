@@ -39,4 +39,3 @@ const rowModel = createServerBackedRowModel({
 
 For deterministic updates, use manual refresh and validate snapshots via `api.getRowSnapshot()`.
 
-Next: [/datagrid/orchestration](/datagrid/orchestration)

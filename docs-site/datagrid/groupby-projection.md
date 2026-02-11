@@ -38,4 +38,3 @@ Selection operates on the flattened stream. For adapters, use
 
 Use `getDataGridRowRenderMeta(rowNode)` for `level/isGroup/isExpanded`.
 
-Next: [/datagrid/row-models](/datagrid/row-models)

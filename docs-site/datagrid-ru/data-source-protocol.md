@@ -34,4 +34,3 @@ title: Data source protocol
 - invalidate range/all
 - diagnostics через `getBackpressureDiagnostics()`
 
-Дальше: [/datagrid/deterministic-integration](/datagrid/deterministic-integration)

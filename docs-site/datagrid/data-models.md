@@ -52,4 +52,3 @@ api.setSortModel([{ key: "service", direction: "asc" }])
 api.setFilterModel({ columnFilters: { owner: ["NOC"] } })
 ```
 
-Next: [/datagrid/row-models](/datagrid/row-models)

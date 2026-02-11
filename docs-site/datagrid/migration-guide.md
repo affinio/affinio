@@ -36,4 +36,3 @@ Move from `.tmp/ui-table` to `@affino/datagrid-*`.
 - `pnpm run test:matrix:integration`
 - `pnpm run quality:gates:datagrid`
 
-Next: [/datagrid/migration-compat](/datagrid/migration-compat)

@@ -33,4 +33,3 @@ title: Quality gates
 - `pnpm run quality:gates:datagrid`
 - `pnpm run quality:lock:datagrid`
 
-Дальше: [/datagrid/performance-gates](/datagrid/performance-gates)

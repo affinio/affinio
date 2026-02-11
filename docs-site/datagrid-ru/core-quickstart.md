@@ -56,5 +56,3 @@ const first = api.getRow(0)
 ## 4) Когда нужен advanced‑entrypoint
 
 Если нужен прямой контроль viewport, интеграции overlay или runtime‑events — используйте `@affino/datagrid-core/advanced`.
-
-Следующий шаг: [/datagrid/orchestration](/datagrid/orchestration)

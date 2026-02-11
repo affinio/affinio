@@ -38,4 +38,3 @@ Selection работает по flattened‑стриму. Для адаптер�
 
 Используйте `getDataGridRowRenderMeta(rowNode)` для `level/isGroup/isExpanded`.
 
-Дальше: [/datagrid/row-models](/datagrid/row-models)

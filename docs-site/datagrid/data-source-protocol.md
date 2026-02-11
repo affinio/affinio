@@ -34,4 +34,3 @@ This document describes the `DataGridDataSource` contract (advanced entrypoint).
 - invalidate range/all
 - diagnostics via `getBackpressureDiagnostics()`
 
-Next: [/datagrid/deterministic-integration](/datagrid/deterministic-integration)

@@ -32,4 +32,3 @@ Goal: keep Core deterministic and framework‑agnostic, and keep the Vue layer a
 - Canonical `pin = left | right | none`.
 - One coordinate system (world/viewport/client).
 
-Next: [/datagrid/data-models](/datagrid/data-models)

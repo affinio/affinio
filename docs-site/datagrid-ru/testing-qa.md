@@ -28,4 +28,3 @@ title: Testing и QA gates
 - Большие наборы данных.
 - Стресс‑сценарии на resize/scroll.
 
-Дальше: [/datagrid](/datagrid/)

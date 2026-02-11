@@ -57,4 +57,3 @@ const first = api.getRow(0)
 
 If you need direct viewport control, overlay integration, or runtime events, use `@affino/datagrid-core/advanced`.
 
-Next: [/datagrid/orchestration](/datagrid/orchestration)

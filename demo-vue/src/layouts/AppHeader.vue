@@ -76,7 +76,7 @@ const subtitle = computed(() => {
       </div>
 
       <!-- Right: Core navigation -->
-      <nav class="hidden md:flex items-center gap-5 text-sm font-medium">
+      <nav class="flex items-center gap-5 text-sm font-medium overflow-x-auto max-w-full pb-1">
         <RouterLink to="/menu" v-slot="{ href }">
           <a
             :href="href"

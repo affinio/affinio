@@ -58,4 +58,3 @@ const grid = useAffinoDataGridUi({
 - Roving tabindex
 - aria‑col/row on cells
 
-Next: [/datagrid](/datagrid/)

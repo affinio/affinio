@@ -26,4 +26,3 @@ orchestration.fill.commit()
 - Use visual hints for the range.
 - Consider virtualization on drag over.
 
-Next: [/datagrid/viewport-a11y](/datagrid/viewport-a11y)

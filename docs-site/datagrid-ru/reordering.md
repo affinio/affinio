@@ -39,4 +39,3 @@ api.refreshRows("manual")
 - Проверяйте `rowId` стабильность.
 - Убедитесь, что selection/focus не теряются при reorder.
 
-Дальше: [/datagrid/viewport-a11y](/datagrid/viewport-a11y)

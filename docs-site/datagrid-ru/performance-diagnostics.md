@@ -31,4 +31,3 @@ const count = api.getRowCount()
 
 Проверяйте performance‑gates на больших наборах данных и фиксированных профилях.
 
-Дальше: [/datagrid](/datagrid/)

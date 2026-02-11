@@ -4,15 +4,40 @@ title: DataGrid Core — Overview
 
 # DataGrid Core
 
-This section is a learning path for `@affino/datagrid-core` and `@affino/datagrid-orchestration`, from basics to advanced. The goal is to build a deterministic headless DataGrid and wire orchestration for interactive scenarios using documentation only.
+This section is split into two audiences:
+
+- **Core**: deterministic headless grid for advanced integrations.
+- **Sugar**: fast setup without direct access to Core.
+
+## Guidance
+
+- **When to use Core vs Sugar** → [/datagrid/core-vs-sugar](/datagrid/core-vs-sugar)
 
 ## Package set
 
 - **Core**: row/column models, viewport, snapshots, determinism, `GridApi`.
-- **Orchestration**: range edit, copy/paste/cut, fill/drag/move, pointer lifecycle.
-- **Adapters**: Vue/Laravel stay thin and consume core + orchestration.
+- **Interaction Orchestration Engine**: range edit, copy/paste/cut, fill/drag/move, pointer lifecycle.
+- **Adapters**: Vue/Laravel stay thin and consume Core + Interaction Runtime.
 
-## Learning path (recommended order)
+## Design philosophy
+
+Affino DataGrid is:
+
+- deterministic
+- snapshot-driven
+- headless-first
+- interaction-runtime-aware
+- contract-enforced
+- performance-budgeted
+
+## DataGrid Platform
+
+- Core Runtime
+- Interaction Engine
+- Framework Adapters
+- Integration Contracts
+
+## Core path (advanced)
 
 1) **Core quickstart**: models + `GridApi` → [/datagrid/core-quickstart](/datagrid/core-quickstart)
 2) **Architecture**: package boundaries → [/datagrid/architecture](/datagrid/architecture)
@@ -21,29 +46,36 @@ This section is a learning path for `@affino/datagrid-core` and `@affino/datagri
 5) **Grid API**: operation facade → [/datagrid/grid-api](/datagrid/grid-api)
 6) **GroupBy projection**: pipeline and groups → [/datagrid/groupby-projection](/datagrid/groupby-projection)
 7) **Row models**: client/server, refresh → [/datagrid/row-models](/datagrid/row-models)
-8) **Vue integration**: ready component + composable UI → [/datagrid/vue-integration](/datagrid/vue-integration)
-9) **Vue Sugar Playbook**: full `useAffinoDataGrid` path → [/datagrid/vue-sugar-playbook](/datagrid/vue-sugar-playbook)
-10) **Orchestration**: selection/clipboard/fill/move → [/datagrid/orchestration](/datagrid/orchestration)
-11) **Data source protocol**: pull/push/abort‑first → [/datagrid/data-source-protocol](/datagrid/data-source-protocol)
-12) **Deterministic integration**: pinned/overlay/viewport → [/datagrid/deterministic-integration](/datagrid/deterministic-integration)
-13) **Runtime events**: diagnostics and hooks → [/datagrid/runtime-events](/datagrid/runtime-events)
-14) **Custom renderer**: `useAffinoDataGridUi` → [/datagrid/custom-renderer](/datagrid/custom-renderer)
-15) **Migration guide**: legacy move → [/datagrid/migration-guide](/datagrid/migration-guide)
-16) **Migration & compat**: contract stability → [/datagrid/migration-compat](/datagrid/migration-compat)
-17) **Range selection engine**: anchor/focus/range → [/datagrid/range-selection](/datagrid/range-selection)
-18) **Fill handle**: autofill and copy → [/datagrid/fill-handle](/datagrid/fill-handle)
-19) **Range move**: drag‑move ranges → [/datagrid/drag-move](/datagrid/drag-move)
-20) **Reordering**: row/column drag → [/datagrid/reordering](/datagrid/reordering)
-21) **Quality gates**: required checks → [/datagrid/quality-gates](/datagrid/quality-gates)
-22) **Performance gates**: SLA and budgets → [/datagrid/performance-gates](/datagrid/performance-gates)
-23) **Perf‑by‑design**: runtime contracts → [/datagrid/perf-by-design-runtime](/datagrid/perf-by-design-runtime)
-24) **Parity matrix**: unified matrix → [/datagrid/parity-matrix](/datagrid/parity-matrix)
-25) **Performance & diagnostics**: perf contours and metrics → [/datagrid/performance-diagnostics](/datagrid/performance-diagnostics)
-26) **Testing & QA**: unit/integration/e2e → [/datagrid/testing-qa](/datagrid/testing-qa)
-27) **End‑to‑end**: full Core → UI path → [/datagrid/end-to-end](/datagrid/end-to-end)
-28) **Release notes**: summary → [/datagrid/releases](/datagrid/releases)
-29) **Troubleshooting**: common issues → [/datagrid/troubleshooting](/datagrid/troubleshooting)
-30) **Viewport & a11y**: snapshot integration → [/datagrid/viewport-a11y](/datagrid/viewport-a11y)
+8) **Interaction Orchestration Engine**: selection/clipboard/fill/move → [/datagrid/orchestration](/datagrid/orchestration)
+9) **Data source protocol**: pull/push/abort‑first → [/datagrid/data-source-protocol](/datagrid/data-source-protocol)
+10) **Deterministic integration**: pinned/overlay/viewport → [/datagrid/deterministic-integration](/datagrid/deterministic-integration)
+11) **Runtime events**: diagnostics and hooks → [/datagrid/runtime-events](/datagrid/runtime-events)
+12) **Custom renderer**: `useAffinoDataGridUi` → [/datagrid/custom-renderer](/datagrid/custom-renderer)
+13) **Range selection engine**: anchor/focus/range → [/datagrid/range-selection](/datagrid/range-selection)
+14) **Fill handle**: autofill and copy → [/datagrid/fill-handle](/datagrid/fill-handle)
+15) **Range move**: drag‑move ranges → [/datagrid/drag-move](/datagrid/drag-move)
+16) **Reordering**: row/column drag → [/datagrid/reordering](/datagrid/reordering)
+17) **Viewport & a11y**: snapshot integration → [/datagrid/viewport-a11y](/datagrid/viewport-a11y)
+18) **End‑to‑end**: full Core → Interaction Runtime → UI path → [/datagrid/end-to-end](/datagrid/end-to-end)
+
+## Sugar path (fast setup)
+
+1) **Vue integration**: ready component + composable UI → [/datagrid/vue-integration](/datagrid/vue-integration)
+2) **Sugar overview**: fast table without Core → [/datagrid/sugar-overview](/datagrid/sugar-overview)
+3) **Vue Sugar Playbook**: full `useAffinoDataGrid` path → [/datagrid/vue-sugar-playbook](/datagrid/vue-sugar-playbook)
+
+## Operations & quality
+
+1) **Migration guide**: legacy move → [/datagrid/migration-guide](/datagrid/migration-guide)
+2) **Migration & compat**: contract stability → [/datagrid/migration-compat](/datagrid/migration-compat)
+3) **Quality gates**: required checks → [/datagrid/quality-gates](/datagrid/quality-gates)
+4) **Performance gates**: SLA and budgets → [/datagrid/performance-gates](/datagrid/performance-gates)
+5) **Perf‑by‑design**: runtime contracts → [/datagrid/perf-by-design-runtime](/datagrid/perf-by-design-runtime)
+6) **Parity matrix**: unified matrix → [/datagrid/parity-matrix](/datagrid/parity-matrix)
+7) **Performance & diagnostics**: perf contours and metrics → [/datagrid/performance-diagnostics](/datagrid/performance-diagnostics)
+8) **Testing & QA**: unit/integration/e2e → [/datagrid/testing-qa](/datagrid/testing-qa)
+9) **Release notes**: summary → [/datagrid/releases](/datagrid/releases)
+10) **Troubleshooting**: common issues → [/datagrid/troubleshooting](/datagrid/troubleshooting)
 
 ## Baseline references (contracts)
 
@@ -70,4 +102,4 @@ Next steps:
 
 - drive sort/filter/group via `api`
 - wire viewport and overlay snapshots
-- add orchestration for interactive scenarios
+- add interaction runtime for interactive scenarios

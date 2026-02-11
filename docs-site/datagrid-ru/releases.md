@@ -17,4 +17,3 @@ title: Release notes (summary)
 - Изменения в `rowId`/`column.key` контрактах.
 - Новые возможности range‑engine и drag‑move.
 
-Дальше: [/datagrid](/datagrid/)

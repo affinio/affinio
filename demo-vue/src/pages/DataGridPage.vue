@@ -3868,12 +3868,10 @@ onMounted(() => {
   syncHeaderViewportScroll()
   syncVisibleRows()
   void nextTick(() => {
-    resetViewportScrollPosition()
     syncHeaderViewportScroll()
     syncVisibleRows()
     if (typeof window !== "undefined") {
       window.requestAnimationFrame(() => {
-        resetViewportScrollPosition()
         syncHeaderViewportScroll()
         syncVisibleRows()
         isViewportBootstrapping = false

@@ -26,4 +26,3 @@ SLA‑цели и CI‑бюджеты для perf‑регрессии.
 
 `pnpm run quality:perf:datagrid` валидирует бюджеты и отчёты.
 
-Дальше: [/datagrid/performance-diagnostics](/datagrid/performance-diagnostics)

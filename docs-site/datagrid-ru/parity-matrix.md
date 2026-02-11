@@ -25,4 +25,3 @@ title: Parity matrix
 pnpm run quality:lock:datagrid:parity
 ```
 
-Дальше: [/datagrid/quality-gates](/datagrid/quality-gates)

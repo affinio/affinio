@@ -35,4 +35,3 @@ unsubscribe()
 - Do not block the handler; keep it fast.
 - Keep diagnostics/logging in a separate layer.
 
-Next: [/datagrid/custom-renderer](/datagrid/custom-renderer)

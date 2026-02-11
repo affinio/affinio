@@ -4,7 +4,7 @@ title: End‑to‑end integration
 
 # End‑to‑end integration
 
-Цель: собрать поток Core → Orchestration → UI с минимальной связкой.
+Цель: собрать поток Core → Interaction Runtime → UI с минимальной связкой.
 
 ## 1) Core
 
@@ -17,7 +17,7 @@ const api = createDataGridApi({ rowModel, columnModel })
 await api.start()
 ```
 
-## 2) Orchestration
+## 2) Interaction Runtime (Interaction Orchestration Engine)
 
 ```ts
 import { createOrchestration } from "@affino/datagrid-orchestration"
@@ -49,4 +49,3 @@ const grid = useAffinoDataGridUi({
 - При обновлении данных: `api.refreshRows("manual")`
 - При обновлении колонок: `api.refreshColumns("manual")`
 
-Дальше: [/datagrid/troubleshooting](/datagrid/troubleshooting)

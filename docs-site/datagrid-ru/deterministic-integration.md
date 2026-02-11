@@ -50,4 +50,3 @@ const transform = buildDataGridOverlayTransformFromSnapshot({
 - Не вычисляйте pinned‑offset вручную, если он есть в snapshot.
 - Повторный refresh без delta не должен менять output.
 
-Дальше: [/datagrid/viewport-a11y](/datagrid/viewport-a11y)

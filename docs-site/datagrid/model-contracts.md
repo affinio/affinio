@@ -51,4 +51,3 @@ API:
 - Tree is a projection of group/leaf rows.
 - Virtualization always consumes a flat stream.
 
-Next: [/datagrid/grid-api](/datagrid/grid-api)

@@ -40,4 +40,3 @@ Recommended minimum in the adapter:
 - Interrupted measurements during frequent resize.
 - Focus loss on selection updates.
 
-Next: [/datagrid](/datagrid/) — overview and roadmap.

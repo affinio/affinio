@@ -4,7 +4,7 @@ title: End‑to‑end integration
 
 # End‑to‑end integration
 
-Goal: assemble the Core → Orchestration → UI pipeline with minimal wiring.
+Goal: assemble the Core → Interaction Runtime → UI pipeline with minimal wiring.
 
 ## 1) Core
 
@@ -17,7 +17,7 @@ const api = createDataGridApi({ rowModel, columnModel })
 await api.start()
 ```
 
-## 2) Orchestration
+## 2) Interaction Runtime (Interaction Orchestration Engine)
 
 ```ts
 import { createOrchestration } from "@affino/datagrid-orchestration"
@@ -49,4 +49,3 @@ const grid = useAffinoDataGridUi({
 - On data updates: `api.refreshRows("manual")`
 - On column updates: `api.refreshColumns("manual")`
 
-Next: [/datagrid/troubleshooting](/datagrid/troubleshooting)
