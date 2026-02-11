@@ -979,19 +979,26 @@ async function selectControlOption(page: Page, label: string, option: string): P
     .locator(".datagrid-controls label")
     .filter({ has: page.locator("span", { hasText: label }) })
 
+  await control.first().scrollIntoViewIfNeeded()
+  await expect(control).toBeVisible()
+
   const listboxTrigger = control.locator("[data-affino-listbox-trigger]")
   if (await listboxTrigger.count()) {
+    await expect(listboxTrigger).toBeVisible()
     await listboxTrigger.click()
     const listboxOption = page
       .locator('[data-affino-listbox-surface] [data-affino-listbox-option]', { hasText: option })
       .first()
+    await expect(listboxOption).toBeVisible()
     await listboxOption.click()
     return
   }
 
   const menuTrigger = control.locator(".datagrid-controls__menu-trigger")
+  await expect(menuTrigger).toBeVisible()
   await menuTrigger.click()
   const menuItem = page.locator('[role="menuitem"]', { hasText: option }).first()
+  await expect(menuItem).toBeVisible()
   await menuItem.click()
 }
 

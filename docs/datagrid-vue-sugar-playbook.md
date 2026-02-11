@@ -4,6 +4,17 @@ Updated: `2026-02-09`
 Package: `@affino/datagrid-vue`
 Scope: junior-friendly integration through `useAffinoDataGrid`.
 
+## Status Note (2026-02-11)
+
+Sugar is production-usable for row-oriented workflows (selection/clipboard/editing/filtering/tree/summary/visibility), and now includes explicit pagination, column-state and history wrappers.
+
+Implemented in sugar, but still needs final parity hardening against full internal demo e2e bundle:
+
+1. Cell-range engine (`cellSelection`: anchor/focus/range + bindings).
+2. Range-centric clipboard/fill/move (`cellRange`: copy/cut/paste/clear + fill/move preview/apply).
+
+Parity closure plan: `/Users/anton/Projects/affinio/docs/datagrid-vue-sugar-idealization-pipeline-checklist.md`.
+
 ## 1) Quick Start (60 sec)
 
 ```ts
@@ -96,6 +107,11 @@ const grid = useAffinoDataGrid({
         expandedByDefault: true,
       },
     },
+    rowHeight: {
+      enabled: true,
+      mode: "auto",
+      base: 40,
+    },
   },
 })
 
@@ -117,9 +133,39 @@ const noisyServicesFilter: DataGridAdvancedFilterExpression = {
 
 grid.features.filtering.setAdvancedExpression(noisyServicesFilter)
 grid.features.tree.setGroupBy({ fields: ["owner", "region"], expandedByDefault: false })
+if (grid.features.rowHeight.supported.value) {
+  grid.features.rowHeight.setMode("auto")
+  grid.features.rowHeight.setBase(42)
+  grid.features.rowHeight.measureVisible()
+}
 ```
 
-## 3) TreeView Integration Contract
+## 3) Pagination, Column State, History (S1)
+
+```ts
+// Pagination wrappers
+grid.pagination.set({ pageSize: 100, currentPage: 0 })
+grid.pagination.goToNextPage()
+grid.pagination.goToLastPage()
+const page = grid.pagination.snapshot.value
+
+// Column state wrappers
+const savedColumnState = grid.columnState.capture()
+grid.columnState.setPin("service", "left")
+grid.columnState.setWidth("owner", 240)
+grid.columnState.setVisibility("severity", false)
+grid.columnState.apply(savedColumnState) // roundtrip restore
+
+// History wrappers
+if (grid.history.supported.value && grid.history.canUndo.value) {
+  await grid.history.undo()
+}
+if (grid.history.supported.value && grid.history.canRedo.value) {
+  await grid.history.redo()
+}
+```
+
+## 4) TreeView Integration Contract
 
 Tree in sugar is model-driven. UI should render by `row.kind` and `row.groupMeta`.
 
@@ -140,50 +186,79 @@ Important:
 1. Do not attach toggle handlers both on cell container and toggle button.
 2. If container has pointer handlers, ignore events that originate from the toggle button.
 
-## 4) Advanced Filter AST Cookbook
+## 5) Advanced Filter Helpers (S8)
 
-### Numeric range
+Sugar now includes `grid.features.filtering.helpers` for typed advanced filter composition.
+
+### Typed conditions (text/number/date/set)
 
 ```ts
-grid.features.filtering.setAdvancedExpression({
-  kind: "condition",
-  key: "latencyMs",
-  type: "number",
+grid.features.filtering.helpers.setText("service", {
+  operator: "contains",
+  value: "api",
+  mergeMode: "replace",
+})
+
+grid.features.filtering.helpers.setNumber("latencyMs", {
   operator: "between",
   value: 100,
   value2: 400,
+  mergeMode: "merge-and",
+})
+
+grid.features.filtering.helpers.setDate("updatedAt", {
+  operator: ">=",
+  value: "2026-02-01",
+  mergeMode: "merge-and",
+})
+
+grid.features.filtering.helpers.setSet("severity", ["high", "critical"], {
+  operator: "in",
+  valueMode: "replace",
+  mergeMode: "merge-and",
 })
 ```
 
-### Text + boolean
+### Excel-like add/remove for set values
 
 ```ts
-grid.features.filtering.setAdvancedExpression({
-  kind: "group",
-  operator: "and",
-  children: [
-    { kind: "condition", key: "service", type: "text", operator: "contains", value: "api" },
-    { kind: "condition", key: "isHealthy", type: "boolean", operator: "is-true" },
-  ],
+grid.features.filtering.helpers.setSet("owner", ["NOC"], {
+  valueMode: "append",
+  mergeMode: "merge-and",
+})
+
+grid.features.filtering.helpers.setSet("owner", ["Legacy"], {
+  valueMode: "remove",
+  mergeMode: "merge-and",
 })
 ```
 
-### NOT branch
+### Remove one column condition from advanced expression
 
 ```ts
-grid.features.filtering.setAdvancedExpression({
-  kind: "not",
-  child: {
-    kind: "condition",
-    key: "region",
-    type: "text",
-    operator: "equals",
-    value: "eu-west",
-  },
-})
+grid.features.filtering.helpers.clearByKey("severity")
 ```
 
-## 5) Selection Summary
+### Manual AST remains available
+
+```ts
+const byLatency = grid.features.filtering.helpers.condition({
+  key: "latencyMs",
+  type: "number",
+  operator: ">",
+  value: 250,
+})
+const byRegion = grid.features.filtering.helpers.condition({
+  key: "region",
+  type: "text",
+  operator: "equals",
+  value: "us-east",
+})
+const expression = grid.features.filtering.helpers.and(byLatency, byRegion)
+grid.features.filtering.helpers.apply(expression, { mergeMode: "replace" })
+```
+
+## 6) Selection Summary
 
 `summary` is selection-scope based and uses core API internally.
 
@@ -193,7 +268,7 @@ const avgLatency = snapshot?.columns["latencyMs"]?.aggregations.avg?.value ?? nu
 const ownersCount = snapshot?.columns["owner"]?.aggregations.countDistinct?.value ?? null
 ```
 
-## 6) Column Visibility
+## 7) Column Visibility
 
 ```ts
 grid.features.visibility.setColumnVisible("severity", false)
@@ -202,7 +277,39 @@ grid.features.visibility.setHiddenColumnKeys(["owner", "latencyMs"])
 grid.features.visibility.reset()
 ```
 
-## 7) Interaction Contract (Minimum for parity)
+## 8) Column Reorder (Drag + Keyboard)
+
+```ts
+// Works through bindings:
+// - drag header A onto header B -> deterministic reorder
+// - Alt+Shift+ArrowLeft/ArrowRight on focused header -> step reorder
+const headerProps = grid.bindings.headerCell("owner")
+```
+
+## 8.1) Row Reorder (Client Model)
+
+```ts
+if (grid.rowReorder.supported.value && grid.rowReorder.canReorder.value) {
+  await grid.rowReorder.moveByKey("row-10", "row-3", "before")
+  await grid.rowReorder.moveByIndex(0, 5)
+}
+
+// Guard reason explains why reorder is blocked.
+const reason = grid.rowReorder.reason.value
+
+// Optional bindings for custom row markup:
+const rowReorderProps = grid.bindings.rowReorder(row, rowIndex)
+// drag-drop + Alt+Shift+ArrowUp/ArrowDown
+```
+
+Behavior contract:
+
+1. Reorder is enabled only for `client` row model.
+2. Reorder is blocked while group-by is active.
+3. Reorder is blocked while filter model is active.
+4. Every reorder is logged via transaction intent `rows-reorder`.
+
+## 9) Interaction Contract (Minimum for parity)
 
 Use these bindings if you build custom markup:
 
@@ -218,16 +325,24 @@ Hotkeys users expect:
 2. `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z` for history (when runtime transaction capability is wired).
 3. `Shift+F10` for context menu.
 
-## 8) Common Pitfalls
+## 10) Common Pitfalls
 
 1. Group auto-expand after collapse: check for double toggle handlers (`mousedown` + `click`).
 2. Sticky headers overlap issues: keep pinned header z-index above pinned cell content.
 3. Selection drift after layout jumps: keep controls area height stable; avoid reflow pushing viewport while dragging.
 4. If runtime state seems stale, call `grid.api.refreshRows("manual")`.
 
-## 9) References
+## 11) References
 
 1. `/Users/anton/Projects/affinio/packages/datagrid-vue/README.md`
 2. `/Users/anton/Projects/affinio/docs/datagrid-vue-adapter-integration.md`
 3. `/Users/anton/Projects/affinio/docs/datagrid-sheets-user-interactions-and-integrator-api.md`
 4. `/Users/anton/Projects/affinio/demo-vue/src/pages/DataGridPage.vue`
+
+## 12) API Tier Guide
+
+Use this to choose the right layer:
+
+1. `useAffinoDataGrid` (sugar): fastest integration, stable API, enough for most product grids.
+2. `@affino/datagrid-orchestration` (advanced): custom UX flows, framework-specific shells, controlled complexity.
+3. Internal demo patterns (internal): experimental or parity-tracking logic; not semver-stable surface.
