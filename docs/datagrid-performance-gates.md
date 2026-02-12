@@ -33,6 +33,7 @@ Per-benchmark outputs (JSON):
 - `artifacts/performance/bench-datagrid-interactions.json`
 - `artifacts/performance/bench-datagrid-datasource-churn.json`
 - `artifacts/performance/bench-datagrid-derived-cache.json`
+- `artifacts/performance/bench-datagrid-tree-workload.json`
 - `artifacts/performance/bench-datagrid-rowmodels.json`
 
 Harness summary:
@@ -87,6 +88,12 @@ CI harness (`DATAGRID_BENCH_MODE=ci`) applies:
   - `PERF_BUDGET_MIN_STABLE_SORT_HIT_RATE_PCT=90`
   - `PERF_BUDGET_MIN_STABLE_GROUP_HIT_RATE_PCT=70`
   - `PERF_BUDGET_MIN_INVALIDATED_FILTER_MISSES=10`
+- Tree workload (deep hierarchy expand/filter/sort pressure):
+  - `PERF_BUDGET_TOTAL_MS=9000`
+  - `PERF_BUDGET_MAX_EXPAND_BURST_P95_MS=25`
+  - `PERF_BUDGET_MAX_EXPAND_BURST_P99_MS=40`
+  - `PERF_BUDGET_MAX_FILTER_SORT_BURST_P95_MS=18`
+  - `PERF_BUDGET_MAX_FILTER_SORT_BURST_P99_MS=30`
 - Shared:
   - `PERF_BUDGET_MAX_VARIANCE_PCT=25`
   - `PERF_BUDGET_MAX_HEAP_DELTA_MB=80`
@@ -95,13 +102,14 @@ Perf-contract fail-fast gate:
 - `pnpm run quality:perf:datagrid`
 - Script: `scripts/check-datagrid-perf-contracts.mjs`
 - Report: `artifacts/quality/datagrid-perf-contracts-report.json`
-- Includes static guard for benchmark harness task matrix (`vue-adapters`, `laravel-morph`, `interaction-models`, `datasource-churn`, `derived-cache`, `row-models`) and mode-scoped budget wiring.
+- Includes static guard for benchmark harness task matrix (`vue-adapters`, `laravel-morph`, `interaction-models`, `datasource-churn`, `derived-cache`, `tree-workload`, `row-models`) and mode-scoped budget wiring.
 
 Fail-fast behavior:
 - Harness exits non-zero when any benchmark fails budget checks.
 - Runtime report gate (`scripts/check-datagrid-benchmark-report.mjs`) validates:
   - report freshness,
   - required suites presence (`vue-adapters`, `laravel-morph`, `interaction-models`, `datasource-churn`, `derived-cache`, `row-models`),
+  - tree workload stress suite presence in harness report (`tree-workload`) with CI fail-fast through harness `ok` status,
   - harness report consistency (no duplicate task ids, valid durations, status/ok consistency),
   - presence and completeness of `budgets.byTask` map for required suites,
   - `ok=true` for harness summary and each required suite,

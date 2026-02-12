@@ -75,6 +75,12 @@ const router = createRouter({
       meta: { layoutWidth: "full" },
     },
     {
+      path: "/datagrid/must-have/tree-data",
+      name: "datagrid-must-have-tree-data",
+      component: () => import("@/pages/datagrid/DataGridMustHaveTreeDataPage.vue"),
+      meta: { layoutWidth: "full", lockMainScroll: true, fitViewport: true },
+    },
+    {
       path: "/dialogs",
       name: "dialog-demo",
       component: () => import("@/pages/DialogPage.vue"),

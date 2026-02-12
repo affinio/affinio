@@ -1061,23 +1061,18 @@ function mountDatagridDemo(root) {
             setStatus(`Column ${activeCell.columnKey} is read-only`);
             return;
         }
-        const text = await readClipboardText();
-        const rawMatrix = parseClipboardMatrix(text);
         const fallbackMatrix = Array.isArray(clipboardState?.matrix) ? clipboardState.matrix : null;
-        const hasPayload = rawMatrix.some((row) =>
-            row.some((cell) => String(cell ?? "").trim().length > 0),
-        );
-        const internalFresh = Boolean(
-            clipboardState &&
-            typeof clipboardState.updatedAt === "number" &&
-            Date.now() - clipboardState.updatedAt < 30000,
-        );
         const internalHasPayload = Boolean(
             fallbackMatrix && fallbackMatrix.some((row) =>
                 row.some((cell) => String(cell ?? "").trim().length > 0),
             ),
         );
-        const matrix = internalFresh && internalHasPayload
+        const text = internalHasPayload ? null : await readClipboardText();
+        const rawMatrix = text === null ? [[""]] : parseClipboardMatrix(text);
+        const hasPayload = rawMatrix.some((row) =>
+            row.some((cell) => String(cell ?? "").trim().length > 0),
+        );
+        const matrix = internalHasPayload
             ? fallbackMatrix
             : (!hasPayload && fallbackMatrix && fallbackMatrix.length
                 ? fallbackMatrix
@@ -2323,7 +2318,7 @@ function mountDatagridDemo(root) {
             row.className = "affino-datagrid-demo__row";
             row.style.gridTemplateColumns = layerTrackTemplate;
 
-            const rowKey = String(entry.rowKey ?? entry.rowId ?? "");
+            const rowKey = String(entry.data?.rowId ?? entry.rowId ?? entry.rowKey ?? "");
             const rowIndex = resolveActiveRowIndex(rowKey);
             if (rowKey && selectedRowKey === rowKey) {
                 row.classList.add("is-selected");

@@ -87,6 +87,10 @@ TreeView in DataGrid is treated as **row projection**, not UI state:
 
 Current baseline implementation uses `groupBy` projection in `DataGridRowModel`.
 
+Detailed treeData contract, policies, and migration examples:
+
+- `/Users/anton/Projects/affinio/docs/datagrid-tree-data.md`
+
 ## Column Model
 
 `DataGridColumnModel` is the canonical ownership boundary for column state.

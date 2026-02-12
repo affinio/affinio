@@ -49,6 +49,31 @@ Migration rule:
 5. Remove direct dependency on legacy internal path aliases.
 6. Re-run quality/perf gates before release.
 
+## GroupBy-only -> TreeData Migration
+
+Use this path when hierarchy is intrinsic (parent/path), not analytical grouping.
+
+1. Keep `groupBy` only for value-based analytical grouping.
+2. Move hierarchical projection into row model via `initialTreeData`:
+   - `mode: "path"` with `getDataPath(...)`, or
+   - `mode: "parent"` with `getParentId(...)`.
+3. Ensure stable `rowId` for every leaf row (inject resolver if needed).
+4. Make policies explicit:
+   - `orphanPolicy`,
+   - `cyclePolicy`,
+   - `filterMode`.
+5. Replace adapter-level hierarchy workarounds with row-model expansion API:
+   - `toggleGroup`, `expandGroup`, `collapseGroup`, `expandAllGroups`, `collapseAllGroups`.
+6. Validate tree quality gates:
+   - `pnpm run test:datagrid:tree:contracts`
+   - `pnpm run test:e2e:datagrid:tree`
+   - `pnpm run bench:datagrid:tree:assert`
+
+Reference:
+
+- `/Users/anton/Projects/affinio/docs/datagrid-tree-data.md`
+- `/Users/anton/Projects/affinio/docs/datagrid-tree-data-behavior-matrix.md`
+
 ## Verification Checklist
 
 - Public imports only (no direct `src/*` internals for production integration).

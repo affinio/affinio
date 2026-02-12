@@ -19,7 +19,7 @@ interface PaginationApi {
   setPageSize: (pageSize: number | null) => void
   setCurrentPage: (page: number) => void
   getPaginationSnapshot: () => DataGridPaginationSnapshot
-  refreshRows: (reason?: "manual" | "mount" | "sort-change" | "filter-change" | "viewport-change" | "reset") => void
+  refresh: (options?: { reset?: boolean }) => void | Promise<void>
 }
 
 interface GridRefShape {
@@ -123,7 +123,7 @@ const refreshRoundtrip = () => {
     pageSize: snapshot.pageSize,
     currentPage: snapshot.currentPage,
   })
-  api.refreshRows("manual")
+  api.refresh()
   syncPaginationState()
   status.value = "Snapshot roundtrip applied without state drift"
 }

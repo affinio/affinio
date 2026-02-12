@@ -34,10 +34,14 @@ interface HeaderFilterStateLike {
 const props = defineProps<{
   grid: UseAffinoDataGridResult<RowLike>
   showPagination?: boolean
+  treeTabular?: boolean
+  treePrimaryColumnKey?: string
+  treeSubtitleColumnKey?: string
 }>()
 
 const grid = computed(() => props.grid)
 const showPagination = computed(() => props.showPagination ?? true)
+const treeTabular = computed(() => props.treeTabular ?? false)
 
 const headerTextValue = ref("")
 const headerNumberMin = ref("")
@@ -58,6 +62,22 @@ const visibleColumns = computed(() => {
   const center = ordered.filter(column => column.pin === "none")
   const right = ordered.filter(column => column.pin === "right")
   return [...left, ...center, ...right]
+})
+
+const resolvedTreePrimaryColumnKey = computed(() => {
+  const configured = props.treePrimaryColumnKey?.trim()
+  if (configured && configured.length > 0) {
+    return configured
+  }
+  return visibleColumns.value.find(column => column.key !== "select")?.key ?? null
+})
+
+const resolvedTreeSubtitleColumnKey = computed(() => {
+  const configured = props.treeSubtitleColumnKey?.trim()
+  if (!configured || configured.length === 0) {
+    return null
+  }
+  return configured
 })
 
 const resolveColumnWidth = (columnKey: string, fallbackWidth: number | null | undefined): number => {
@@ -131,7 +151,7 @@ const bottomSpacerHeight = computed(() => {
 })
 
 const renderedRows = computed(() => {
-  rowModelRevision.value
+  void rowModelRevision.value
   const range = renderRange.value
   if (range.total <= 0) {
     return [] as readonly DataGridRowNode<RowLike>[]
@@ -327,6 +347,85 @@ const resolveNodeKey = (node: DataGridRowNode<RowLike>, fallbackIndex: number): 
 const resolveDisplayValue = (row: RowLike, columnKey: string): string => {
   const value = row[columnKey as keyof RowLike]
   return value == null ? "" : String(value)
+}
+
+const isTreePrimaryColumn = (columnKey: string): boolean => (
+  treeTabular.value && resolvedTreePrimaryColumnKey.value === columnKey
+)
+
+const resolveGroupLevel = (rowNode: DataGridRowNode<RowLike>): number => (
+  Math.max(0, Math.trunc(rowNode.groupMeta?.level ?? 0))
+)
+
+const resolveGroupToggleStyle = (rowNode: DataGridRowNode<RowLike>): Record<string, string> => ({
+  paddingInlineStart: `${0.36 + (resolveGroupLevel(rowNode) * 1.05)}rem`,
+})
+
+const resolveLeafTreeLevel = (rowNode: DataGridRowNode<RowLike>): number => {
+  const data = rowNode.data as Record<string, unknown>
+  const path = data.path
+  if (Array.isArray(path)) {
+    return Math.max(0, path.length - 1)
+  }
+  return 0
+}
+
+const resolveLeafTreeCellStyle = (rowNode: DataGridRowNode<RowLike>, columnKey: string): Record<string, string> => {
+  if (!isTreePrimaryColumn(columnKey)) {
+    return {}
+  }
+  const level = resolveLeafTreeLevel(rowNode)
+  return {
+    paddingInlineStart: `${0.4 + (level * 1.05)}rem`,
+  }
+}
+
+const resolveLeafSubtitleValue = (rowNode: DataGridRowNode<RowLike>): string => {
+  const subtitleKey = resolvedTreeSubtitleColumnKey.value
+  if (!subtitleKey) {
+    return ""
+  }
+  return resolveDisplayValue(rowNode.data, subtitleKey)
+}
+
+const resolveLeafAvatarText = (rowNode: DataGridRowNode<RowLike>): string => {
+  const subtitleValue = resolveLeafSubtitleValue(rowNode)
+  if (subtitleValue.length > 0) {
+    return subtitleValue.slice(0, 2).toUpperCase()
+  }
+  const primaryKey = resolvedTreePrimaryColumnKey.value
+  const primaryValue = primaryKey ? resolveDisplayValue(rowNode.data, primaryKey) : ""
+  if (primaryValue.length > 0) {
+    return primaryValue.slice(0, 2).toUpperCase()
+  }
+  return "DG"
+}
+
+const resolveGroupPrimaryValue = (rowNode: DataGridRowNode<RowLike>): string => {
+  const primaryKey = resolvedTreePrimaryColumnKey.value
+  if (!primaryKey) {
+    return rowNode.groupMeta?.groupValue ? String(rowNode.groupMeta.groupValue) : "Group"
+  }
+  const value = resolveDisplayValue(rowNode.data, primaryKey)
+  if (value.length > 0) {
+    return value
+  }
+  return rowNode.groupMeta?.groupValue ? String(rowNode.groupMeta.groupValue) : "Group"
+}
+
+const resolveGroupSubtitleValue = (rowNode: DataGridRowNode<RowLike>): string => {
+  const subtitleKey = resolvedTreeSubtitleColumnKey.value
+  if (!subtitleKey) {
+    return ""
+  }
+  return resolveDisplayValue(rowNode.data, subtitleKey)
+}
+
+const resolveGroupColumnValue = (rowNode: DataGridRowNode<RowLike>, columnKey: string): string => {
+  if (isTreePrimaryColumn(columnKey)) {
+    return resolveGroupPrimaryValue(rowNode)
+  }
+  return resolveDisplayValue(rowNode.data, columnKey)
 }
 
 const resolvePinnedCellStyle = (
@@ -631,6 +730,42 @@ const contextMenuOpen = computed(() => grid.value.contextMenu.state.value.visibl
 const contextMenuStyle = computed(() => grid.value.contextMenu.style.value)
 const contextMenuGroups = computed(() => grid.value.contextMenu.groupedActions?.value ?? [])
 
+const handleContextMenuKeydown = (event: KeyboardEvent): void => {
+  if (!grid.value.contextMenu.state.value.visible) {
+    return
+  }
+  grid.value.contextMenu.onKeyDown(event, {
+    onEscape: () => {
+      grid.value.contextMenu.close()
+    },
+  })
+}
+
+watch(contextMenuOpen, async (open) => {
+  if (!open) {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("keydown", handleContextMenuKeydown, true)
+    }
+    return
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("keydown", handleContextMenuKeydown, true)
+  }
+  await nextTick()
+  const menuEl = grid.value.contextMenu.contextMenuRef.value
+  if (!menuEl) {
+    return
+  }
+  const firstItem = menuEl.querySelector<HTMLElement>(".datagrid-sugar-context__item")
+  firstItem?.focus()
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== "undefined") {
+    window.removeEventListener("keydown", handleContextMenuKeydown, true)
+  }
+})
+
 const handleContextMenuOutsidePointer = (event: PointerEvent): void => {
   if (!grid.value.contextMenu.state.value.visible) {
     return
@@ -748,7 +883,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="datagrid-sugar-stage" role="grid" aria-label="Affino DataGrid sugar demo">
+  <main
+    class="datagrid-sugar-stage"
+    :class="{ 'is-tree-variant': treeTabular }"
+    role="grid"
+    aria-label="Affino DataGrid sugar demo"
+  >
     <div ref="viewportRef" class="datagrid-sugar-stage__viewport">
       <div class="datagrid-sugar-stage__header" :style="{ gridTemplateColumns }">
         <div
@@ -818,7 +958,7 @@ onBeforeUnmount(() => {
         class="datagrid-sugar-stage__row"
         :style="{ gridTemplateColumns }"
       >
-        <template v-if="rowNode.kind === 'group'">
+        <template v-if="rowNode.kind === 'group' && !treeTabular">
           <div
             class="datagrid-sugar-stage__cell datagrid-sugar-stage__cell--group"
             :style="{ gridColumn: `1 / ${visibleColumnCount + 1}` }"
@@ -831,6 +971,43 @@ onBeforeUnmount(() => {
               <span aria-hidden="true">{{ rowNode.state.expanded ? "▾" : "▸" }}</span>
               <span>{{ rowNode.groupMeta?.groupValue ?? "Group" }} ({{ rowNode.groupMeta?.childrenCount ?? 0 }})</span>
             </button>
+          </div>
+        </template>
+
+        <template v-else-if="rowNode.kind === 'group'">
+          <div
+            v-for="column in visibleColumns"
+            :key="`group:${resolveNodeKey(rowNode, resolveRenderedRowIndex(rowIndex))}:${column.key}`"
+            class="datagrid-sugar-stage__cell datagrid-sugar-stage__cell--group-tabular"
+            :class="{
+              'is-pinned-left': column.pin === 'left',
+              'is-pinned-right': column.pin === 'right',
+            }"
+            :style="resolvePinnedCellStyle(column.key, column.pin, false)"
+          >
+            <button
+              v-if="isTreePrimaryColumn(column.key)"
+              type="button"
+              class="datagrid-sugar-stage__group-toggle datagrid-sugar-stage__group-toggle--tabular"
+              :style="resolveGroupToggleStyle(rowNode)"
+              @click="rowNode.groupMeta?.groupKey ? grid.features.tree.toggleGroup(rowNode.groupMeta.groupKey) : null"
+            >
+              <span class="datagrid-sugar-stage__group-chevron" aria-hidden="true">{{ rowNode.state.expanded ? "▾" : "▸" }}</span>
+              <span class="datagrid-sugar-stage__group-copy">
+                <span class="datagrid-sugar-stage__group-label">{{ resolveGroupPrimaryValue(rowNode) }}</span>
+                <span v-if="resolveGroupSubtitleValue(rowNode)" class="datagrid-sugar-stage__group-subtitle">
+                  {{ resolveGroupSubtitleValue(rowNode) }}
+                </span>
+              </span>
+              <span class="datagrid-sugar-stage__group-count">{{ rowNode.groupMeta?.childrenCount ?? 0 }}</span>
+            </button>
+            <span
+              v-else
+              class="datagrid-sugar-stage__group-value"
+              :class="{ 'datagrid-sugar-stage__group-placeholder': resolveGroupColumnValue(rowNode, column.key).length === 0 }"
+            >
+              {{ resolveGroupColumnValue(rowNode, column.key) }}
+            </span>
           </div>
         </template>
 
@@ -884,6 +1061,20 @@ onBeforeUnmount(() => {
               @mousedown.stop
               autofocus
             />
+
+            <span
+              v-else-if="isTreePrimaryColumn(column.key)"
+              class="datagrid-sugar-stage__tree-leaf"
+              :style="resolveLeafTreeCellStyle(rowNode, column.key)"
+            >
+              <span class="datagrid-sugar-stage__tree-avatar">{{ resolveLeafAvatarText(rowNode) }}</span>
+              <span class="datagrid-sugar-stage__tree-copy">
+                <span class="datagrid-sugar-stage__tree-title">{{ resolveDisplayValue(rowNode.data, column.key) }}</span>
+                <span v-if="resolveLeafSubtitleValue(rowNode)" class="datagrid-sugar-stage__tree-subtitle">
+                  {{ resolveLeafSubtitleValue(rowNode) }}
+                </span>
+              </span>
+            </span>
 
             <span v-else>{{ resolveDisplayValue(rowNode.data, column.key) }}</span>
 
@@ -1015,6 +1206,7 @@ onBeforeUnmount(() => {
         :key="action.id"
         type="button"
         class="datagrid-sugar-context__item"
+        :data-datagrid-menu-action="action.id"
         :disabled="grid.contextMenu.isActionDisabled?.(action.id)"
         :title="grid.contextMenu.getActionDisabledReason?.(action.id) ?? ''"
         v-bind="grid.bindings.contextMenuAction(action.id)"

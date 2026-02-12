@@ -32,6 +32,7 @@ import {
 import {
   DATA_GRID_DATA_ATTRS,
   DATA_GRID_SELECTORS,
+  type OpenDataGridContextMenuInput,
   useDataGridContextMenu,
   useDataGridRuntime,
 } from "@affino/datagrid-vue"
@@ -417,7 +418,9 @@ const overlayContentWidth = computed(() => {
   }
   return metrics[metrics.length - 1]?.end ?? 0
 })
-const overlayContentHeight = computed(() => Math.max(0, resolveDisplayRowCount()) * rowHeightPx.value)
+const overlayContentHeight = computed(() => (
+  Math.max(0, displayRowOffsets.value[displayRowOffsets.value.length - 1] ?? 0)
+))
 const overlayLayerStyle = computed(() => ({
   top: "0px",
   left: "0px",
@@ -453,6 +456,9 @@ const columnReorderDropTargetKey = ref<string | null>(null)
 let lastDragCoord: CellCoord | null = null
 let ensureCellVisibleByCoord: ((coord: CellCoord) => void) | null = null
 let resolveDisplayRowCount: () => number = () => 0
+let resolveDisplayRowOffsetByIndex: (rowIndex: number) => number = () => 0
+let resolveDisplayRowHeightByIndex: (rowIndex: number) => number = () => rowHeightPx.value
+let resolveDisplayRowIndexFromOffset: (offset: number) => number = () => 0
 let resolveVirtualWindowColumnTotal: () => number = () => 0
 let resolveCanonicalVirtualWindow: () => {
   rowStart: number
@@ -1138,12 +1144,18 @@ const {
   contextMenuStyle: copyContextMenuStyle,
   contextMenuActions,
   closeContextMenu: closeCopyContextMenu,
-  openContextMenu: openCopyContextMenu,
+  openContextMenu: openCopyContextMenuBase,
   onContextMenuKeyDown,
 } = useDataGridContextMenu({
   isColumnResizable,
   onBeforeOpen: closeColumnFilterPopover,
 })
+const contextMenuScrollCloseCooldownUntil = ref(0)
+const openCopyContextMenu = (clientX: number, clientY: number, context: OpenDataGridContextMenuInput) => {
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now()
+  contextMenuScrollCloseCooldownUntil.value = now + 200
+  openCopyContextMenuBase(clientX, clientY, context)
+}
 
 const selectionComparators = useDataGridSelectionComparators<CellCoord, CellSelectionRange>()
 const {
@@ -1866,7 +1878,7 @@ const dragPointerSelection = useDataGridDragPointerSelection<CellCoord>({
   cellCoordsEqual,
   applyCellSelection,
 })
-const dragSelectionLifecycle = useDataGridDragSelectionLifecycle<CellCoord>({
+const dragSelectionLifecycle = useDataGridDragSelectionLifecycle({
   setDragSelecting(value) {
     isDragSelecting.value = value
   },
@@ -1877,10 +1889,29 @@ const dragSelectionLifecycle = useDataGridDragSelectionLifecycle<CellCoord>({
     lastDragCoord = null
   },
   stopAutoScrollFrameIfIdle,
-  resolveLastDragCoord() {
-    return lastDragCoord
-  },
 })
+const onDataCellContextMenu = (row: DataGridRowNode<IncidentRow>, columnKey: string, event: MouseEvent) => {
+  if (columnKey === "select") {
+    return false
+  }
+  const coord = resolveCellCoord(row, columnKey)
+  if (!coord) {
+    return false
+  }
+  const currentRange = cellSelectionRange.value
+  if (!currentRange || !isCoordInsideRange(coord, currentRange)) {
+    applyCellSelection(coord, false, coord, false)
+  } else if (!cellCoordsEqual(activeCell.value, coord)) {
+    activeCell.value = coord
+  }
+  const nextRange = cellSelectionRange.value
+  const zone = isMultiCellSelection(nextRange) && !!nextRange && isCoordInsideRange(coord, nextRange)
+    ? "range"
+    : "cell"
+  event.preventDefault()
+  openCopyContextMenu(event.clientX, event.clientY, { zone, columnKey, rowId: String(row.rowId) })
+  return true
+}
 const fillSelectionLifecycle = useDataGridFillSelectionLifecycle<CellSelectionRange>({
   applyFillPreview,
   setFillDragging(value) {
@@ -2003,6 +2034,9 @@ const pointerCellCoordResolver = useDataGridPointerCellCoordResolver<CellCoord>(
   resolveRowHeight() {
     return rowHeightPx.value
   },
+  resolveRowIndexAtOffset(offset) {
+    return resolveDisplayRowIndexFromOffset(offset)
+  },
   resolveNearestNavigableColumnIndex,
   normalizeCellCoord,
 })
@@ -2038,6 +2072,12 @@ const cellVisibilityScroller = useDataGridCellVisibilityScroller<CellCoord>({
   },
   resolveRowHeight() {
     return rowHeightPx.value
+  },
+  resolveRowOffset(rowIndex) {
+    return resolveDisplayRowOffsetByIndex(rowIndex)
+  },
+  resolveRowHeightAtIndex(rowIndex) {
+    return resolveDisplayRowHeightByIndex(rowIndex)
   },
   setScrollPosition(position) {
     scrollTop.value = position.top
@@ -2408,7 +2448,7 @@ function applyPaginationRoundtrip(): void {
     pageSize: snapshot.pageSize,
     currentPage: snapshot.currentPage,
   })
-  api.refreshRows("manual")
+  api.refresh()
   resetVisibleRowsSyncCache()
   syncVisibleRows()
   syncPaginationState()
@@ -2814,15 +2854,23 @@ function isRowResizeEnabledForRow(row: DataGridRowNode<IncidentRow>): boolean {
   return row.kind === "leaf" && rowHeightMode.value === "auto"
 }
 
-function resolveRowHeightForNode(row: DataGridRowNode<IncidentRow>): number {
-  if (row.kind !== "leaf") {
-    return rowHeightPx.value
-  }
-  const override = rowHeightOverrides.value[row.data.rowId]
+function resolveRowHeightForRowId(rowId: IncidentRow["rowId"]): number {
+  const override = rowHeightOverrides.value[rowId]
   if (typeof override !== "number" || !Number.isFinite(override)) {
     return rowHeightPx.value
   }
   return Math.max(24, Math.min(120, Math.round(override)))
+}
+
+function resolveRowHeightForNode(row: DataGridRowNode<IncidentRow>): number {
+  if (row.kind !== "leaf") {
+    return rowHeightPx.value
+  }
+  return resolveRowHeightForRowId(row.data.rowId)
+}
+
+function resolveRowHeightForRow(row: IncidentRow): number {
+  return resolveRowHeightForRowId(row.rowId)
 }
 
 function resolveRowInlineStyle(row: DataGridRowNode<IncidentRow>): Record<string, string> {
@@ -3217,6 +3265,62 @@ const virtualRangeMetrics = useDataGridVirtualRangeMetrics({
   rowHeight: rowHeightPx.value,
 })
 const { rangeLabel } = virtualRangeMetrics
+const displayRowHeights = computed(() => (
+  filteredAndSortedRows.value.map(row => resolveRowHeightForRow(row))
+))
+const displayRowOffsets = computed(() => {
+  const heights = displayRowHeights.value
+  const offsets = new Array(heights.length + 1)
+  offsets[0] = 0
+  for (let index = 0; index < heights.length; index += 1) {
+    offsets[index + 1] = offsets[index] + heights[index]
+  }
+  return offsets
+})
+const resolveDisplayRowOffset = (rowIndex: number): number => {
+  const offsets = displayRowOffsets.value
+  const totalRows = Math.max(0, offsets.length - 1)
+  if (totalRows <= 0) {
+    return 0
+  }
+  const normalized = Math.max(0, Math.min(totalRows, Math.trunc(rowIndex)))
+  return offsets[normalized] ?? 0
+}
+const resolveDisplayRowHeightAtIndex = (rowIndex: number): number => {
+  const heights = displayRowHeights.value
+  const totalRows = heights.length
+  if (totalRows <= 0) {
+    return rowHeightPx.value
+  }
+  const normalized = Math.max(0, Math.min(totalRows - 1, Math.trunc(rowIndex)))
+  return heights[normalized] ?? rowHeightPx.value
+}
+const resolveRowIndexAtOffset = (offset: number): number => {
+  const offsets = displayRowOffsets.value
+  const totalRows = Math.max(0, offsets.length - 1)
+  if (totalRows <= 0) {
+    return 0
+  }
+  const totalHeight = offsets[totalRows] ?? 0
+  const clampedOffset = Math.max(0, Math.min(offset, totalHeight))
+  let low = 0
+  let high = totalRows - 1
+  while (low <= high) {
+    const mid = (low + high) >> 1
+    const rowStart = offsets[mid] ?? 0
+    const rowEnd = offsets[mid + 1] ?? rowStart
+    if (clampedOffset < rowStart) {
+      high = mid - 1
+      continue
+    }
+    if (clampedOffset >= rowEnd) {
+      low = mid + 1
+      continue
+    }
+    return mid
+  }
+  return Math.max(0, Math.min(totalRows - 1, low))
+}
 const renderRange = computed(() => {
   const total = Math.max(0, filteredAndSortedRows.value.length)
   if (total <= 0) {
@@ -3228,30 +3332,53 @@ const renderRange = computed(() => {
     end: Math.max(0, Math.min(total - 1, range.end)),
   }
 })
-const renderSpacerTopHeight = computed(() => Math.max(0, renderRange.value.start * rowHeightPx.value))
+const renderSpacerTopHeight = computed(() => (
+  Math.max(0, resolveDisplayRowOffset(renderRange.value.start))
+))
 const renderSpacerBottomHeight = computed(() => {
-  const total = Math.max(0, filteredAndSortedRows.value.length)
-  if (total === 0 || renderRange.value.end < renderRange.value.start) {
+  const offsets = displayRowOffsets.value
+  const total = Math.max(0, offsets.length - 1)
+  if (total === 0 || renderRange.value.end < renderRange.value.start || offsets.length === 0) {
     return 0
   }
-  return Math.max(0, (total - (renderRange.value.end + 1)) * rowHeightPx.value)
+  const totalHeight = offsets[total] ?? 0
+  const nextIndex = Math.max(0, Math.min(total, renderRange.value.end + 1))
+  const renderedBottom = offsets[nextIndex] ?? totalHeight
+  return Math.max(0, totalHeight - renderedBottom)
 })
+const resolveOverlayRowOffset = (rowIndex: number): number => {
+  return resolveDisplayRowOffset(rowIndex)
+}
+const resolveOverlayRowHeight = (rowIndex: number): number => {
+  return resolveDisplayRowHeightAtIndex(rowIndex)
+}
 const resolveViewportRange = () => {
-  const total = Math.max(0, filteredAndSortedRows.value.length)
+  const heights = displayRowHeights.value
+  const total = Math.max(0, heights.length)
   if (total <= 0) {
     return { start: 0, end: 0 }
   }
   const viewport = viewportRef.value
-  const viewportBodyHeight = viewport ? viewport.clientHeight : viewportHeight.value
-  const start = Math.max(0, Math.min(total - 1, Math.floor(scrollTop.value / rowHeightPx.value)))
-  const visibleCount = Math.max(1, Math.ceil(viewportBodyHeight / rowHeightPx.value))
+  const viewportBodyHeight = Math.max(1, viewport ? viewport.clientHeight : viewportHeight.value)
+  const offsets = displayRowOffsets.value
+  const totalHeight = offsets[total] ?? 0
+  const maxScrollTop = Math.max(0, totalHeight - viewportBodyHeight)
+  const clampedScrollTop = Math.max(0, Math.min(scrollTop.value, maxScrollTop))
+  const start = resolveRowIndexAtOffset(clampedScrollTop)
+  const viewportBottom = clampedScrollTop + viewportBodyHeight
+  let end = start
+  while (end < total - 1 && (offsets[end + 1] ?? 0) < viewportBottom) {
+    end += 1
+  }
   const overscanTop = Math.max(2, runtimeVirtualWindow.value?.overscan.top ?? 0)
   const overscanBottom = Math.max(2, runtimeVirtualWindow.value?.overscan.bottom ?? 0)
-  const end = Math.max(start, Math.min(total - 1, start + visibleCount - 1))
   const startWithOverscan = Math.max(0, start - overscanTop)
   const endWithOverscan = Math.max(startWithOverscan, Math.min(total - 1, end + overscanBottom))
   return { start: startWithOverscan, end: endWithOverscan }
 }
+resolveDisplayRowOffsetByIndex = resolveDisplayRowOffset
+resolveDisplayRowHeightByIndex = resolveDisplayRowHeightAtIndex
+resolveDisplayRowIndexFromOffset = resolveRowIndexAtOffset
 const visibleRowsSyncScheduler = useDataGridVisibleRowsSyncScheduler<IncidentRow, DataGridRowNode<IncidentRow>>({
   resolveRows() {
     return filteredAndSortedRows.value
@@ -3569,6 +3696,8 @@ const activeCellLabel = computed(() => {
 const selectionOverlayOrchestration = useDataGridSelectionOverlayOrchestration({
   headerHeight: bodyViewportHeaderOffset,
   rowHeight: rowHeightPx.value,
+  resolveRowHeight: resolveOverlayRowHeight,
+  resolveRowOffset: resolveOverlayRowOffset,
   orderedColumns,
   orderedColumnMetrics,
   cellSelectionRange,
@@ -3736,6 +3865,10 @@ const fillHandleStart = useDataGridFillHandleStart<CellSelectionRange>({
 const viewportScrollLifecycle = useDataGridViewportScrollLifecycle({
   isContextMenuVisible() {
     return copyContextMenu.value.visible
+  },
+  shouldCloseContextMenuOnScroll() {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now()
+    return now >= contextMenuScrollCloseCooldownUntil.value
   },
   closeContextMenu: closeCopyContextMenu,
   resolveScrollTop() {
@@ -4883,6 +5016,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
             @mousedown="onDataCellMouseDown(row, column.key, $event)"
             @mouseenter="onDataCellMouseEnter(row, column.key, $event)"
             @dblclick="onDataCellDoubleClick(row, column.key, $event)"
+            @contextmenu.stop="onDataCellContextMenu(row, column.key, $event)"
           >
             <template v-if="column.key === 'select'">
               <div v-if="row.kind === 'leaf'" class="datagrid-stage__select-tools">
