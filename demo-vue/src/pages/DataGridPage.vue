@@ -2046,7 +2046,11 @@ const axisAutoScrollDelta = useDataGridAxisAutoScrollDelta({
   maxStepPx: DRAG_AUTO_SCROLL_MAX_STEP_PX,
 })
 function setSynchronizedScrollLeft(nextLeft: number) {
-  scrollLeft.value = resolveDataGridHeaderScrollSyncLeft(scrollLeft.value, nextLeft)
+  const resolvedLeft = resolveDataGridHeaderScrollSyncLeft(scrollLeft.value, nextLeft)
+  if (resolvedLeft === scrollLeft.value) {
+    return
+  }
+  scrollLeft.value = resolvedLeft
 }
 function syncHeaderViewportScroll() {
   const headerViewport = headerViewportRef.value
@@ -3371,8 +3375,8 @@ const resolveViewportRange = () => {
   while (end < total - 1 && (offsets[end + 1] ?? 0) < viewportBottom) {
     end += 1
   }
-  const overscanTop = Math.max(2, runtimeVirtualWindow.value?.overscan.top ?? 0)
-  const overscanBottom = Math.max(2, runtimeVirtualWindow.value?.overscan.bottom ?? 0)
+  const overscanTop = Math.max(6, runtimeVirtualWindow.value?.overscan.top ?? 0)
+  const overscanBottom = Math.max(6, runtimeVirtualWindow.value?.overscan.bottom ?? 0)
   const startWithOverscan = Math.max(0, start - overscanTop)
   const endWithOverscan = Math.max(startWithOverscan, Math.min(total - 1, end + overscanBottom))
   return { start: startWithOverscan, end: endWithOverscan }
@@ -3879,6 +3883,9 @@ const viewportScrollLifecycle = useDataGridViewportScrollLifecycle({
     return scrollLeft.value
   },
   setScrollTop(value) {
+    if (value === scrollTop.value) {
+      return
+    }
     scrollTop.value = value
   },
   setScrollLeft(value) {
@@ -3888,11 +3895,23 @@ const viewportScrollLifecycle = useDataGridViewportScrollLifecycle({
     return Boolean(inlineEditor.value)
   },
   commitInlineEdit,
+  scrollUpdateMode: "raf",
 })
+let headerViewportSyncFrame: number | null = null
+function scheduleHeaderViewportScrollSync() {
+  if (headerViewportSyncFrame !== null) {
+    return
+  }
+  headerViewportSyncFrame = requestAnimationFrame(() => {
+    headerViewportSyncFrame = null
+    syncHeaderViewportScroll()
+  })
+}
 const managedWheelScroll = useDataGridManagedWheelScroll({
   resolveWheelMode: () => "managed",
   resolveWheelAxisLockMode: () => "dominant",
   resolvePreventDefaultWhenHandled: () => true,
+  resolveMinDeltaToApply: () => 0,
   resolveBodyViewport() {
     return viewportRef.value
   },
@@ -3920,10 +3939,10 @@ const managedWheelScroll = useDataGridManagedWheelScroll({
       viewport.scrollLeft = value
     }
     setSynchronizedScrollLeft(value)
-    syncHeaderViewportScroll()
+    scheduleHeaderViewportScrollSync()
   },
   onWheelConsumed() {
-    syncHeaderViewportScroll()
+    scheduleHeaderViewportScrollSync()
   },
 })
 let isViewportBootstrapping = true
@@ -3935,7 +3954,7 @@ const onViewportScroll = (event: Event) => {
     isViewportBootstrapping = false
   }
   viewportScrollLifecycle.onViewportScroll(event)
-  syncHeaderViewportScroll()
+  scheduleHeaderViewportScrollSync()
 }
 
 function randomizeRuntime() {
@@ -3973,7 +3992,7 @@ function resetDataset() {
 }
 
 watch(scrollLeft, () => {
-  syncHeaderViewportScroll()
+  scheduleHeaderViewportScrollSync()
 })
 
 watch(rowCount, () => {
@@ -4174,7 +4193,12 @@ onBeforeUnmount(() => {
   stopRangeMove(false)
   stopRowResize(false)
   pointerAutoScroll.dispose()
+  viewportScrollLifecycle.dispose()
   managedWheelScroll.reset()
+  if (headerViewportSyncFrame !== null) {
+    cancelAnimationFrame(headerViewportSyncFrame)
+    headerViewportSyncFrame = null
+  }
   disposeGlobalPointerLifecycle()
   stopColumnResize()
   clearCopiedSelectionFlash()
@@ -4972,7 +4996,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         :aria-activedescendant="activeCellDescendantId ?? undefined"
         :aria-describedby="GRID_HINT_ID"
         @wheel="onViewportWheel"
-        @scroll="onViewportScroll"
+        @scroll.passive="onViewportScroll"
         @contextmenu="onViewportContextMenu"
         @keydown="onViewportKeyDown"
         @blur="onViewportBlur"
