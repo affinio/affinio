@@ -15,6 +15,7 @@ import type {
   DataGridRowNode,
 } from "@affino/datagrid-core"
 import type { UseAffinoDataGridResult } from "@affino/datagrid-vue"
+import { useDataGridManagedWheelScroll } from "@affino/datagrid-vue/advanced"
 import { useFloatingPopover, usePopoverController } from "@affino/popover-vue"
 
 type RowLike = {
@@ -37,6 +38,10 @@ const props = defineProps<{
   treeTabular?: boolean
   treePrimaryColumnKey?: string
   treeSubtitleColumnKey?: string
+  wheelMode?: "managed" | "native"
+  wheelAxisLock?: "off" | "dominant" | "vertical-preferred" | "horizontal-preferred"
+  wheelPreventDefaultWhenHandled?: boolean
+  wheelMinDeltaToApply?: number
 }>()
 
 const grid = computed(() => props.grid)
@@ -120,6 +125,48 @@ const rowModelRevision = ref(0)
 const viewportRef = ref<HTMLElement | null>(null)
 const viewportMetrics = ref<{ scrollTop: number; height: number }>({ scrollTop: 0, height: 0 })
 
+const updateViewportMetrics = (): void => {
+  const viewport = viewportRef.value
+  if (!viewport) {
+    return
+  }
+  viewportMetrics.value = {
+    scrollTop: viewport.scrollTop,
+    height: viewport.clientHeight,
+  }
+}
+
+const managedWheelScroll = useDataGridManagedWheelScroll({
+  resolveWheelMode: () => props.wheelMode ?? "managed",
+  resolveWheelAxisLockMode: () => props.wheelAxisLock ?? "dominant",
+  resolvePreventDefaultWhenHandled: () => props.wheelPreventDefaultWhenHandled ?? true,
+  resolveMinDeltaToApply: () => props.wheelMinDeltaToApply ?? 0,
+  resolveBodyViewport() {
+    return viewportRef.value
+  },
+  setHandledScrollTop(value) {
+    const viewport = viewportRef.value
+    if (!viewport) {
+      return
+    }
+    if (viewport.scrollTop !== value) {
+      viewport.scrollTop = value
+    }
+    updateViewportMetrics()
+  },
+  onWheelConsumed() {
+    updateViewportMetrics()
+  },
+})
+
+const onViewportWheel = (event: WheelEvent): void => {
+  managedWheelScroll.onBodyViewportWheel(event)
+}
+
+const handleViewportScroll = (): void => {
+  updateViewportMetrics()
+}
+
 const baseRowHeight = computed(() => grid.value.features.rowHeight.base.value)
 
 const renderRange = computed(() => {
@@ -163,34 +210,23 @@ onMounted(() => {
   const unsubscribe = grid.value.rowModel.subscribe(snapshot => {
     rowModelRevision.value = snapshot.revision ?? 0
   })
-  const updateMetrics = () => {
-    if (!viewportRef.value) {
-      return
-    }
-    viewportMetrics.value = {
-      scrollTop: viewportRef.value.scrollTop,
-      height: viewportRef.value.clientHeight,
-    }
-  }
-  const handleScroll = () => {
-    updateMetrics()
-  }
-  updateMetrics()
-  viewportRef.value?.addEventListener("scroll", handleScroll, { passive: true })
+  updateViewportMetrics()
+  viewportRef.value?.addEventListener("scroll", handleViewportScroll, { passive: true })
   window.addEventListener("pointerdown", handleContextMenuOutsidePointer, true)
 
   let resizeObserver: ResizeObserver | null = null
   if (typeof ResizeObserver !== "undefined" && viewportRef.value) {
     resizeObserver = new ResizeObserver(() => {
-      updateMetrics()
+      updateViewportMetrics()
     })
     resizeObserver.observe(viewportRef.value)
   }
   onBeforeUnmount(() => {
     unsubscribe()
-    viewportRef.value?.removeEventListener("scroll", handleScroll)
+    viewportRef.value?.removeEventListener("scroll", handleViewportScroll)
     window.removeEventListener("pointerdown", handleContextMenuOutsidePointer, true)
     resizeObserver?.disconnect()
+    managedWheelScroll.reset()
   })
 })
 
@@ -889,7 +925,7 @@ onBeforeUnmount(() => {
     role="grid"
     aria-label="Affino DataGrid sugar demo"
   >
-    <div ref="viewportRef" class="datagrid-sugar-stage__viewport">
+    <div ref="viewportRef" class="datagrid-sugar-stage__viewport" @wheel="onViewportWheel">
       <div class="datagrid-sugar-stage__header" :style="{ gridTemplateColumns }">
         <div
           v-for="column in visibleColumns"

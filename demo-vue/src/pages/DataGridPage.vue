@@ -36,6 +36,7 @@ import {
   useDataGridContextMenu,
   useDataGridRuntime,
 } from "@affino/datagrid-vue"
+import { useDataGridManagedWheelScroll } from "@affino/datagrid-vue/advanced"
 import {
   useDataGridCellNavigation,
   useDataGridClipboardValuePolicy,
@@ -3888,7 +3889,47 @@ const viewportScrollLifecycle = useDataGridViewportScrollLifecycle({
   },
   commitInlineEdit,
 })
+const managedWheelScroll = useDataGridManagedWheelScroll({
+  resolveWheelMode: () => "managed",
+  resolveWheelAxisLockMode: () => "dominant",
+  resolvePreventDefaultWhenHandled: () => true,
+  resolveBodyViewport() {
+    return viewportRef.value
+  },
+  resolveMainViewport() {
+    const viewport = viewportRef.value
+    if (!viewport) {
+      return null
+    }
+    return {
+      scrollLeft: viewport.scrollLeft,
+      scrollWidth: viewport.scrollWidth,
+      clientWidth: viewport.clientWidth,
+    }
+  },
+  setHandledScrollTop(value) {
+    const viewport = viewportRef.value
+    if (viewport && viewport.scrollTop !== value) {
+      viewport.scrollTop = value
+    }
+    scrollTop.value = value
+  },
+  setHandledScrollLeft(value: number) {
+    const viewport = viewportRef.value
+    if (viewport && viewport.scrollLeft !== value) {
+      viewport.scrollLeft = value
+    }
+    setSynchronizedScrollLeft(value)
+    syncHeaderViewportScroll()
+  },
+  onWheelConsumed() {
+    syncHeaderViewportScroll()
+  },
+})
 let isViewportBootstrapping = true
+const onViewportWheel = (event: WheelEvent) => {
+  managedWheelScroll.onBodyViewportWheel(event)
+}
 const onViewportScroll = (event: Event) => {
   if (isViewportBootstrapping) {
     isViewportBootstrapping = false
@@ -4133,6 +4174,7 @@ onBeforeUnmount(() => {
   stopRangeMove(false)
   stopRowResize(false)
   pointerAutoScroll.dispose()
+  managedWheelScroll.reset()
   disposeGlobalPointerLifecycle()
   stopColumnResize()
   clearCopiedSelectionFlash()
@@ -4929,6 +4971,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         aria-multiselectable="true"
         :aria-activedescendant="activeCellDescendantId ?? undefined"
         :aria-describedby="GRID_HINT_ID"
+        @wheel="onViewportWheel"
         @scroll="onViewportScroll"
         @contextmenu="onViewportContextMenu"
         @keydown="onViewportKeyDown"

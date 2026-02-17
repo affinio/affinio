@@ -4,6 +4,7 @@ import {
     createDataGridRuntime,
     resolveDataGridLayerTrackTemplate,
     useDataGridColumnLayoutOrchestration,
+    useDataGridManagedWheelScroll,
     resolveDataGridHeaderLayerViewportGeometry,
     resolveDataGridHeaderScrollSyncLeft,
 } from "@affino/datagrid-orchestration";
@@ -375,6 +376,36 @@ function mountDatagridDemo(root) {
             left: resolvedLeft,
         });
         return true;
+    };
+
+    const managedWheelScroll = useDataGridManagedWheelScroll({
+        resolveWheelMode: () => "managed",
+        resolveWheelAxisLockMode: () => "dominant",
+        resolvePreventDefaultWhenHandled: () => true,
+        resolveBodyViewport() {
+            return viewport;
+        },
+        resolveMainViewport() {
+            return {
+                scrollLeft: viewport.scrollLeft,
+                scrollWidth: viewport.scrollWidth,
+                clientWidth: viewport.clientWidth,
+            };
+        },
+        setHandledScrollTop(value) {
+            setViewportScroll(value, viewport.scrollLeft, "wheel-y");
+        },
+        setHandledScrollLeft(value) {
+            setViewportScroll(viewport.scrollTop, value, "wheel-x");
+        },
+        onWheelConsumed() {
+            closeContextMenu();
+            requestRender();
+        },
+    });
+
+    const onViewportWheel = (event) => {
+        managedWheelScroll.onBodyViewportWheel(event);
     };
 
     const clearHistory = () => {
@@ -1986,6 +2017,7 @@ function mountDatagridDemo(root) {
         closeContextMenu();
         requestRender();
     };
+    viewport.addEventListener("wheel", onViewportWheel, { passive: false });
     viewport.addEventListener("scroll", onScroll, { passive: true });
 
     const onSearch = () => {
@@ -2801,6 +2833,8 @@ function mountDatagridDemo(root) {
 
     return () => {
         stopFillDrag(false);
+        managedWheelScroll.reset();
+        viewport.removeEventListener("wheel", onViewportWheel);
         viewport.removeEventListener("scroll", onScroll);
         searchInput?.removeEventListener("input", onSearch);
         sortSelect?.removeEventListener("change", onSort);
