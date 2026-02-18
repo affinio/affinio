@@ -87,7 +87,7 @@ vite.config.ts.timestamp*
 test-results/
 playwright-report/
 storybook-static/
-.storybook
+/.storybook
 .tmp
 artifacts/
 sbom.cdx.json
