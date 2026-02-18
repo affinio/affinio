@@ -101,6 +101,8 @@ import {
   useDataGridVirtualRangeMetrics,
   useDataGridViewportMeasureScheduler,
   useDataGridVisibleRowsSyncScheduler,
+  useDataGridScrollIdleGate,
+  useDataGridScrollPerfTelemetry,
   useDataGridQuickFilterActions,
   useDataGridCellCoordNormalizer,
   useDataGridHistoryActionRunner,
@@ -3410,6 +3412,46 @@ const {
   resetVisibleRowsSyncCache,
   dispose: disposeVisibleRowsSyncScheduler,
 } = visibleRowsSyncScheduler
+const scrollIdleGate = useDataGridScrollIdleGate({
+  resolveIdleDelayMs: () => 80,
+})
+const scrollPerfTelemetry = useDataGridScrollPerfTelemetry({
+  resolveIdleDelayMs: () => 120,
+  onSnapshotChange(next) {
+    scrollPerfSnapshot.value = next
+  },
+})
+const scrollPerfSnapshot = ref(scrollPerfTelemetry.getSnapshot())
+let hasDeferredVisibleRowsSync = false
+
+const scrollPerfChipText = computed(() => {
+  const snapshot = scrollPerfSnapshot.value
+  const quality = snapshot.quality === "unknown" ? "warming" : snapshot.quality
+  const fps = snapshot.fps > 0 ? Math.round(snapshot.fps) : 0
+  return `perf: ${quality} · ${fps}fps · drop ${snapshot.droppedFrames}`
+})
+
+function markViewportScrollActivity() {
+  scrollIdleGate.markScrollActivity()
+  scrollPerfTelemetry.markScrollActivity()
+}
+
+function syncVisibleRowsWithScrollPriority() {
+  if (!scrollIdleGate.isScrollActive()) {
+    syncVisibleRows()
+    syncPaginationState()
+    return
+  }
+  if (hasDeferredVisibleRowsSync) {
+    return
+  }
+  hasDeferredVisibleRowsSync = true
+  scrollIdleGate.runWhenScrollIdle(() => {
+    hasDeferredVisibleRowsSync = false
+    syncVisibleRows()
+    syncPaginationState()
+  })
+}
 
 const cellSelectionRange = computed<CellSelectionRange | null>(() => {
   if (!cellAnchor.value || !cellFocus.value) {
@@ -3911,6 +3953,7 @@ const managedWheelScroll = useDataGridManagedWheelScroll({
   resolveWheelMode: () => "managed",
   resolveWheelAxisLockMode: () => "dominant",
   resolvePreventDefaultWhenHandled: () => true,
+  resolveWheelPropagationMode: () => "release-at-boundary-when-unconsumed",
   resolveMinDeltaToApply: () => 0,
   resolveBodyViewport() {
     return viewportRef.value
@@ -3947,9 +3990,11 @@ const managedWheelScroll = useDataGridManagedWheelScroll({
 })
 let isViewportBootstrapping = true
 const onViewportWheel = (event: WheelEvent) => {
+  markViewportScrollActivity()
   managedWheelScroll.onBodyViewportWheel(event)
 }
 const onViewportScroll = (event: Event) => {
+  markViewportScrollActivity()
   if (isViewportBootstrapping) {
     isViewportBootstrapping = false
   }
@@ -4101,13 +4146,11 @@ watch([query, sortStateSignature, appliedColumnFiltersSignature, groupBy, advanc
 watch(sourceRows, () => {
   reconcileRowSelection()
   resetVisibleRowsSyncCache()
-  syncVisibleRows()
-  syncPaginationState()
+  syncVisibleRowsWithScrollPriority()
 })
 
 watch(filteredAndSortedRows, () => {
-  syncVisibleRows()
-  syncPaginationState()
+  syncVisibleRowsWithScrollPriority()
 }, { immediate: true, flush: "sync" })
 
 watch(renderRange, () => {
@@ -4203,6 +4246,8 @@ onBeforeUnmount(() => {
   stopColumnResize()
   clearCopiedSelectionFlash()
   disposeVisibleRowsSyncScheduler()
+  scrollIdleGate.dispose()
+  scrollPerfTelemetry.dispose()
   disposeViewportMeasureScheduler()
   window.removeEventListener("resize", scheduleViewportMeasure)
   window.removeEventListener("mousedown", onGlobalMouseDown)
@@ -4308,6 +4353,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <div class="datagrid-hero__chips" aria-label="Datagrid foundation">
         <span>@affino/datagrid-vue</span>
         <span>@affino/datagrid-core</span>
+        <span>{{ scrollPerfChipText }}</span>
         <span>status: {{ lastAction }}</span>
       </div>
     </header>

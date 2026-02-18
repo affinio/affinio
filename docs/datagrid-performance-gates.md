@@ -140,3 +140,11 @@ Status in this local environment:
 
 Runtime perf-by-design contract reference:
 - `docs/datagrid-perf-by-design-runtime.md`
+
+## Runtime Scroll Telemetry (Demo Layer)
+
+The demo runtime now includes an adapter-level telemetry primitive:
+
+- `useDataGridScrollPerfTelemetry` (`@affino/datagrid-orchestration`)
+- Emits active-scroll snapshot metrics: `fps`, `avgFrameMs`, `droppedFrames`, `longTaskFrames`, and quality (`unknown` | `good` | `degraded`).
+- Intended for local quality diagnostics and interaction tuning (not a replacement for CI benchmark gates).

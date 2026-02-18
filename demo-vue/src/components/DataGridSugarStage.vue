@@ -140,6 +140,7 @@ const managedWheelScroll = useDataGridManagedWheelScroll({
   resolveWheelMode: () => props.wheelMode ?? "managed",
   resolveWheelAxisLockMode: () => props.wheelAxisLock ?? "dominant",
   resolvePreventDefaultWhenHandled: () => props.wheelPreventDefaultWhenHandled ?? true,
+  resolveWheelPropagationMode: () => "release-at-boundary-when-unconsumed",
   resolveMinDeltaToApply: () => props.wheelMinDeltaToApply ?? 0,
   resolveBodyViewport() {
     return viewportRef.value
