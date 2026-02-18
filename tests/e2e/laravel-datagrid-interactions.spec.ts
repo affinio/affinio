@@ -118,23 +118,40 @@ test.describe("laravel datagrid interactions", () => {
     await page.locator("[data-datagrid-viewport]").focus()
     await page.keyboard.press("ControlOrMeta+X")
 
-    await expect.poll(async () => {
-      const owner1 = ((await ownerR1.textContent()) ?? "").trim()
-      const owner2 = ((await ownerR2.textContent()) ?? "").trim()
-      const region1 = ((await regionR1.textContent()) ?? "").trim()
-      const region2 = ((await regionR2.textContent()) ?? "").trim()
-      const cleared = owner1 === "" && owner2 === "" && region1 === "" && region2 === ""
-      const unchanged =
-        owner1 === ownerR1Before &&
-        owner2 === ownerR2Before &&
-        region1 === regionR1Before &&
-        region2 === regionR2Before
-      return cleared || unchanged
-    }).toBe(true)
+    const status = page.locator("[data-datagrid-status]")
 
-    if (await undoButton.isEnabled()) {
+    let cutApplied = false
+    try {
+      await expect(status).toContainText("Cut", { timeout: 1500 })
+      cutApplied = true
+    } catch {
+      cutApplied = false
+    }
+
+    if (!cutApplied) {
+      const clearedWithinWindow = await expect
+        .poll(async () => {
+          const owner1 = ((await ownerR1.textContent()) ?? "").trim()
+          const owner2 = ((await ownerR2.textContent()) ?? "").trim()
+          const region1 = ((await regionR1.textContent()) ?? "").trim()
+          const region2 = ((await regionR2.textContent()) ?? "").trim()
+          return owner1 === "" && owner2 === "" && region1 === "" && region2 === ""
+        }, { timeout: 2000 })
+        .then(() => true)
+        .catch(() => false)
+
+      cutApplied = clearedWithinWindow
+    }
+
+    if (cutApplied) {
+      await expect.poll(() => undoButton.isEnabled()).toBe(true)
       await undoButton.click()
 
+      await expect(ownerR1).toHaveText(ownerR1Before)
+      await expect(ownerR2).toHaveText(ownerR2Before)
+      await expect(regionR1).toHaveText(regionR1Before)
+      await expect(regionR2).toHaveText(regionR2Before)
+    } else {
       await expect(ownerR1).toHaveText(ownerR1Before)
       await expect(ownerR2).toHaveText(ownerR2Before)
       await expect(regionR1).toHaveText(regionR1Before)

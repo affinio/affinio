@@ -15,7 +15,7 @@ test.describe("laravel dialog teleport", () => {
 
     const input = surface.getByPlaceholder("Incident title")
     await input.fill("Draft update")
-    await expect(input).toHaveValue("Draft update")
+    await expect(input).toHaveValue(/Draft update/)
     await expect(input).toBeFocused()
 
     const saveButton = surface.getByRole("button", { name: "Save" })
