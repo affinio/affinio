@@ -2362,6 +2362,10 @@ const {
     transaction: history.transactionService,
   },
 })
+const unsubscribeCellsRefresh = api.onCellsRefresh(batch => {
+  const reason = batch.reason ? ` · reason: ${batch.reason}` : ""
+  lastAction.value = `Cell refresh batch: ${batch.cells.length} cells${reason}`
+})
 const paginationSnapshot = ref<DataGridPaginationSnapshot | null>(null)
 
 const paginationSummary = computed(() => {
@@ -4021,6 +4025,42 @@ function randomizeRuntime() {
   lastAction.value = "Applied runtime shift"
 }
 
+function runCellRefreshProbe() {
+  const firstVisibleLeaf = visibleRows.value.find(row => row.kind === "leaf")
+  if (!firstVisibleLeaf || !firstVisibleLeaf.data) {
+    lastAction.value = "Cell refresh probe: no visible leaf rows"
+    return
+  }
+
+  const row = firstVisibleLeaf.data
+  const nextLatency = Math.max(20, row.latencyMs + 11)
+  const nextErrors = Math.max(0, row.errorRate + 1)
+  const nextStatus = resolveStatus(nextLatency, nextErrors)
+  const nextUpdatedAt = new Date().toISOString().slice(0, 16).replace("T", " ")
+
+  sourceRows.value = sourceRows.value.map(candidate => {
+    if (candidate.rowId !== row.rowId) {
+      return candidate
+    }
+    return {
+      ...candidate,
+      latencyMs: nextLatency,
+      errorRate: nextErrors,
+      status: nextStatus,
+      updatedAt: nextUpdatedAt,
+    }
+  })
+
+  api.refreshCellsByRowKeys(
+    [row.rowId],
+    ["latencyMs", "errorRate", "status", "updatedAt"],
+    {
+      immediate: true,
+      reason: "demo-probe",
+    },
+  )
+}
+
 function resetDataset() {
   seed.value = 1
   sourceRows.value = buildRows(rowCount.value, seed.value)
@@ -4249,6 +4289,7 @@ onBeforeUnmount(() => {
   scrollIdleGate.dispose()
   scrollPerfTelemetry.dispose()
   disposeViewportMeasureScheduler()
+  unsubscribeCellsRefresh()
   window.removeEventListener("resize", scheduleViewportMeasure)
   window.removeEventListener("mousedown", onGlobalMouseDown)
   window.removeEventListener("mouseup", onGlobalMouseUp, true)
@@ -4623,6 +4664,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       </label>
       <ThemeToggle variant="compact" @theme-change="applyDemoTheme" />
       <button type="button" @click="randomizeRuntime">Runtime shift</button>
+      <button type="button" class="ghost" @click="runCellRefreshProbe">Cell refresh probe</button>
       <button
         type="button"
         class="ghost"

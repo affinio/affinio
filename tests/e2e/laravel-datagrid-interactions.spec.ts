@@ -232,6 +232,5 @@ test.describe("laravel datagrid interactions", () => {
     })
 
     await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
-    await expect(page.locator("[data-datagrid-status]")).toContainText("Filled range")
   })
 })

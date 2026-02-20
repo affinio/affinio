@@ -1,5 +1,13 @@
 # demo-vue
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [b278a99]
+  - @affino/datagrid-core@0.2.0
+
 ## 0.0.3
 
 ### Patch Changes

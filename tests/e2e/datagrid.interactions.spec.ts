@@ -162,19 +162,39 @@ async function selectControlOption(page: Page, label: string, option: string): P
   const control = page
     .locator(".datagrid-controls label")
     .filter({ has: page.locator("span", { hasText: label }) })
-  const listboxTrigger = control.locator("[data-affino-listbox-trigger]")
+  const listboxTrigger = control.locator("[data-affino-listbox-trigger]").first()
   if (await listboxTrigger.count()) {
     await listboxTrigger.click()
-    await page
-      .locator('[data-affino-listbox-surface] [data-affino-listbox-option]', { hasText: option })
-      .first()
-      .click()
-    return
+  } else {
+    const menuTrigger = control.locator(".datagrid-controls__menu-trigger").first()
+    if ((await menuTrigger.count()) > 0) {
+      await menuTrigger.click()
+    } else {
+      const triggerByRole = page.getByRole("button", { name: new RegExp(`^${escapeRegExp(label)}(?:\\b|\\s)`, "i") }).first()
+      await expect(triggerByRole).toBeVisible()
+      await triggerByRole.click()
+    }
   }
 
-  const menuTrigger = control.locator(".datagrid-controls__menu-trigger")
-  await menuTrigger.click()
-  await page.locator('[role="menuitem"]', { hasText: option }).first().click()
+  const optionLocators = [
+    page.locator('[data-affino-listbox-surface] [data-affino-listbox-option]', { hasText: option }).first(),
+    page.locator('[role="option"]', { hasText: option }).first(),
+    page.locator('[role="menuitem"]', { hasText: option }).first(),
+    page.getByRole("button", { name: new RegExp(`^${escapeRegExp(option)}$`) }).first(),
+  ]
+
+  for (const candidate of optionLocators) {
+    if ((await candidate.count()) > 0) {
+      await candidate.click()
+      return
+    }
+  }
+
+  throw new Error(`Unable to select option \"${option}\" for control \"${label}\"`)
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 async function boundingBox(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {

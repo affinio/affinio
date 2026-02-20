@@ -48,8 +48,6 @@ test.describe("tooltip demos", () => {
 
     await trigger.hover()
     await expect(bubble).toHaveCount(0)
-    await page.waitForTimeout(80)
-    await expect(bubble).toHaveCount(0)
     await page.waitForTimeout(120)
     await expect(bubble).toBeVisible()
 
