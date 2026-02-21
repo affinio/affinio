@@ -74,6 +74,33 @@ Reference:
 - `/Users/anton/Projects/affinio/docs/datagrid-tree-data.md`
 - `/Users/anton/Projects/affinio/docs/datagrid-tree-data-behavior-matrix.md`
 
+## Aggregation Migration Notes
+
+Runtime API:
+
+- `rowModel.setAggregationModel(model | null)`
+- `rowModel.getAggregationModel()`
+- `api.setAggregationModel(model | null)`
+- `api.getAggregationModel()`
+
+Recommended model:
+
+- Use `basis: "filtered"` for "totals for current view" UX.
+- Use `basis: "source"` when totals must remain global under active filters.
+
+Important caveat:
+
+- `patchRows(...)` is Excel-like by default: `recomputeSort/filter/group` are off unless explicitly enabled.
+- In no-recompute modes, projection can be intentionally stale.
+- Example: if aggregate-related patch is applied while aggregate recompute is blocked, `groupMeta.aggregates` remains stale until next allowed recompute/`refresh()`.
+
+API-level edit flow:
+
+- `api.patchRows(updates, options)` forwards explicit patch policy flags.
+- `api.applyEdits(updates, { reapply? })` uses Excel-like defaults and optional live reapply.
+- `api.setAutoReapply(boolean)` / `api.getAutoReapply()` control default apply-edits behavior.
+- `api.reapplyView()` explicitly reapplies sort/filter/group projection.
+
 ## Verification Checklist
 
 - Public imports only (no direct `src/*` internals for production integration).

@@ -62,8 +62,13 @@
                     <input type="checkbox" data-datagrid-pin-status>
                     <span>Pin status column</span>
                 </label>
+                <label class="affino-datagrid-demo__toggle">
+                    <input type="checkbox" data-datagrid-auto-reapply>
+                    <span>Auto reapply view</span>
+                </label>
 
                 <div class="affino-datagrid-demo__actions">
+                    <button type="button" class="affino-datagrid-demo__button ghost" data-datagrid-reapply>Reapply view</button>
                     <button type="button" class="affino-datagrid-demo__button" data-datagrid-shift>Runtime shift</button>
                     <button type="button" class="affino-datagrid-demo__button ghost" data-datagrid-undo>Undo</button>
                     <button type="button" class="affino-datagrid-demo__button ghost" data-datagrid-redo>Redo</button>
@@ -102,6 +107,18 @@
                 <div>
                     <dt>Group by</dt>
                     <dd data-datagrid-grouped>None</dd>
+                </div>
+                <div>
+                    <dt>Projection stale</dt>
+                    <dd data-datagrid-projection-stale>none</dd>
+                </div>
+                <div>
+                    <dt>Projection cycle</dt>
+                    <dd data-datagrid-projection-cycle>0</dd>
+                </div>
+                <div>
+                    <dt>Projection recompute</dt>
+                    <dd data-datagrid-projection-recompute>0</dd>
                 </div>
                 <div>
                     <dt>Advanced filter</dt>

@@ -1,9 +1,16 @@
 # DataGrid High-Performance Closure Checklist
 
-Updated: `2026-02-10`  
+Updated: `2026-02-21`  
 Scope: `@affino/datagrid-core` + `@affino/datagrid-vue` + `@affino/datagrid-orchestration`
 
 Goal: закрыть оставшиеся архитектурные/perf пункты для high-performance grid path.
+
+## 2026-02-21 Aggregation Pipeline Addendum
+
+- Added `aggregate` stage into client projection pipeline (`filter -> sort -> group -> aggregate -> paginate -> visible`).
+- Added field-aware aggregate invalidation for `patchRows` (`affectsAggregation`).
+- Added `basis` semantics (`filtered`/`source`) and runtime aggregation model API (`setAggregationModel` / `getAggregationModel`).
+- Added tree/path-parent aggregate cache materialization to keep group totals stable across collapse/expand.
 
 ## Closure Rule (DoD)
 

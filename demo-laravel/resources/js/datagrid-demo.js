@@ -136,6 +136,16 @@ const ADVANCED_FILTER_PRESETS = {
     },
 };
 
+const GROUP_AGGREGATION_MODEL = Object.freeze({
+    basis: "filtered",
+    columns: [
+        { key: "rows", field: "rowId", op: "count" },
+        { key: "latencySum", field: "latencyMs", op: "sum" },
+        { key: "latencyAvg", field: "latencyMs", op: "avg" },
+        { key: "errorAvg", field: "errorRate", op: "avg" },
+    ],
+});
+
 function resolveColumnPin(column) {
     const directPin = column?.pin;
     if (directPin === "left" || directPin === "right") {
@@ -201,6 +211,8 @@ function mountDatagridDemo(root) {
     const visibilitySelect = root.querySelector("[data-datagrid-visibility]");
     const advancedFilterSelect = root.querySelector("[data-datagrid-advanced-filter]");
     const pinStatusToggle = root.querySelector("[data-datagrid-pin-status]");
+    const autoReapplyToggle = root.querySelector("[data-datagrid-auto-reapply]");
+    const reapplyButton = root.querySelector("[data-datagrid-reapply]");
     const shiftButton = root.querySelector("[data-datagrid-shift]");
     const undoButton = root.querySelector("[data-datagrid-undo]");
     const redoButton = root.querySelector("[data-datagrid-redo]");
@@ -219,6 +231,9 @@ function mountDatagridDemo(root) {
     const anchorNode = root.querySelector("[data-datagrid-anchor]");
     const activeCellNode = root.querySelector("[data-datagrid-active-cell]");
     const groupedNode = root.querySelector("[data-datagrid-grouped]");
+    const projectionStaleNode = root.querySelector("[data-datagrid-projection-stale]");
+    const projectionCycleNode = root.querySelector("[data-datagrid-projection-cycle]");
+    const projectionRecomputeNode = root.querySelector("[data-datagrid-projection-recompute]");
     const advancedFilterNode = root.querySelector("[data-datagrid-advanced-filter-summary]");
     const visibleColumnsWindowNode = root.querySelector("[data-datagrid-visible-columns-window]");
     const selectedLatencySumNode = root.querySelector("[data-datagrid-selected-latency-sum]");
@@ -285,11 +300,18 @@ function mountDatagridDemo(root) {
     });
     const { api, rowModel, core } = runtime;
     void api.start();
+    if (autoReapplyToggle instanceof HTMLInputElement) {
+        autoReapplyToggle.checked = api.getAutoReapply();
+    }
 
     let frameHandle = null;
     let suppressedScrollEvents = 0;
     let lastScrollTop = viewport.scrollTop;
     let lastScrollLeft = viewport.scrollLeft;
+    let projectionDiagnostics = rowModel.getSnapshot().projection ?? null;
+    const unsubscribeProjectionDiagnostics = rowModel.subscribe((snapshot) => {
+        projectionDiagnostics = snapshot.projection ?? null;
+    });
 
     const debugAutoScroll =
         root.dataset.datagridDebugAutoscroll === "true" ||
@@ -520,6 +542,40 @@ function mountDatagridDemo(root) {
             return true;
         }
         return evaluateDataGridAdvancedFilterExpression(expression, (condition) => row?.[condition.key]);
+    };
+
+    const formatGroupAggregateNumber = (value, fractionDigits = 0) => {
+        if (typeof value !== "number" || !Number.isFinite(value)) {
+            return null;
+        }
+        if (fractionDigits > 0) {
+            return value.toFixed(fractionDigits);
+        }
+        return String(Math.round(value));
+    };
+
+    const resolveGroupAggregateSummary = (aggregates) => {
+        if (!aggregates || typeof aggregates !== "object") {
+            return "";
+        }
+        const parts = [];
+        const rows = formatGroupAggregateNumber(aggregates.rows, 0);
+        if (rows) {
+            parts.push(`rows ${rows}`);
+        }
+        const latencySum = formatGroupAggregateNumber(aggregates.latencySum, 0);
+        if (latencySum) {
+            parts.push(`lat Σ ${latencySum}`);
+        }
+        const latencyAvg = formatGroupAggregateNumber(aggregates.latencyAvg, 1);
+        if (latencyAvg) {
+            parts.push(`lat μ ${latencyAvg}`);
+        }
+        const errorAvg = formatGroupAggregateNumber(aggregates.errorAvg, 1);
+        if (errorAvg) {
+            parts.push(`err μ ${errorAvg}`);
+        }
+        return parts.join(" · ");
     };
 
     const resolveColumnIndex = (columnKey, columns = resolveVisibleColumns()) =>
@@ -2079,6 +2135,21 @@ function mountDatagridDemo(root) {
     };
     pinStatusToggle?.addEventListener("change", onPinStatus);
 
+    const onAutoReapply = () => {
+        const enabled = Boolean(autoReapplyToggle?.checked);
+        api.setAutoReapply(enabled);
+        setStatus(enabled ? "Auto reapply view enabled" : "Auto reapply view disabled");
+        requestRender();
+    };
+    autoReapplyToggle?.addEventListener("change", onAutoReapply);
+
+    const onReapply = () => {
+        api.reapplyView();
+        setStatus("Projection reapply requested");
+        requestRender();
+    };
+    reapplyButton?.addEventListener("click", onReapply);
+
     const onShift = () => {
         generation += 1;
         sourceRows = sourceRows.map((row, index) => {
@@ -2148,6 +2219,9 @@ function mountDatagridDemo(root) {
         if (pinStatusToggle) {
             pinStatusToggle.checked = false;
         }
+        if (autoReapplyToggle) {
+            autoReapplyToggle.checked = api.getAutoReapply();
+        }
         applyColumnVisibilityPreset();
         api.setColumnPin("status", "none");
         setStatus("Dataset reset");
@@ -2201,8 +2275,13 @@ function mountDatagridDemo(root) {
         rowModel.setRows(activeRows);
 
         if (groupMode === "none") {
+            api.setAggregationModel(null);
             api.setGroupBy(null);
         } else {
+            api.setAggregationModel({
+                basis: GROUP_AGGREGATION_MODEL.basis,
+                columns: GROUP_AGGREGATION_MODEL.columns.map((column) => ({ ...column })),
+            });
             api.setGroupBy({
                 fields: [groupMode],
                 expandedByDefault: true,
@@ -2334,7 +2413,8 @@ function mountDatagridDemo(root) {
                 const field = String(meta?.groupField || groupMode || "group");
                 const value = String(meta?.groupValue ?? "Unknown");
                 const count = Number(meta?.childrenCount ?? 0);
-                groupCell.textContent = `${expanded ? "▾" : "▸"} ${field}: ${value} (${count})`;
+                const aggregateSummary = resolveGroupAggregateSummary(meta?.aggregates);
+                groupCell.textContent = `${expanded ? "▾" : "▸"} ${field}: ${value} (${count})${aggregateSummary ? ` · ${aggregateSummary}` : ""}`;
                 groupCell.addEventListener("click", () => {
                     if (meta?.groupKey) {
                         api.toggleGroup(meta.groupKey);
@@ -2723,6 +2803,20 @@ function mountDatagridDemo(root) {
         if (groupedNode) {
             groupedNode.textContent = groupMode !== "none" ? groupMode : "None";
         }
+        if (projectionStaleNode) {
+            const staleStages = Array.isArray(projectionDiagnostics?.staleStages)
+                ? projectionDiagnostics.staleStages
+                : [];
+            projectionStaleNode.textContent = staleStages.length > 0 ? staleStages.join(", ") : "none";
+        }
+        if (projectionCycleNode) {
+            const cycleVersion = projectionDiagnostics?.cycleVersion ?? projectionDiagnostics?.version ?? 0;
+            projectionCycleNode.textContent = String(cycleVersion);
+        }
+        if (projectionRecomputeNode) {
+            const recomputeVersion = projectionDiagnostics?.recomputeVersion ?? 0;
+            projectionRecomputeNode.textContent = String(recomputeVersion);
+        }
         if (advancedFilterNode) {
             advancedFilterNode.textContent = advancedFilterMode === "none" ? "None" : advancedFilterMode;
         }
@@ -2843,6 +2937,8 @@ function mountDatagridDemo(root) {
         visibilitySelect?.removeEventListener("change", onVisibility);
         advancedFilterSelect?.removeEventListener("change", onAdvancedFilter);
         pinStatusToggle?.removeEventListener("change", onPinStatus);
+        autoReapplyToggle?.removeEventListener("change", onAutoReapply);
+        reapplyButton?.removeEventListener("click", onReapply);
         shiftButton?.removeEventListener("click", onShift);
         undoButton?.removeEventListener("click", onUndo);
         redoButton?.removeEventListener("click", onRedo);
@@ -2862,6 +2958,7 @@ function mountDatagridDemo(root) {
             frameHandle = null;
         }
 
+        unsubscribeProjectionDiagnostics();
         void core.dispose();
     };
 }

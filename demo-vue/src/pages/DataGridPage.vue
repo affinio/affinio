@@ -15,11 +15,13 @@ import {
   createInMemoryDataGridSettingsAdapter,
   createDataGridSelectionSummary,
   evaluateDataGridAdvancedFilterExpression,
+  type DataGridAggregationModel,
   type DataGridColumnDef,
   type DataGridColumnModelSnapshot,
   type DataGridColumnStateSnapshot,
   type DataGridAdvancedFilterExpression,
   type DataGridPaginationSnapshot,
+  type DataGridProjectionDiagnostics,
   type DataGridRowNode,
   type DataGridSortState,
 } from "@affino/datagrid-core"
@@ -235,6 +237,8 @@ const baseRowHeight = ref(DEFAULT_ROW_HEIGHT)
 const paginationPageSize = ref(0)
 const paginationTargetPage = ref(1)
 const lastAction = ref("Ready")
+const freezeProjectionView = ref(false)
+const frozenProjectionRows = ref<readonly IncidentRow[]>([])
 const rowCountOptions = [2400, 6400, 10000] as const
 const columnCountOptions = [10, 20, 50] as const
 const sortPresetOptions = [
@@ -313,6 +317,16 @@ const NUMERIC_COLUMN_KEYS = new Set<string>([
   "sloBurnRate",
   "incidents24h",
 ])
+
+const GROUP_AGGREGATION_MODEL: DataGridAggregationModel<IncidentRow> = {
+  basis: "filtered",
+  columns: [
+    { key: "rows", field: "rowId", op: "count" },
+    { key: "latencySum", field: "latencyMs", op: "sum" },
+    { key: "latencyAvg", field: "latencyMs", op: "avg" },
+    { key: "errorAvg", field: "errorRate", op: "avg" },
+  ],
+}
 
 const INLINE_EDITOR_ENUM_OPTIONS = {
   severity: ["critical", "high", "medium", "low"],
@@ -1185,6 +1199,7 @@ const mutationSnapshot = useDataGridMutationSnapshot<IncidentRow, CellCoord, Cel
     return sourceRows.value
   },
   setRows(rows) {
+    freezeProjectionForEditMutation()
     sourceRows.value = rows
   },
   resolveCellAnchor() {
@@ -1297,6 +1312,7 @@ const rangeMutationEngine = useDataGridRangeMutationEngine<
     return row.rowId
   },
   applySourceRows(rows) {
+    freezeProjectionForEditMutation()
     sourceRows.value = [...rows]
   },
   resolveDisplayedRows() {
@@ -1373,6 +1389,7 @@ const inlineEditOrchestration = useDataGridInlineEditOrchestration<
 >({
   sourceRows,
   setSourceRows(rows) {
+    freezeProjectionForEditMutation()
     sourceRows.value = rows.map(row => ({ ...row }))
   },
   cloneRow(row) {
@@ -1431,6 +1448,7 @@ const {
 } = inlineEditOrchestration
 const commitInlineEdit = () => {
   const currentEditor = inlineEditor.value
+  const beforeCommitProjectionRows = filteredAndSortedRows.value.slice()
   if (currentEditor && viewportRef.value) {
     const selector = `[${DATA_GRID_DATA_ATTRS.inlineEditorRowId}="${currentEditor.rowId}"][${DATA_GRID_DATA_ATTRS.inlineEditorColumnKey}="${currentEditor.columnKey}"]`
     const host = viewportRef.value.querySelector(selector)
@@ -1441,6 +1459,25 @@ const commitInlineEdit = () => {
   }
   const committed = commitInlineEditCore()
   if (committed) {
+    if (currentEditor) {
+      const updatedRow = sourceRows.value.find(row => row.rowId === currentEditor.rowId)
+      if (updatedRow) {
+        const patch: Partial<IncidentRow> = {
+          [currentEditor.columnKey]: getRowCellValue(updatedRow, currentEditor.columnKey),
+        } as Partial<IncidentRow>
+        if (currentEditor.columnKey === "latencyMs" || currentEditor.columnKey === "errorRate") {
+          patch.status = updatedRow.status
+        }
+        applyRuntimeEdits([{ rowId: currentEditor.rowId, data: patch }])
+      }
+    }
+    if (!runtimeAutoReapply.value) {
+      freezeProjectionView.value = true
+      frozenProjectionRows.value = remapRowsByCurrentSource(beforeCommitProjectionRows)
+    } else if (freezeProjectionView.value) {
+      freezeProjectionView.value = false
+    }
+    syncRuntimeProjectionDiagnostics()
     resetVisibleRowsSyncCache()
     syncVisibleRows()
     if (currentEditor) {
@@ -1498,6 +1535,7 @@ const clipboardMutations = useDataGridClipboardMutations<
 >({
   sourceRows,
   setSourceRows(rows) {
+    freezeProjectionForEditMutation()
     sourceRows.value = rows.map(row => ({ ...row }))
   },
   cloneRow(row) {
@@ -2354,6 +2392,9 @@ const {
   core,
   columnSnapshot,
   virtualWindow: runtimeVirtualWindow,
+  applyEdits: applyRuntimeEdits,
+  reapplyView: reapplyRuntimeView,
+  autoReapply: runtimeAutoReapply,
   setRows: setRuntimeRows,
   syncRowsInRange: syncRuntimeRowsInRange,
 } = useDataGridRuntime<IncidentRow>({
@@ -2366,7 +2407,37 @@ const unsubscribeCellsRefresh = api.onCellsRefresh(batch => {
   const reason = batch.reason ? ` · reason: ${batch.reason}` : ""
   lastAction.value = `Cell refresh batch: ${batch.cells.length} cells${reason}`
 })
+const runtimeProjection = ref<DataGridProjectionDiagnostics | null>(rowModel.getSnapshot().projection ?? null)
+const unsubscribeRuntimeProjection = rowModel.subscribe(snapshot => {
+  runtimeProjection.value = snapshot.projection ?? null
+})
 const paginationSnapshot = ref<DataGridPaginationSnapshot | null>(null)
+const runtimeStaleStagesSummary = computed(() => {
+  const stages = runtimeProjection.value?.staleStages ?? []
+  return stages.length > 0 ? stages.join(", ") : "none"
+})
+const runtimeCycleVersion = computed(() => (
+  runtimeProjection.value?.cycleVersion
+  ?? runtimeProjection.value?.version
+  ?? 0
+))
+const runtimeRecomputeVersion = computed(() => (
+  runtimeProjection.value?.recomputeVersion ?? 0
+))
+
+function syncRuntimeProjectionDiagnostics(): void {
+  runtimeProjection.value = rowModel.getSnapshot().projection ?? null
+}
+
+function runReapplyView(): void {
+  freezeProjectionView.value = false
+  reapplyRuntimeView()
+  syncRuntimeProjectionDiagnostics()
+  resetVisibleRowsSyncCache()
+  syncVisibleRows()
+  syncPaginationState()
+  lastAction.value = "Reapplied runtime projection"
+}
 
 const paginationSummary = computed(() => {
   const snapshot = paginationSnapshot.value
@@ -2680,6 +2751,17 @@ function applyRuntimeGroupBy(nextGroupBy: GroupByColumnKey): void {
   api.setGroupBy({
     fields: [nextGroupBy],
     expandedByDefault: true,
+  })
+}
+
+function applyRuntimeAggregationModel(nextGroupBy: GroupByColumnKey): void {
+  if (nextGroupBy === "none") {
+    api.setAggregationModel(null)
+    return
+  }
+  api.setAggregationModel({
+    basis: GROUP_AGGREGATION_MODEL.basis,
+    columns: GROUP_AGGREGATION_MODEL.columns.map(column => ({ ...column })),
   })
 }
 
@@ -3103,7 +3185,35 @@ const advancedFilterExpression = computed<DataGridAdvancedFilterExpression | nul
   }
 })
 const isAdvancedFilterActive = computed(() => advancedFilterExpression.value != null)
-const filteredAndSortedRows = computed(() => {
+
+function remapRowsByCurrentSource(orderedRows: readonly IncidentRow[]): readonly IncidentRow[] {
+  if (!Array.isArray(orderedRows) || orderedRows.length === 0) {
+    return []
+  }
+  const sourceById = new Map(sourceRows.value.map(row => [row.rowId, row]))
+  const nextRows: IncidentRow[] = []
+  for (const row of orderedRows) {
+    const mappedRow = sourceById.get(row.rowId)
+    if (mappedRow) {
+      nextRows.push(mappedRow)
+    }
+  }
+  return nextRows
+}
+
+function freezeProjectionForEditMutation(): void {
+  if (runtimeAutoReapply.value) {
+    return
+  }
+  if (!freezeProjectionView.value) {
+    freezeProjectionView.value = true
+    frozenProjectionRows.value = remapRowsByCurrentSource(filteredAndSortedRows.value)
+    return
+  }
+  frozenProjectionRows.value = remapRowsByCurrentSource(frozenProjectionRows.value)
+}
+
+const liveFilteredAndSortedRows = computed(() => {
   const expression = advancedFilterExpression.value
   if (!expression) {
     return baseFilteredAndSortedRows.value
@@ -3114,6 +3224,15 @@ const filteredAndSortedRows = computed(() => {
     ),
   )
 })
+const filteredAndSortedRows = computed(() => (
+  freezeProjectionView.value ? frozenProjectionRows.value : liveFilteredAndSortedRows.value
+))
+watch(liveFilteredAndSortedRows, rows => {
+  if (freezeProjectionView.value) {
+    return
+  }
+  frozenProjectionRows.value = rows
+}, { immediate: true })
 const advancedFilterSummary = computed(() => {
   if (advancedFilterPreset.value === "none") {
     return "none"
@@ -3233,6 +3352,44 @@ function resolveTreeGroupChildrenCount(row: DataGridRowNode<IncidentRow>): numbe
     return 0
   }
   return Math.max(0, Math.trunc(row.groupMeta?.childrenCount as number))
+}
+
+function formatGroupAggregateNumber(value: unknown, fractionDigits = 0): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null
+  }
+  if (fractionDigits > 0) {
+    return value.toFixed(fractionDigits)
+  }
+  return String(Math.round(value))
+}
+
+function resolveTreeGroupAggregateSummary(row: DataGridRowNode<IncidentRow>): string {
+  if (row.kind !== "group") {
+    return ""
+  }
+  const aggregates = row.groupMeta?.aggregates
+  if (!aggregates) {
+    return ""
+  }
+  const parts: string[] = []
+  const rows = formatGroupAggregateNumber(aggregates.rows, 0)
+  if (rows) {
+    parts.push(`rows ${rows}`)
+  }
+  const latencySum = formatGroupAggregateNumber(aggregates.latencySum, 0)
+  if (latencySum) {
+    parts.push(`lat Σ ${latencySum}`)
+  }
+  const latencyAvg = formatGroupAggregateNumber(aggregates.latencyAvg, 1)
+  if (latencyAvg) {
+    parts.push(`lat μ ${latencyAvg}`)
+  }
+  const errorAvg = formatGroupAggregateNumber(aggregates.errorAvg, 1)
+  if (errorAvg) {
+    parts.push(`err μ ${errorAvg}`)
+  }
+  return parts.join(" · ")
 }
 
 function isRuntimeGroupStartRow(row: DataGridRowNode<IncidentRow>): boolean {
@@ -4155,10 +4312,22 @@ watch(sortStateSignature, () => {
 
 watch(groupBy, value => {
   applyRuntimeGroupBy(value)
+  applyRuntimeAggregationModel(value)
   resetVisibleRowsSyncCache()
   syncVisibleRows()
   lastAction.value = value === "none" ? "Grouping disabled" : `Grouped by ${value}`
 }, { immediate: true })
+
+watch(runtimeAutoReapply, value => {
+  if (value && freezeProjectionView.value) {
+    freezeProjectionView.value = false
+    resetVisibleRowsSyncCache()
+    syncVisibleRows()
+  }
+  lastAction.value = value
+    ? "Runtime auto reapply: enabled"
+    : "Runtime auto reapply: disabled (freeze mode)"
+})
 
 watch(columnVisibilityPreset, value => {
   applyColumnVisibilityPreset(value)
@@ -4176,6 +4345,9 @@ watch(advancedFilterPreset, value => {
 })
 
 watch([query, sortStateSignature, appliedColumnFiltersSignature, groupBy, advancedFilterPreset], () => {
+  if (freezeProjectionView.value) {
+    freezeProjectionView.value = false
+  }
   resetVisibleRowsSyncCache()
   if (inlineEditor.value) {
     commitInlineEdit()
@@ -4184,6 +4356,9 @@ watch([query, sortStateSignature, appliedColumnFiltersSignature, groupBy, advanc
 })
 
 watch(sourceRows, () => {
+  if (freezeProjectionView.value) {
+    frozenProjectionRows.value = remapRowsByCurrentSource(frozenProjectionRows.value)
+  }
   reconcileRowSelection()
   resetVisibleRowsSyncCache()
   syncVisibleRowsWithScrollPriority()
@@ -4240,6 +4415,7 @@ onMounted(() => {
   syncViewportHeight()
   resetViewportScrollPosition()
   syncHeaderViewportScroll()
+  syncRuntimeProjectionDiagnostics()
   syncVisibleRows()
   void nextTick(() => {
     syncHeaderViewportScroll()
@@ -4290,6 +4466,7 @@ onBeforeUnmount(() => {
   scrollPerfTelemetry.dispose()
   disposeViewportMeasureScheduler()
   unsubscribeCellsRefresh()
+  unsubscribeRuntimeProjection()
   window.removeEventListener("resize", scheduleViewportMeasure)
   window.removeEventListener("mousedown", onGlobalMouseDown)
   window.removeEventListener("mouseup", onGlobalMouseUp, true)
@@ -4554,6 +4731,10 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         <input v-model="pinUpdatedAtRight" type="checkbox" />
         <span>Pin updatedAt right</span>
       </label>
+      <label class="datagrid-controls__toggle">
+        <input v-model="runtimeAutoReapply" type="checkbox" />
+        <span>Auto reapply view</span>
+      </label>
       <label class="datagrid-controls__menu-field">
         <span>Row height</span>
         <UiMenu>
@@ -4663,6 +4844,7 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
         </UiMenu>
       </label>
       <ThemeToggle variant="compact" @theme-change="applyDemoTheme" />
+      <button type="button" class="ghost" @click="runReapplyView">Reapply view</button>
       <button type="button" @click="randomizeRuntime">Runtime shift</button>
       <button type="button" class="ghost" @click="runCellRefreshProbe">Cell refresh probe</button>
       <button
@@ -4738,6 +4920,18 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
       <div>
         <dt>Group by</dt>
         <dd>{{ groupBySummary }}</dd>
+      </div>
+      <div>
+        <dt>Projection stale</dt>
+        <dd>{{ runtimeStaleStagesSummary }}</dd>
+      </div>
+      <div>
+        <dt>Projection cycle</dt>
+        <dd>{{ runtimeCycleVersion }}</dd>
+      </div>
+      <div>
+        <dt>Projection recompute</dt>
+        <dd>{{ runtimeRecomputeVersion }}</dd>
       </div>
       <div>
         <dt>Advanced filter</dt>
@@ -5246,6 +5440,13 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
                 <span class="datagrid-stage__tree-chevron" aria-hidden="true">{{ row.state.expanded ? '▾' : '▸' }}</span>
                 <span class="datagrid-stage__tree-label">{{ resolveTreeGroupLabel(row) }}</span>
                 <span class="datagrid-stage__tree-count">{{ resolveTreeGroupChildrenCount(row) }}</span>
+                <span
+                  v-if="resolveTreeGroupAggregateSummary(row)"
+                  class="datagrid-stage__tree-aggregates"
+                  style="opacity:0.8; font-size:0.82em;"
+                >
+                  {{ resolveTreeGroupAggregateSummary(row) }}
+                </span>
               </button>
               <span
                 v-else-if="shouldShowGroupBadge(row, column.key)"

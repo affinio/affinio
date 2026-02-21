@@ -1,6 +1,6 @@
 # DataGrid GroupBy RowModel Projection
 
-Updated: `2026-02-08`
+Updated: `2026-02-21`
 
 This document defines canonical GroupBy architecture for `@affino/datagrid-core`.
 
@@ -51,6 +51,7 @@ raw rows
   -> optional filter
   -> optional sort
   -> groupBy(fields[])
+  -> aggregate(groupMeta.aggregates)
   -> flattenTree(expandedState)
   -> virtualization window
 ```
@@ -58,8 +59,52 @@ raw rows
 Critical ordering:
 
 - Grouping runs before flattening.
+- Aggregation runs after grouping and before pagination/visible materialization.
 - Virtualization runs after flattening.
 - Selection/range operations run on flattened rows.
+
+## Aggregation Model
+
+```ts
+interface DataGridAggregationModel<T = unknown> {
+  columns: readonly DataGridAggregationColumnSpec<T>[]
+  basis?: "filtered" | "source"
+}
+```
+
+- Aggregation is computed only from leaf rows.
+- Aggregates are stored in `row.groupMeta.aggregates`.
+- Source row payload (`row.data`) is never mutated by aggregation.
+- Default basis is `"filtered"` (totals for current filtered view).
+- `"source"` basis keeps the same projected group/tree structure but aggregates over full source leaves.
+- `countNonNull` is evaluated after column value normalization (`field` read + optional `coerce`).
+- `first` / `last` are evaluated in encountered projection order (not semantic order by any external key).
+
+## Runtime Aggregation API
+
+- `setAggregationModel(model | null): void`
+- `getAggregationModel(): DataGridAggregationModel | null`
+
+Behavior:
+
+- Client row model: updates aggregates reactively without runtime reset.
+- TreeData path/parent: aggregates are cached in tree projection cache and remain stable on collapse/expand.
+- Server/data-source models: API is accepted and reflected by model state contract (no client-side aggregate computation).
+
+## `setRows` vs `patchRows`
+
+- `setRows(...)`:
+  - full source replacement,
+  - full projection recompute.
+- `patchRows(...)`:
+  - partial row updates by `rowId`,
+  - field-aware invalidation (`filter/sort/group/aggregate`),
+  - Excel-like freeze by default (`recomputeSort/filter/group = false` unless explicitly enabled in patch options).
+
+Caveat for no-recompute policies:
+
+- If a stage is blocked (for example, `recomputeGroup: false`), projection may be intentionally stale until explicit recompute (`refresh()` or next allowed recompute cycle).
+- To reapply current sort/filter/group after edit-burst patches, call `refresh()` (or use patch options with `recompute*: true`).
 
 ## GroupBy Spec
 
