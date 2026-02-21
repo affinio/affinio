@@ -13,11 +13,13 @@ const webServerTimeoutMs = Number.isFinite(parsedWebServerTimeoutMs) && parsedWe
   ? parsedWebServerTimeoutMs
   : defaultWebServerTimeoutMs
 const vueWebServerCommand = shouldBuildWebServers
-  ? "pnpm --filter demo-vue build-only && pnpm --filter demo-vue preview --host 127.0.0.1 --port 4173"
-  : "test -f demo-vue/dist/index.html || pnpm --filter demo-vue build-only; pnpm --filter demo-vue preview --host 127.0.0.1 --port 4173"
+  ? "pnpm --filter demo-vue build-only && pnpm --filter demo-vue preview --host 127.0.0.1 --port 4173 --strictPort"
+  : "test -f demo-vue/dist/index.html || pnpm --filter demo-vue build-only; pnpm --filter demo-vue preview --host 127.0.0.1 --port 4173 --strictPort"
 const laravelWebServerCommand = shouldBuildWebServers
   ? "pnpm build && php artisan serve --host=127.0.0.1 --port=4180"
   : "test -f public/build/manifest.json || pnpm build; php artisan serve --host=127.0.0.1 --port=4180"
+const vueWebServerReadyUrl = "http://127.0.0.1:4173/index.html"
+const laravelWebServerReadyUrl = "http://127.0.0.1:4180/up"
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -35,19 +37,35 @@ export default defineConfig({
   webServer: [
     {
       command: vueWebServerCommand,
-      url: "http://127.0.0.1:4173",
+      url: vueWebServerReadyUrl,
       reuseExistingServer: !process.env.CI,
       timeout: webServerTimeoutMs,
+      stdout: "pipe",
+      stderr: "pipe",
+      gracefulShutdown: {
+        signal: "SIGTERM",
+        timeout: 5000,
+      },
     },
     {
       command: laravelWebServerCommand,
-      url: "http://127.0.0.1:4180",
+      url: laravelWebServerReadyUrl,
       reuseExistingServer: !process.env.CI,
       timeout: webServerTimeoutMs,
+      stdout: "pipe",
+      stderr: "pipe",
+      gracefulShutdown: {
+        signal: "SIGTERM",
+        timeout: 5000,
+      },
       cwd: "demo-laravel",
       env: {
         APP_ENV: "testing",
         APP_DEBUG: "true",
+        APP_URL: "http://127.0.0.1:4180",
+        SESSION_DRIVER: "file",
+        CACHE_STORE: "file",
+        QUEUE_CONNECTION: "sync",
       },
     },
   ],
