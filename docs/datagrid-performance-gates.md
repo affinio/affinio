@@ -57,6 +57,9 @@ CI harness (`DATAGRID_BENCH_MODE=ci`) applies:
   - `PERF_BUDGET_MAX_CONTROLLER_MS=30`
   - `PERF_BUDGET_MAX_RELAYOUT_MS=6`
 - Laravel morph:
+  - `ROOTS_PER_KIND=120`
+  - `ITERATIONS=560`
+  - `PERF_BUDGET_TOTAL_MS=9000`
   - `PERF_BUDGET_MAX_HYDRATE_RATE_PCT=25`
   - `PERF_BUDGET_MAX_OPEN_CLOSE_MS=2`
 - Row models (client/server/window-shift proxy):
