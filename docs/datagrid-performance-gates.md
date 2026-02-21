@@ -33,7 +33,9 @@ Per-benchmark outputs (JSON):
 - `artifacts/performance/bench-datagrid-interactions.json`
 - `artifacts/performance/bench-datagrid-datasource-churn.json`
 - `artifacts/performance/bench-datagrid-derived-cache.json`
+- `artifacts/performance/bench-datagrid-dependency-graph.json` (targeted dense dependency graph benchmark)
 - `artifacts/performance/bench-datagrid-tree-workload.json`
+- `artifacts/performance/bench-datagrid-tree-workload-matrix.json`
 - `artifacts/performance/bench-datagrid-rowmodels.json`
 
 Harness summary:
@@ -88,6 +90,12 @@ CI harness (`DATAGRID_BENCH_MODE=ci`) applies:
   - `PERF_BUDGET_MIN_STABLE_SORT_HIT_RATE_PCT=90`
   - `PERF_BUDGET_MIN_STABLE_GROUP_HIT_RATE_PCT=70`
   - `PERF_BUDGET_MIN_INVALIDATED_FILTER_MISSES=10`
+- Dependency graph (dense graph register/expand pressure; standalone assert command):
+  - `PERF_BUDGET_MAX_REGISTER_MS=2500`
+  - `PERF_BUDGET_MAX_STRUCTURAL_EXPAND_P95_MS=20`
+  - `PERF_BUDGET_MAX_COMPUTED_EXPAND_P95_MS=20`
+  - `PERF_BUDGET_MIN_STRUCTURAL_AFFECTED_MEAN=120`
+  - `PERF_BUDGET_MIN_COMPUTED_AFFECTED_MEAN=160`
 - Tree workload (deep hierarchy expand/filter/sort pressure):
   - `PERF_BUDGET_TOTAL_MS=9000`
   - `PERF_BUDGET_MAX_EXPAND_BURST_P95_MS=25`
@@ -97,6 +105,14 @@ CI harness (`DATAGRID_BENCH_MODE=ci`) applies:
 - Shared:
   - `PERF_BUDGET_MAX_VARIANCE_PCT=25`
   - `PERF_BUDGET_MAX_HEAP_DELTA_MB=80`
+
+Tree workload matrix profiles:
+- CI blocking profile:
+  - `pnpm run bench:datagrid:tree:matrix:assert:ci`
+  - row scales: `10k, 25k`
+- Nightly/stress profile:
+  - `pnpm run bench:datagrid:tree:matrix:assert:nightly`
+  - row scales: `10k, 25k, 50k, 100k`
 
 Perf-contract fail-fast gate:
 - `pnpm run quality:perf:datagrid`

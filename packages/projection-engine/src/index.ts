@@ -33,6 +33,7 @@ export interface PreparedProjectionStageGraph<Stage extends string> extends Proj
 
 export interface ProjectionStageEngineOptions<Stage extends string> extends ProjectionStageGraph<Stage> {
   refreshEntryStage: Stage
+  preparedGraph?: PreparedProjectionStageGraph<Stage>
 }
 
 export interface ProjectionStageEngine<Stage extends string> {
@@ -283,8 +284,21 @@ export function expandProjectionStages<Stage extends string>(
 export function createProjectionStageEngine<Stage extends string>(
   options: ProjectionStageEngineOptions<Stage>,
 ): ProjectionStageEngine<Stage> {
-  const { refreshEntryStage, ...graph } = options
-  const resolved = resolveProjectionGraph(graph, refreshEntryStage)
+  const { refreshEntryStage, preparedGraph, ...graph } = options
+  const resolved = preparedGraph
+    ? (() => {
+        const stageSet = new Set<Stage>(preparedGraph.declarationOrder)
+        if (!stageSet.has(refreshEntryStage)) {
+          throw new Error(
+            `[projection-engine] refreshEntryStage "${String(refreshEntryStage)}" is not part of prepared graph`,
+          )
+        }
+        return {
+          prepared: preparedGraph,
+          stageSet,
+        }
+      })()
+    : resolveProjectionGraph(graph, refreshEntryStage)
   const prepared = resolved.prepared
   const stageSet = resolved.stageSet
   const dirtyStages = new Set<Stage>()

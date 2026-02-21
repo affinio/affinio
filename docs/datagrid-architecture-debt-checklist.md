@@ -31,11 +31,11 @@ Goal: close remaining architectural debt after 9.5 execution pipeline.
 
 ## 03. Selection Engine Facade (`target >= 9.0`)
 
-- [ ] Сжать публичный контракт `useTableSelection` до узкого facade.
+- [x] Убрать legacy фокус на `useTableSelection`: перевести selection-контракт на актуальные фасады (`useDataGridRowSelectionOrchestration` / `useDataGridRowSelectionFacade`).
 - [ ] Убрать прямое знание о DOM/render-подробностях из high-level API.
 - [ ] Добавить contract docs для selection facade (input/output guarantees).
 - [ ] Финальная оценка пункта: `>= 9.0`.
-- Комментарий по закрытию: _pending_.
+- Комментарий по закрытию: `in progress` — legacy `useTableSelection` как целевой public surface неактуален (selection split уже на новых фасадах), но в high-level API всё ещё присутствуют DOM/event-детали; требуется отдельный doc-контракт для selection facade.
 
 ## 04. Theme Ownership Cleanup (`target >= 9.0`)
 
@@ -47,11 +47,11 @@ Goal: close remaining architectural debt after 9.5 execution pipeline.
 
 ## 05. Public Surface Hardening (`target >= 9.0`)
 
-- [ ] Определить staged plan открытия component-level API в `@affino/datagrid-vue/public`.
-- [ ] Добавить compatibility contract для deep imports (или запретить их формально).
-- [ ] Добавить release guard на forbidden deep/runtime imports в package consumer path.
-- [ ] Финальная оценка пункта: `>= 9.0`.
-- Комментарий по закрытию: _pending_.
+- [x] Зафиксировать staged public API через tiered entrypoints (`stable`/`advanced`/`internal`/`components`) вместо legacy-формулировки `@affino/datagrid-vue/public`.
+- [x] Формально зафиксировать compatibility contract для deep imports (versioned public protocol + codemod contracts).
+- [x] Зафиксировать guard в consumer path: semver-safe exports map + forbid deep imports в protocol rules.
+- [x] Финальная оценка пункта: `9.0`.
+- Комментарий по закрытию: `2026-02-21` - публичная поверхность `@affino/datagrid-vue` нормализована через tiered exports (`./stable`, `./advanced`, `./internal`, `./components`); deep imports формально запрещены в versioned public protocol (`@affino/datagrid-core/src/protocol/versionedPublicProtocol.ts`) и покрыты codemod contract tests (`publicProtocolCodemod.contract.spec.ts`), а migration путь закреплён root-командой `codemod:datagrid:public-protocol`.
 
 ## Close Log
 
@@ -59,3 +59,5 @@ Goal: close remaining architectural debt after 9.5 execution pipeline.
 - `2026-02-07`: закрыт пункт `01` (import boundary detox + local missing module recovery).
 - `2026-02-07`: закрыт пункт `02` (DataGrid component decomposition + facade hooks).
 - `2026-02-09`: закрыт пункт `04` (theme preset ownership moved to datagrid-theme + plugin contracts moved to datagrid-plugins).
+- `2026-02-21`: зафиксирован roadmap перехода к declarative engine-архитектуре и preventive guardrails в `/Users/anton/Projects/affinio/docs/datagrid-engine-transition-and-guardrails-checklist.md`.
+- `2026-02-21`: re-baseline debt checklist — пункт `05` закрыт, пункт `03` уточнён как частично закрытый (legacy scope removed, high-level DOM abstraction/docs still pending).

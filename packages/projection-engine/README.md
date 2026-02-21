@@ -50,6 +50,8 @@ Creates runtime with:
 - `expandStages(stages)`
 - `getStaleStages()`
 
+Optional: pass `preparedGraph` from `prepareProjectionStageGraph(...)` to reuse prevalidated topology in engine creation.
+
 ### `prepareProjectionStageGraph(graph, options?)`
 
 Prepares and validates graph once. Use this for repeated expansion operations to avoid repeated graph resolution/validation.

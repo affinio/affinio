@@ -27,6 +27,25 @@ describe("projection-engine", () => {
     expect(Array.from(expanded)).toEqual(["sort", "group"])
   })
 
+  it("reuses prepared graph for engine runtime", () => {
+    const prepared = prepareProjectionStageGraph<Stage>(GRAPH, { refreshEntryStage: "filter" })
+    const engine = createProjectionStageEngine<Stage>({
+      nodes: prepared.nodes,
+      preparedGraph: prepared,
+      refreshEntryStage: "filter",
+    })
+
+    engine.requestStages(["filter"])
+    const executed: Stage[] = []
+    const meta = engine.recompute((stage, shouldRecompute) => {
+      executed.push(stage)
+      return shouldRecompute
+    })
+
+    expect(executed).toEqual(["filter", "sort", "group"])
+    expect(meta?.recomputedStages).toEqual(["filter", "sort", "group"])
+  })
+
   it("tracks stale stages when requested but blocked", () => {
     const engine = createProjectionStageEngine<Stage>({
       ...GRAPH,
