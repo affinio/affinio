@@ -20,10 +20,13 @@ const laravelWebServerCommand = shouldBuildWebServers
   : "test -f public/build/manifest.json || pnpm build; php artisan serve --host=127.0.0.1 --port=4180"
 const vueWebServerReadyUrl = "http://127.0.0.1:4173/index.html"
 const laravelWebServerReadyUrl = "http://127.0.0.1:4180/up"
+const parsedWorkers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS ?? (isCi ? "3" : "3"), 10)
+const workers = Number.isFinite(parsedWorkers) && parsedWorkers > 0 ? parsedWorkers : 3
 
 export default defineConfig({
   testDir: "tests/e2e",
   timeout: 60_000,
+  workers,
   retries: process.env.CI ? 1 : 0,
   reporter: [
     ["list"],
@@ -33,6 +36,9 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:4173",
     trace: "on-first-retry",
+    launchOptions: {
+      args: ["--disable-dev-shm-usage"],
+    },
   },
   webServer: [
     {

@@ -138,10 +138,10 @@ async function runLongVerticalSession(viewport: Locator): Promise<void> {
   await viewport.evaluate(async element => {
     const maxTop = Math.max(0, element.scrollHeight - element.clientHeight)
     if (maxTop <= 0) return
-    const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
     for (let step = 1; step <= 12; step += 1) {
       element.scrollTop = Math.round((maxTop * step) / 12)
-      await frame()
+      await pause(16)
     }
   })
 }
@@ -150,10 +150,10 @@ async function runLongHorizontalSession(viewport: Locator): Promise<void> {
   await viewport.evaluate(async element => {
     const maxLeft = Math.max(0, element.scrollWidth - element.clientWidth)
     if (maxLeft <= 0) return
-    const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
     for (let step = 1; step <= 10; step += 1) {
       element.scrollLeft = Math.round((maxLeft * step) / 10)
-      await frame()
+      await pause(16)
     }
   })
 }
