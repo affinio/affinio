@@ -1,9 +1,9 @@
 {
-  "name": "@affino/treeview-core",
+  "name": "@affino/projection-engine",
   "version": "0.1.0",
   "author": "Anton Pavlov <a.pavlov@affino.dev>",
   "type": "module",
-  "description": "Headless treeview controller for Affino primitives",
+  "description": "Internal projection stage graph runtime for Affino headless cores",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -20,16 +20,13 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@affino/projection-engine": "workspace:*"
-  },
   "license": "MIT",
   "devDependencies": {
     "vitest": "^4.0.15"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/affinio/affinio/tree/main/packages/treeview-core"
+    "url": "https://github.com/affinio/affinio/tree/main/packages/projection-engine"
   },
   "homepage": "https://affino.dev",
   "bugs": {
@@ -37,10 +34,10 @@
   },
   "keywords": [
     "affino",
+    "projection",
+    "stage-graph",
     "core",
-    "headless",
-    "treeview",
-    "accessibility"
+    "internal"
   ],
   "module": "dist/index.js"
 }
