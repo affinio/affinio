@@ -62,6 +62,7 @@ CI harness (`DATAGRID_BENCH_MODE=ci`) applies:
   - `PERF_BUDGET_TOTAL_MS=9000`
   - `PERF_BUDGET_MAX_HYDRATE_RATE_PCT=25`
   - `PERF_BUDGET_MAX_OPEN_CLOSE_MS=2`
+  - `PERF_BUDGET_OPEN_CLOSE_EXCLUDE_PACKAGES=treeview` (open/close proxy is overlay-oriented; treeview expansion is covered by tree workload gates)
 - Row models (client/server/window-shift proxy):
   - `PERF_BUDGET_TOTAL_MS=9000`
   - `PERF_BUDGET_MAX_CLIENT_RANGE_P95_MS=5`
