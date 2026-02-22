@@ -59,5 +59,5 @@ Goal: close remaining architectural debt after 9.5 execution pipeline.
 - `2026-02-07`: закрыт пункт `01` (import boundary detox + local missing module recovery).
 - `2026-02-07`: закрыт пункт `02` (DataGrid component decomposition + facade hooks).
 - `2026-02-09`: закрыт пункт `04` (theme preset ownership moved to datagrid-theme + plugin contracts moved to datagrid-plugins).
-- `2026-02-21`: зафиксирован roadmap перехода к declarative engine-архитектуре и preventive guardrails в `/Users/anton/Projects/affinio/docs/datagrid-engine-transition-and-guardrails-checklist.md`.
+- `2026-02-21`: зафиксирован roadmap перехода к declarative engine-архитектуре и preventive guardrails в `/Users/anton/Projects/affinio/docs/archive/datagrid/checklists/datagrid-engine-transition-and-guardrails-checklist.md`.
 - `2026-02-21`: re-baseline debt checklist — пункт `05` закрыт, пункт `03` уточнён как частично закрытый (legacy scope removed, high-level DOM abstraction/docs still pending).

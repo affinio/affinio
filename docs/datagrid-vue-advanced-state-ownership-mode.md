@@ -37,4 +37,4 @@ Related docs:
 
 - `/Users/anton/Projects/affinio/docs/datagrid-vue-advanced-entrypoint.md`
 - `/Users/anton/Projects/affinio/docs/datagrid-cross-platform-adapter-protocol.md`
-- `/Users/anton/Projects/affinio/docs/datagrid-vue-demo-first-refactor-pipeline-checklist.md`
+- `/Users/anton/Projects/affinio/docs/archive/datagrid/checklists/datagrid-vue-demo-first-refactor-pipeline-checklist.md`

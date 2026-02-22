@@ -20,7 +20,7 @@ Fail-fast performance contract acceptance:
 - Report: `artifacts/quality/datagrid-perf-contracts-report.json`
 
 Architecture acceptance checklist:
-- `docs/datagrid-ag-architecture-acceptance-checklist.md`
+- `docs/archive/datagrid/checklists/datagrid-ag-architecture-acceptance-checklist.md`
 
 ## Mandatory Test Matrix
 

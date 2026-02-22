@@ -59,6 +59,6 @@ Scope: `@affino/datagrid-core`, `@affino/datagrid-vue`
 
 ## Quality and Operations References
 
-- Pipeline and closure log: `/Users/anton/Projects/affinio/docs/datagrid-engine-9.5-pipeline-checklist.md`
+- Pipeline and closure log: `/Users/anton/Projects/affinio/docs/archive/datagrid/checklists/datagrid-engine-9.5-pipeline-checklist.md`
 - Quality gates: `/Users/anton/Projects/affinio/docs/datagrid-quality-gates.md`
 - Performance gates: `/Users/anton/Projects/affinio/docs/datagrid-performance-gates.md`

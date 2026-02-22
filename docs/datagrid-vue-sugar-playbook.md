@@ -14,7 +14,7 @@ Sugar idealization and UX hardening pipelines are closed (`S1 -> S10`, `U1 -> U8
 4. Pagination, column-state roundtrip, history wrappers.
 5. Advanced filter helpers, tree/group controls, summary, visibility and row-height controls.
 
-Closure source of truth: `/Users/anton/Projects/affinio/docs/datagrid-vue-sugar-idealization-pipeline-checklist.md`.
+Closure source of truth: `/Users/anton/Projects/affinio/docs/archive/datagrid/checklists/datagrid-vue-sugar-idealization-pipeline-checklist.md`.
 
 ## 1) Quick Start (60 sec)
 

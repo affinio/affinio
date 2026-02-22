@@ -151,7 +151,7 @@ Goal: добавить aggregation engine в projection pipeline без дегр
   - Artifacts:
     - `/Users/anton/Projects/affinio/docs/datagrid-groupby-rowmodel-projection.md`
     - `/Users/anton/Projects/affinio/docs/datagrid-migration-guide.md`
-    - `/Users/anton/Projects/affinio/docs/datagrid-high-performance-closure-checklist.md`
+    - `/Users/anton/Projects/affinio/docs/archive/datagrid/checklists/datagrid-high-performance-closure-checklist.md`
 
 - [x] `A11` Phase 3 prep: incremental-ready cache shape
   - What:

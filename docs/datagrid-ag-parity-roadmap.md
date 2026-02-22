@@ -14,7 +14,7 @@ Goal: минимальный набор для AG Grid parity (community baselin
 
 ## Current Baseline (Already Done)
 
-Covered by `datagrid-sheets-baseline-feature-pipeline-checklist.md`:
+Covered by `docs/archive/datagrid/checklists/datagrid-sheets-baseline-feature-pipeline-checklist.md`:
 
 - Selection (cell + range) + keyboard navigation.
 - Sorting (single + multi) + API wiring.

@@ -28,7 +28,7 @@ This runs:
 ## Pipeline Mapping
 
 - Closes step `08.2` in:
-  - `/Users/anton/Projects/affinio/docs/datagrid-vue-demo-first-refactor-pipeline-checklist.md`
+  - `/Users/anton/Projects/affinio/docs/archive/datagrid/checklists/datagrid-vue-demo-first-refactor-pipeline-checklist.md`
 - Enables closing final score of step `08`.
 - Unblocks gate-only pending items in steps `10` and `11`.
 
