@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@affino/dialog-vue": "workspace:*",
-    "@affino/datagrid-core": "workspace:*",
+    "@affino/datagrid-vue": "workspace:*",
     "@affino/datagrid-theme": "workspace:*",
     "@affino/disclosure-vue": "workspace:*",
     "@affino/treeview-vue": "workspace:*",

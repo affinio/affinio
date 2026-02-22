@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue"
 import { RouterLink } from "vue-router"
-import type { DataGridClientRowReorderInput, DataGridColumnDef, DataGridRowNode } from "@affino/datagrid-core"
+import type { DataGridClientRowReorderInput, DataGridColumnDef, DataGridRowNode } from "@affino/datagrid-vue"
 import { AffinoDataGridSimple } from "@affino/datagrid-vue/components"
 
 interface IncidentRow {

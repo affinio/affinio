@@ -4,7 +4,7 @@ import type {
   DataGridAdvancedFilterExpression,
   DataGridColumnDef,
   DataGridColumnPin,
-} from "@affino/datagrid-core"
+} from "@affino/datagrid-vue"
 import { applyGridTheme, resolveGridThemeTokens, sugarTheme } from "@affino/datagrid-theme"
 import {
   useAffinoDataGrid,

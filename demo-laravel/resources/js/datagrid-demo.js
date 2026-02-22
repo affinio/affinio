@@ -1,4 +1,4 @@
-import { evaluateDataGridAdvancedFilterExpression } from "@affino/datagrid-core";
+import { evaluateDataGridAdvancedFilterExpression } from "@affino/datagrid-laravel";
 import {
     buildDataGridColumnLayers,
     createDataGridRuntime,
@@ -7,7 +7,7 @@ import {
     useDataGridManagedWheelScroll,
     resolveDataGridHeaderLayerViewportGeometry,
     resolveDataGridHeaderScrollSyncLeft,
-} from "@affino/datagrid-orchestration";
+} from "@affino/datagrid-laravel";
 
 const ROW_HEIGHT = 36;
 const OVERSCAN_ROWS = 8;

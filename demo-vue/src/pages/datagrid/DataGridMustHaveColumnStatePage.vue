@@ -6,7 +6,7 @@ import {
   type DataGridColumnDef,
   type DataGridColumnModelSnapshot,
   type DataGridColumnStateSnapshot,
-} from "@affino/datagrid-core"
+} from "@affino/datagrid-vue"
 import { AffinoDataGridSimple } from "@affino/datagrid-vue/components"
 
 interface IncidentRow {

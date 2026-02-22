@@ -24,7 +24,7 @@ import {
   type DataGridProjectionDiagnostics,
   type DataGridRowNode,
   type DataGridSortState,
-} from "@affino/datagrid-core"
+} from "@affino/datagrid-vue"
 import {
   applyGridTheme,
   defaultThemeTokens,

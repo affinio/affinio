@@ -13,7 +13,7 @@ import {
 import type {
   DataGridColumnPin,
   DataGridRowNode,
-} from "@affino/datagrid-core"
+} from "@affino/datagrid-vue"
 import type { UseAffinoDataGridResult } from "@affino/datagrid-vue"
 import { useDataGridManagedWheelScroll } from "@affino/datagrid-vue/advanced"
 import { useFloatingPopover, usePopoverController } from "@affino/popover-vue"

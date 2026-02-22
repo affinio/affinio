@@ -5,12 +5,12 @@ import {
   createClientRowModel,
   createDataGridColumnModel,
   type DataGridColumnDef,
-} from "@affino/datagrid-core"
+} from "@affino/datagrid-vue"
 import {
   createDataGridViewportController,
   type DataGridImperativeRowUpdatePayload,
   type DataGridVirtualWindowSnapshot,
-} from "@affino/datagrid-core/advanced"
+} from "@affino/datagrid-vue/advanced"
 
 interface IncidentRow {
   rowId: string

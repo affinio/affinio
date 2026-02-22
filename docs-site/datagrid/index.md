@@ -61,8 +61,12 @@ Affino DataGrid is:
 ## Sugar path (fast setup)
 
 1) **Vue integration**: ready component + composable UI → [/datagrid/vue-integration](/datagrid/vue-integration)
-2) **Sugar overview**: fast table without Core → [/datagrid/sugar-overview](/datagrid/sugar-overview)
-3) **Vue Sugar Playbook**: full `useAffinoDataGrid` path → [/datagrid/vue-sugar-playbook](/datagrid/vue-sugar-playbook)
+2) **Vue API Reference**: framework-facing API map (`datagrid-vue`) → [/datagrid/vue-api-reference](/datagrid/vue-api-reference)
+3) **Sugar overview**: fast table without Core → [/datagrid/sugar-overview](/datagrid/sugar-overview)
+4) **Vue Sugar Playbook**: full `useAffinoDataGrid` path → [/datagrid/vue-sugar-playbook](/datagrid/vue-sugar-playbook)
+5) **Laravel integration**: `datagrid-laravel` facade for Livewire/JS shells → [/datagrid/laravel-integration](/datagrid/laravel-integration)
+
+If you are building a Vue app and do not need headless Core wiring, start with the Sugar path and install only `@affino/datagrid-vue`.
 
 ## Operations & quality
 

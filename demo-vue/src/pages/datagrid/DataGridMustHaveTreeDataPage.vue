@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from "vue"
 import { RouterLink } from "vue-router"
-import type { DataGridColumnDef } from "@affino/datagrid-core"
-import { createClientRowModel } from "@affino/datagrid-core"
+import { createClientRowModel, type DataGridColumnDef } from "@affino/datagrid-vue"
 import {
   useAffinoDataGrid,
   type AffinoDataGridEditSession,

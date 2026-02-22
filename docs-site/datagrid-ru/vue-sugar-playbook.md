@@ -49,7 +49,7 @@ Row identity контракт (обязательно):
 ## 2) Полная конфигурация features
 
 ```ts
-import type { DataGridAdvancedFilterExpression } from "@affino/datagrid-core"
+import type { DataGridAdvancedFilterExpression } from "@affino/datagrid-vue"
 
 const grid = useAffinoDataGrid({
   rows,
@@ -216,4 +216,3 @@ grid.features.visibility.toggleColumnVisible("region")
 3. `grid.bindings.inlineEditor({ rowKey, columnKey })` — commit/cancel keyboard behavior.
 4. `grid.bindings.contextMenuRoot()` + `grid.bindings.contextMenuAction(actionId)` — keyboard‑safe menu.
 5. `grid.bindings.actionButton(actionId)` — toolbar actions.
-

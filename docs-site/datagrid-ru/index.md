@@ -61,8 +61,12 @@ Affino DataGrid is:
 ## Sugar (быстрый запуск)
 
 1) **Vue интеграция**: готовый компонент и composable‑UI → [/datagrid-ru/vue-integration](/datagrid-ru/vue-integration)
-2) **Sugar overview**: быстрый старт без Core → [/datagrid-ru/sugar-overview](/datagrid-ru/sugar-overview)
-3) **Vue Sugar Playbook**: полный маршрут через `useAffinoDataGrid` → [/datagrid-ru/vue-sugar-playbook](/datagrid-ru/vue-sugar-playbook)
+2) **Vue API Reference**: карта framework-facing API (`datagrid-vue`) → [/datagrid-ru/vue-api-reference](/datagrid-ru/vue-api-reference)
+3) **Sugar overview**: быстрый старт без Core → [/datagrid-ru/sugar-overview](/datagrid-ru/sugar-overview)
+4) **Vue Sugar Playbook**: полный маршрут через `useAffinoDataGrid` → [/datagrid-ru/vue-sugar-playbook](/datagrid-ru/vue-sugar-playbook)
+5) **Laravel интеграция**: фасад `datagrid-laravel` для Livewire/JS shell → [/datagrid-ru/laravel-integration](/datagrid-ru/laravel-integration)
+
+Если вы делаете Vue-приложение и вам не нужна headless‑сборка через Core, начинайте с Sugar‑маршрута и устанавливайте только `@affino/datagrid-vue`.
 
 ## Операции и качество
 
