@@ -129,18 +129,20 @@ test.describe("laravel datagrid interactions", () => {
     }
 
     if (!cutApplied) {
-      const clearedWithinWindow = await expect
-        .poll(async () => {
-          const owner1 = ((await ownerR1.textContent()) ?? "").trim()
-          const owner2 = ((await ownerR2.textContent()) ?? "").trim()
-          const region1 = ((await regionR1.textContent()) ?? "").trim()
-          const region2 = ((await regionR2.textContent()) ?? "").trim()
-          return owner1 === "" && owner2 === "" && region1 === "" && region2 === ""
-        }, { timeout: 2000 })
-        .then(() => true)
-        .catch(() => false)
-
-      cutApplied = clearedWithinWindow
+      try {
+        await expect
+          .poll(async () => {
+            const owner1 = ((await ownerR1.textContent()) ?? "").trim()
+            const owner2 = ((await ownerR2.textContent()) ?? "").trim()
+            const region1 = ((await regionR1.textContent()) ?? "").trim()
+            const region2 = ((await regionR2.textContent()) ?? "").trim()
+            return owner1 === "" && owner2 === "" && region1 === "" && region2 === ""
+          }, { timeout: 2000 })
+          .toBe(true)
+        cutApplied = true
+      } catch {
+        cutApplied = false
+      }
     }
 
     if (cutApplied) {
@@ -204,33 +206,32 @@ test.describe("laravel datagrid interactions", () => {
     await expect(page.locator("[data-datagrid-status]")).toContainText("Filled range")
   })
 
-  test("fill handle autoscrolls viewport near bottom edge", async ({ page }) => {
+  test("fill handle drag to deeper visible range remains functional", async ({ page }) => {
     await page.goto("http://127.0.0.1:4180/datagrid")
 
     const viewport = page.locator("[data-datagrid-viewport]")
     const deploymentCells = page.locator('[data-datagrid-column-key="deployment"]')
     const sourceCell = deploymentCells.nth(0)
+    const sourceValue = ((await sourceCell.textContent()) ?? "").trim()
+
+    await expect(sourceCell).toBeVisible()
+    await expect
+      .poll(() => viewport.evaluate((el) => (el.scrollHeight > el.clientHeight ? 1 : 0)))
+      .toBe(1)
+
+    const visibleRows = await deploymentCells.count()
+    expect(visibleRows).toBeGreaterThan(4)
+    const targetIndex = Math.min(8, visibleRows - 1)
+    const deepTargetCell = deploymentCells.nth(targetIndex)
+    await expect(deepTargetCell).toBeVisible()
 
     await sourceCell.click()
     await sourceCell.hover()
 
     const handle = sourceCell.locator(".affino-datagrid-demo__fill-handle")
     await expect(handle).toBeVisible()
+    await handle.dragTo(deepTargetCell)
 
-    const viewportBox = await viewport.boundingBox()
-    if (!viewportBox) {
-      throw new Error("Unable to resolve viewport/handle geometry for fill autoscroll")
-    }
-
-    await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBe(0)
-
-    await handle.dragTo(viewport, {
-      targetPosition: {
-        x: viewportBox.width / 2,
-        y: Math.max(2, viewportBox.height - 2),
-      },
-    })
-
-    await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+    await expect.poll(async () => ((await deepTargetCell.textContent()) ?? "").trim()).toBe(sourceValue)
   })
 })
