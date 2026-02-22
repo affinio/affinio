@@ -1,6 +1,6 @@
 {
   "name": "@affino/projection-engine",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "author": "Anton Pavlov <a.pavlov@affino.dev>",
   "type": "module",
   "description": "Internal projection stage graph runtime for Affino headless cores",
