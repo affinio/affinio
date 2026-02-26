@@ -45,7 +45,7 @@ pnpm --dir docs-site dev
 - Keep PR scope focused (one logical change).
 - Add/update tests for behavior changes.
 - Update docs/readme for public API or integration contract changes.
-- Add changeset for releasable package changes (or explain why not needed).
+- Add release notes context for releasable package changes (or explain why not needed).
 
 ## Ownership and review
 

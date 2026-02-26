@@ -19,7 +19,7 @@
 
 ## Release
 
-- [ ] Added/updated changeset (or documented why not needed)
+- [ ] Release notes impact documented (or marked as not applicable)
 - [ ] Updated package/docs changelog notes if behavior/API changed
 
 ## Risk Assessment
