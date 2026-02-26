@@ -24,6 +24,7 @@ import {
   type DataGridProjectionDiagnostics,
   type DataGridRowNode,
   type DataGridSortState,
+  serializeColumnValueToToken,
 } from "@affino/datagrid-vue"
 import {
   applyGridTheme,
@@ -207,6 +208,7 @@ type AdvancedFilterPreset =
   | "production-critical"
 
 type SetFilterApplyMode = "replace" | "add"
+type SetFilterScopeMode = "sourceAll" | "filtered"
 
 const DEFAULT_ROW_HEIGHT = 38
 const DRAG_AUTO_SCROLL_EDGE_PX = 36
@@ -276,6 +278,7 @@ const paginationPageSizeOptions = [
 ] as const
 const columnSetFilterSearch = ref("")
 const columnSetFilterApplyMode = ref<SetFilterApplyMode>("replace")
+const columnSetFilterScopeMode = ref<SetFilterScopeMode>("sourceAll")
 const columnSetFilterSelectedValues = ref<string[]>([])
 const columnStateAdapter = createInMemoryDataGridSettingsAdapter()
 const savedColumnState = ref<DataGridColumnStateSnapshot | null>(null)
@@ -833,6 +836,7 @@ const {
   onFilterEnumValueChange,
   onFilterValueInput,
   onFilterSecondValueInput,
+  setActiveValueSetTokens,
   doesOperatorNeedSecondValue,
   applyActiveColumnFilter,
   resetActiveColumnFilter,
@@ -840,30 +844,30 @@ const {
   rowMatchesColumnFilters,
 } = columnFilterOrchestration
 
-function parseFilterValueList(raw: string | null | undefined): string[] {
-  const normalized = String(raw ?? "").trim()
-  if (!normalized) {
-    return []
-  }
-  try {
-    const parsed = JSON.parse(normalized)
-    if (!Array.isArray(parsed)) {
-      return [normalized]
+function buildSourceAllSetFilterHistogram(columnKey: string): Array<{ token: string; value: string; count: number }> {
+  const counts = new Map<string, { value: unknown; count: number }>()
+  for (const row of sourceRows.value) {
+    const rawValue = getRowCellValue(row, columnKey)
+    const token = serializeColumnValueToToken(rawValue)
+    const current = counts.get(token)
+    if (current) {
+      current.count += 1
+    } else {
+      counts.set(token, { value: rawValue, count: 1 })
     }
-    return parsed
-      .map(item => String(item ?? "").trim())
-      .filter(Boolean)
-  } catch {
-    return [normalized]
   }
-}
 
-function serializeFilterValueList(values: readonly string[]): string {
-  return JSON.stringify(
-    values
-      .map(value => String(value ?? "").trim())
-      .filter(Boolean),
-  )
+  return [...counts.entries()]
+    .map(([token, entry]) => ({
+      token,
+      value: String(entry.value ?? "").trim(),
+      count: entry.count,
+    }))
+    .filter(entry => entry.token.length > 0 && entry.value.length > 0)
+    .sort((left, right) => left.value.localeCompare(right.value, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }))
 }
 
 function createSortStateSignature(entries: readonly DataGridSortState[]): string {
@@ -876,7 +880,7 @@ function createSortStateSignature(entries: readonly DataGridSortState[]): string
 }
 
 function createAppliedColumnFiltersSignature(
-  filters: Record<string, { kind: string; operator: string; value: string; value2?: string }>,
+  filters: Record<string, { kind: string; operator: string; value: string; value2?: string; valueTokens?: string[] }>,
 ): string {
   const keys = Object.keys(filters)
   if (!keys.length) {
@@ -886,7 +890,7 @@ function createAppliedColumnFiltersSignature(
   return keys
     .map((key) => {
       const filter = filters[key]
-      return `${key}:${filter?.kind ?? ""}:${filter?.operator ?? ""}:${filter?.value ?? ""}:${filter?.value2 ?? ""}`
+      return `${key}:${filter?.kind ?? ""}:${filter?.operator ?? ""}:${filter?.value ?? ""}:${filter?.value2 ?? ""}:${(filter?.valueTokens ?? []).join("|")}`
     })
     .join("|")
 }
@@ -896,8 +900,9 @@ function resolveInitialSetFilterValues(): string[] {
   if (!draft || draft.kind === "number") {
     return []
   }
-  if (draft.operator === "in-list" || draft.operator === "not-in-list") {
-    return parseFilterValueList(draft.value)
+  const encodedTokens = draft.valueTokens ?? []
+  if (encodedTokens.length > 0) {
+    return encodedTokens
   }
   const normalizedValue = draft.value.trim()
   if (!normalizedValue) {
@@ -920,6 +925,7 @@ watch(
     columnFilterDraft.value?.columnKey ?? "",
     columnFilterDraft.value?.operator ?? "",
     columnFilterDraft.value?.value ?? "",
+    (columnFilterDraft.value?.valueTokens ?? []).join("|"),
   ],
   () => {
     initializeSetFilterState()
@@ -932,11 +938,34 @@ const isSetFilterEnabled = computed(() => {
   return Boolean(draft && draft.kind !== "number")
 })
 
-const setFilterUniqueOptions = computed(() => {
+const setFilterHistogramEntries = computed(() => {
   const draft = columnFilterDraft.value
   if (!draft || draft.kind === "number") {
-    return [] as string[]
+    return [] as Array<{ token: string; value: string; count: number }>
   }
+
+  if (columnSetFilterScopeMode.value === "sourceAll") {
+    return buildSourceAllSetFilterHistogram(draft.columnKey)
+  }
+
+  const histogram = api.getColumnHistogram(draft.columnKey, {
+    scope: "filtered",
+    ignoreSelfFilter: true,
+    orderBy: "valueAsc",
+  })
+  if (histogram.length > 0) {
+    const entries = histogram
+      .map(entry => ({
+        token: String(entry.token ?? ""),
+        value: String(entry.value ?? "").trim(),
+        count: Number.isFinite(entry.count) ? Math.max(0, Math.trunc(entry.count)) : 0,
+      }))
+      .filter(entry => entry.token.length > 0 && entry.value.length > 0)
+    if (entries.length > 0) {
+      return entries
+    }
+  }
+
   const values = new Set<string>()
   for (const row of sourceRows.value) {
     const value = String(getRowCellValue(row, draft.columnKey) ?? "").trim()
@@ -944,19 +973,23 @@ const setFilterUniqueOptions = computed(() => {
       values.add(value)
     }
   }
-  return [...values].sort((left, right) =>
-    left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }),
-  )
+  return [...values]
+    .sort((left, right) =>
+      left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }),
+    )
+    .map(value => ({ token: `string:${value}`, value, count: 0 }))
 })
+
+  const setFilterUniqueOptions = computed(() => setFilterHistogramEntries.value.map(entry => entry.token))
 
 const normalizedSetFilterSearch = computed(() => columnSetFilterSearch.value.trim().toLowerCase())
 
-const setFilterVisibleOptions = computed(() => {
+const setFilterVisibleEntries = computed(() => {
   const search = normalizedSetFilterSearch.value
   if (!search) {
-    return setFilterUniqueOptions.value
+    return setFilterHistogramEntries.value
   }
-  return setFilterUniqueOptions.value.filter(option => option.toLowerCase().includes(search))
+  return setFilterHistogramEntries.value.filter(entry => entry.value.toLowerCase().includes(search))
 })
 
 const setFilterSelectedValueSet = computed(() => new Set(columnSetFilterSelectedValues.value))
@@ -990,8 +1023,8 @@ function onSetFilterValueChange(value: string, event: Event): void {
 
 function selectAllVisibleSetFilterValues(): void {
   const next = new Set(columnSetFilterSelectedValues.value)
-  for (const value of setFilterVisibleOptions.value) {
-    next.add(value)
+  for (const entry of setFilterVisibleEntries.value) {
+    next.add(entry.token)
   }
   columnSetFilterSelectedValues.value = setFilterUniqueOptions.value.filter(option => next.has(option))
 }
@@ -1018,12 +1051,11 @@ function applySetFilterSelection(): void {
 
   const values = setFilterUniqueOptions.value.filter(option => next.has(option))
   if (!values.length) {
-    onFilterValueInput("")
+    setActiveValueSetTokens([], { operator: "in-list" })
     applyActiveColumnFilter()
     return
   }
-  onFilterOperatorChange("in-list")
-  onFilterValueInput(serializeFilterValueList(values))
+  setActiveValueSetTokens(values, { operator: "in-list" })
   applyActiveColumnFilter()
 }
 
@@ -5154,6 +5186,29 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
                           placeholder="Search unique values"
                         />
                       </label>
+                      <div class="datagrid-column-filter__set-source">
+                        <span>Values source</span>
+                        <div class="datagrid-column-filter__set-mode">
+                          <button
+                            type="button"
+                            class="ghost"
+                            :class="{ 'is-active': columnSetFilterScopeMode === 'sourceAll' }"
+                            :aria-pressed="columnSetFilterScopeMode === 'sourceAll'"
+                            @click="columnSetFilterScopeMode = 'sourceAll'"
+                          >
+                            All values
+                          </button>
+                          <button
+                            type="button"
+                            class="ghost"
+                            :class="{ 'is-active': columnSetFilterScopeMode === 'filtered' }"
+                            :aria-pressed="columnSetFilterScopeMode === 'filtered'"
+                            @click="columnSetFilterScopeMode = 'filtered'"
+                          >
+                            Context values
+                          </button>
+                        </div>
+                      </div>
                       <div class="datagrid-column-filter__set-mode">
                         <button
                           type="button"
@@ -5188,18 +5243,19 @@ function buildRows(count: number, seedValue: number): IncidentRow[] {
                       </div>
                       <div class="datagrid-column-filter__set-list" data-datagrid-filter-set-options>
                         <label
-                          v-for="option in setFilterVisibleOptions"
-                          :key="`set-filter-option-${option}`"
+                          v-for="entry in setFilterVisibleEntries"
+                          :key="`set-filter-option-${entry.token}`"
                           class="datagrid-column-filter__set-option"
                         >
                           <input
                             type="checkbox"
-                            :checked="isSetFilterValueSelected(option)"
-                            @change="onSetFilterValueChange(option, $event)"
+                            :checked="isSetFilterValueSelected(entry.token)"
+                            @change="onSetFilterValueChange(entry.token, $event)"
                           />
-                          <span>{{ option }}</span>
+                          <span>{{ entry.value }}</span>
+                          <small v-if="entry.count > 0" class="datagrid-column-filter__set-option-count">{{ entry.count }}</small>
                         </label>
-                        <p v-if="setFilterVisibleOptions.length === 0" class="datagrid-column-filter__set-empty">
+                        <p v-if="setFilterVisibleEntries.length === 0" class="datagrid-column-filter__set-empty">
                           No values matched search.
                         </p>
                       </div>
