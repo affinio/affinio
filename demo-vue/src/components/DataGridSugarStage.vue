@@ -381,6 +381,20 @@ const resolveNodeKey = (node: DataGridRowNode<RowLike>, fallbackIndex: number): 
   return String(node.rowId ?? node.rowKey ?? fallbackIndex)
 }
 
+const resolveLeafRowIdentity = (node: DataGridRowNode<RowLike>): string => (
+  node.kind === "leaf" ? String(node.rowId ?? node.rowKey ?? "") : ""
+)
+
+const isPivotSubtotalRow = (node: DataGridRowNode<RowLike>): boolean => (
+  node.kind === "leaf"
+  && resolveLeafRowIdentity(node).startsWith("pivot:subtotal:")
+)
+
+const isPivotGrandTotalRow = (node: DataGridRowNode<RowLike>): boolean => (
+  node.kind === "leaf"
+  && resolveLeafRowIdentity(node) === "pivot:grand-total"
+)
+
 const resolveDisplayValue = (row: RowLike, columnKey: string): string => {
   const value = row[columnKey as keyof RowLike]
   return value == null ? "" : String(value)
@@ -993,6 +1007,10 @@ onBeforeUnmount(() => {
         v-for="(rowNode, rowIndex) in renderedRows"
         :key="resolveNodeKey(rowNode, resolveRenderedRowIndex(rowIndex))"
         class="datagrid-sugar-stage__row"
+        :class="{
+          'is-pivot-subtotal': isPivotSubtotalRow(rowNode),
+          'is-pivot-grand-total': isPivotGrandTotalRow(rowNode),
+        }"
         :style="{ gridTemplateColumns }"
       >
         <template v-if="rowNode.kind === 'group' && !treeTabular">

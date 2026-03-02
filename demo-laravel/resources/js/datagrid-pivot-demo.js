@@ -73,7 +73,8 @@ function buildRows(count, generation = 1) {
 
 function resolvePivotModel(root) {
   const enabledSelect = root.querySelector("[data-pivot-enabled]")
-  const rowFieldSelect = root.querySelector("[data-pivot-row-field]")
+  const rowFieldPrimarySelect = root.querySelector("[data-pivot-row-field]")
+  const rowFieldSecondarySelect = root.querySelector("[data-pivot-row-field-secondary]")
   const columnFieldSelect = root.querySelector("[data-pivot-column-field]")
   const valuePresetSelect = root.querySelector("[data-pivot-value-preset]")
 
@@ -81,19 +82,27 @@ function resolvePivotModel(root) {
   if (!enabled) {
     return null
   }
-  const rowField = String(rowFieldSelect?.value ?? "region").trim()
+  const rowFieldPrimary = String(rowFieldPrimarySelect?.value ?? "region").trim()
+  const rowFieldSecondary = String(rowFieldSecondarySelect?.value ?? "none").trim()
   const columnField = String(columnFieldSelect?.value ?? "year").trim()
   const valuePresetKey = String(valuePresetSelect?.value ?? "revenue:sum").trim()
   const valuePreset = VALUE_PRESETS[valuePresetKey] ?? VALUE_PRESETS["revenue:sum"]
 
-  if (rowField === "none" || columnField === "none") {
+  if (rowFieldPrimary === "none" || columnField === "none") {
     return null
   }
 
+  const rowAxes = [rowFieldPrimary]
+  if (rowFieldSecondary !== "none" && rowFieldSecondary !== rowFieldPrimary) {
+    rowAxes.push(rowFieldSecondary)
+  }
+
   return {
-    rows: [rowField],
+    rows: rowAxes,
     columns: [columnField],
     values: [{ field: valuePreset.field, agg: valuePreset.agg }],
+    rowSubtotals: true,
+    grandTotal: true,
   }
 }
 
@@ -104,7 +113,8 @@ function mountPivotDemo(root) {
 
   const sizeSelect = root.querySelector("[data-pivot-size]")
   const enabledSelect = root.querySelector("[data-pivot-enabled]")
-  const rowFieldSelect = root.querySelector("[data-pivot-row-field]")
+  const rowFieldPrimarySelect = root.querySelector("[data-pivot-row-field]")
+  const rowFieldSecondarySelect = root.querySelector("[data-pivot-row-field-secondary]")
   const columnFieldSelect = root.querySelector("[data-pivot-column-field]")
   const valuePresetSelect = root.querySelector("[data-pivot-value-preset]")
   const randomizeButton = root.querySelector("[data-pivot-randomize]")
@@ -120,7 +130,8 @@ function mountPivotDemo(root) {
   if (
     !(sizeSelect instanceof HTMLSelectElement) ||
     !(enabledSelect instanceof HTMLSelectElement) ||
-    !(rowFieldSelect instanceof HTMLSelectElement) ||
+    !(rowFieldPrimarySelect instanceof HTMLSelectElement) ||
+    !(rowFieldSecondarySelect instanceof HTMLSelectElement) ||
     !(columnFieldSelect instanceof HTMLSelectElement) ||
     !(valuePresetSelect instanceof HTMLSelectElement) ||
     !(randomizeButton instanceof HTMLButtonElement) ||
@@ -229,8 +240,16 @@ function mountPivotDemo(root) {
   }
 
   const applyPivotModel = () => {
-    if (enabledSelect.value === "on" && rowFieldSelect.value === columnFieldSelect.value && rowFieldSelect.value !== "none") {
-      columnFieldSelect.value = columnFieldSelect.value === "year" ? "quarter" : "year"
+    if (enabledSelect.value === "on") {
+      if (rowFieldSecondarySelect.value !== "none" && rowFieldSecondarySelect.value === rowFieldPrimarySelect.value) {
+        rowFieldSecondarySelect.value = "none"
+      }
+      if (columnFieldSelect.value === rowFieldPrimarySelect.value || columnFieldSelect.value === rowFieldSecondarySelect.value) {
+        const fallback = ["year", "quarter", "region", "team", "owner"].find(field => {
+          return field !== rowFieldPrimarySelect.value && field !== rowFieldSecondarySelect.value
+        })
+        columnFieldSelect.value = fallback ?? "year"
+      }
     }
     const model = resolvePivotModel(root)
     api.setPivotModel(model)
@@ -267,7 +286,8 @@ function mountPivotDemo(root) {
   const onRandomize = () => randomizeRows()
   const onReset = () => {
     enabledSelect.value = "on"
-    rowFieldSelect.value = "region"
+    rowFieldPrimarySelect.value = "region"
+    rowFieldSecondarySelect.value = "team"
     columnFieldSelect.value = "year"
     valuePresetSelect.value = "revenue:sum"
     applyPivotModel()
@@ -275,7 +295,8 @@ function mountPivotDemo(root) {
 
   sizeSelect.addEventListener("change", onSizeChange)
   enabledSelect.addEventListener("change", onControlsChange)
-  rowFieldSelect.addEventListener("change", onControlsChange)
+  rowFieldPrimarySelect.addEventListener("change", onControlsChange)
+  rowFieldSecondarySelect.addEventListener("change", onControlsChange)
   columnFieldSelect.addEventListener("change", onControlsChange)
   valuePresetSelect.addEventListener("change", onControlsChange)
   randomizeButton.addEventListener("click", onRandomize)
@@ -291,7 +312,8 @@ function mountPivotDemo(root) {
     unsubscribe()
     sizeSelect.removeEventListener("change", onSizeChange)
     enabledSelect.removeEventListener("change", onControlsChange)
-    rowFieldSelect.removeEventListener("change", onControlsChange)
+    rowFieldPrimarySelect.removeEventListener("change", onControlsChange)
+    rowFieldSecondarySelect.removeEventListener("change", onControlsChange)
     columnFieldSelect.removeEventListener("change", onControlsChange)
     valuePresetSelect.removeEventListener("change", onControlsChange)
     randomizeButton.removeEventListener("click", onRandomize)

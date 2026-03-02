@@ -58,6 +58,18 @@
                 </label>
 
                 <label class="affino-datagrid-pivot__control">
+                    <span>Rows axis 2</span>
+                    <select data-pivot-row-field-secondary>
+                        <option value="none">none</option>
+                        <option value="region">region</option>
+                        <option value="team" selected>team</option>
+                        <option value="owner">owner</option>
+                        <option value="year">year</option>
+                        <option value="quarter">quarter</option>
+                    </select>
+                </label>
+
+                <label class="affino-datagrid-pivot__control">
                     <span>Columns axis</span>
                     <select data-pivot-column-field>
                         <option value="year" selected>year</option>
@@ -125,4 +137,3 @@
         </div>
     </section>
 </div>
-

@@ -77,7 +77,8 @@ const rowCount = ref(480)
 const generation = ref(1)
 const rows = ref<PivotDemoRow[]>(createRows(rowCount.value, generation.value))
 
-const rowField = ref<PivotField>("region")
+const rowFieldPrimary = ref<PivotField>("region")
+const rowFieldSecondary = ref<PivotField>("team")
 const columnField = ref<PivotField>("year")
 const valuePreset = ref<PivotValuePreset>("revenue:sum")
 const pivotEnabled = ref(true)
@@ -149,14 +150,23 @@ const buildPivotModel = (): DataGridPivotSpec | null => {
   if (!pivotEnabled.value) {
     return null
   }
-  if (rowField.value === "none" || columnField.value === "none") {
+  if (rowFieldPrimary.value === "none" || columnField.value === "none") {
     return null
   }
   const value = parseValuePreset(valuePreset.value)
+  const rowAxes: string[] = [rowFieldPrimary.value]
+  if (
+    rowFieldSecondary.value !== "none"
+    && rowFieldSecondary.value !== rowFieldPrimary.value
+  ) {
+    rowAxes.push(rowFieldSecondary.value)
+  }
   return {
-    rows: [rowField.value],
+    rows: rowAxes,
     columns: [columnField.value],
     values: [{ field: value.field, agg: value.agg }],
+    rowSubtotals: true,
+    grandTotal: true,
   }
 }
 
@@ -178,9 +188,17 @@ const applyPivotModel = (): void => {
   status.value = `Pivot: rows=${nextModel.rows.join(",")} columns=${nextModel.columns.join(",")} value=${value?.field}:${value?.agg}`
 }
 
-watch([pivotEnabled, rowField, columnField, valuePreset], () => {
-  if (pivotEnabled.value && rowField.value !== "none" && rowField.value === columnField.value) {
-    columnField.value = columnField.value === "year" ? "quarter" : "year"
+watch([pivotEnabled, rowFieldPrimary, rowFieldSecondary, columnField, valuePreset], () => {
+  if (pivotEnabled.value) {
+    if (rowFieldSecondary.value !== "none" && rowFieldSecondary.value === rowFieldPrimary.value) {
+      rowFieldSecondary.value = "none"
+    }
+    if (columnField.value === rowFieldPrimary.value || columnField.value === rowFieldSecondary.value) {
+      const fallback = (["year", "quarter", "region", "team", "owner"] as const).find(field => {
+        return field !== rowFieldPrimary.value && field !== rowFieldSecondary.value
+      })
+      columnField.value = fallback ?? "year"
+    }
   }
   applyPivotModel()
 }, { immediate: true })
@@ -204,7 +222,8 @@ const randomizeRevenue = (): void => {
 
 const resetPivot = (): void => {
   pivotEnabled.value = true
-  rowField.value = "region"
+  rowFieldPrimary.value = "region"
+  rowFieldSecondary.value = "team"
   columnField.value = "year"
   valuePreset.value = "revenue:sum"
   applyPivotModel()
@@ -249,13 +268,25 @@ const resetPivot = (): void => {
 
       <label>
         <span>Rows axis</span>
-        <select v-model="rowField">
+        <select v-model="rowFieldPrimary">
           <option value="region">region</option>
           <option value="team">team</option>
           <option value="owner">owner</option>
           <option value="year">year</option>
           <option value="quarter">quarter</option>
           <option value="none">none</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Rows axis 2</span>
+        <select v-model="rowFieldSecondary">
+          <option value="none">none</option>
+          <option value="region">region</option>
+          <option value="team">team</option>
+          <option value="owner">owner</option>
+          <option value="year">year</option>
+          <option value="quarter">quarter</option>
         </select>
       </label>
 
