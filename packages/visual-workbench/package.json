@@ -10,7 +10,7 @@
     "test:visual": "storybook build --quiet && concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"pnpm run serve:storybook\" \"pnpm run test:visual:runner\""
   },
   "devDependencies": {
-    "@storybook/addon-a11y": "^10.2.10",
+    "@storybook/addon-a11y": "^10.2.13",
     "@storybook/addon-docs": "^10.2.10",
     "@storybook/test-runner": "^0.24.2",
     "@storybook/vue3": "^10.2.10",
