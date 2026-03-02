@@ -363,4 +363,103 @@
         @apply bg-sky-200/20 text-sky-100;
         outline: none;
     }
+
+    .affino-datagrid-pivot {
+        @apply grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)];
+    }
+
+    .affino-datagrid-pivot__sidebar {
+        @apply grid gap-3;
+    }
+
+    .affino-datagrid-pivot__controls {
+        @apply grid gap-2;
+    }
+
+    .affino-datagrid-pivot__control {
+        @apply flex flex-col gap-1 text-xs uppercase tracking-[0.12em] text-[var(--text-muted)];
+    }
+
+    .affino-datagrid-pivot__control select {
+        @apply rounded-[0.75rem] border border-[var(--panel-border)] bg-[rgba(7,10,19,0.96)] px-3 py-2 text-sm normal-case tracking-normal text-[var(--text-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-sky-300/70;
+    }
+
+    .affino-datagrid-pivot__actions {
+        @apply grid gap-2 sm:grid-cols-2;
+    }
+
+    .affino-datagrid-pivot__button {
+        @apply inline-flex items-center justify-center rounded-[0.75rem] border border-sky-300/70 bg-sky-200/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-sky-100 transition-colors duration-150 hover:bg-sky-200/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/70;
+    }
+
+    .affino-datagrid-pivot__button.ghost {
+        @apply border-[var(--panel-border)] bg-white/5 text-[var(--text-soft)] hover:bg-white/10;
+    }
+
+    .affino-datagrid-pivot__meta {
+        @apply grid gap-2 sm:grid-cols-2;
+    }
+
+    .affino-datagrid-pivot__meta div {
+        @apply rounded-[0.75rem] border border-[var(--panel-border)] bg-[rgba(7,10,19,0.86)] px-3 py-2;
+    }
+
+    .affino-datagrid-pivot__meta dt {
+        @apply text-[0.62rem] uppercase tracking-[0.16em] text-[var(--text-muted)];
+    }
+
+    .affino-datagrid-pivot__meta dd {
+        @apply mt-1 text-sm font-semibold text-[var(--text-strong)];
+    }
+
+    .affino-datagrid-pivot__preview {
+        @apply rounded-[0.75rem] border border-[var(--panel-border)] bg-[rgba(7,10,19,0.86)] px-3 py-2;
+    }
+
+    .affino-datagrid-pivot__preview p {
+        @apply m-0 text-[0.62rem] uppercase tracking-[0.16em] text-[var(--text-muted)];
+    }
+
+    .affino-datagrid-pivot__preview ul {
+        @apply mt-2 grid gap-1;
+        list-style: none;
+        padding: 0;
+        margin-bottom: 0;
+    }
+
+    .affino-datagrid-pivot__preview li {
+        @apply rounded-[0.6rem] border border-[var(--panel-border)] bg-[rgba(5,8,16,0.84)] px-2 py-1 text-xs text-[var(--text-strong)];
+    }
+
+    .affino-datagrid-pivot__stage {
+        @apply min-w-0 overflow-hidden rounded-[0.9rem] border border-[var(--panel-border)] bg-[rgba(5,8,16,0.95)];
+    }
+
+    .affino-datagrid-pivot__viewport {
+        @apply max-h-[640px] overflow-auto;
+    }
+
+    .affino-datagrid-pivot__table {
+        width: max-content;
+        min-width: 100%;
+        border-collapse: collapse;
+    }
+
+    .affino-datagrid-pivot__table thead th {
+        @apply sticky top-0 z-10 border-b border-[rgba(145,170,210,0.24)] bg-[rgba(11,17,31,0.98)] px-3 py-2 text-left text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-strong)];
+    }
+
+    .affino-datagrid-pivot__table tbody td {
+        @apply border-b border-[rgba(145,170,210,0.14)] border-r border-[rgba(145,170,210,0.12)] bg-[rgba(7,10,19,0.92)] px-3 py-2 text-xs text-[var(--text-soft)];
+        white-space: nowrap;
+    }
+
+    .affino-datagrid-pivot__table tbody tr:nth-child(even) td {
+        background: rgba(9, 14, 24, 0.94);
+    }
+
+    .affino-datagrid-pivot__table tbody td:last-child,
+    .affino-datagrid-pivot__table thead th:last-child {
+        border-right: none;
+    }
 }

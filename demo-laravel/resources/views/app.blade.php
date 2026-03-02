@@ -41,6 +41,14 @@
             'href' => 'https://github.com/affinio/affinio/tree/main/packages/datagrid-core',
         ],
         [
+            'value' => 'datagrid-pivot',
+            'name' => 'DataGrid Pivot',
+            'path' => '/datagrid/pivot',
+            'description' => 'Dedicated pivot route: rows/columns/value aggregation with dynamic columns.',
+            'status' => 'Preview',
+            'href' => 'https://github.com/affinio/affinio/tree/main/packages/datagrid-core',
+        ],
+        [
             'value' => 'menus',
             'name' => 'Menus',
             'path' => '/menus',

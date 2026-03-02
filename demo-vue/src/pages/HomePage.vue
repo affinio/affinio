@@ -64,6 +64,12 @@ const advancedFlows = [
     label: "DataGrid sugar",
   },
   {
+    title: "DataGrid Pivot",
+    description: "Rows/columns/value axes with dynamic pivot columns.",
+    to: "/datagrid/pivot",
+    label: "Pivot route",
+  },
+  {
     title: "Livewire adapters",
     description: "Laravel demo mirrors this layout.",
     href: "http://127.0.0.1:4180",

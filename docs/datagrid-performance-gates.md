@@ -33,6 +33,7 @@ Per-benchmark outputs (JSON):
 - `artifacts/performance/bench-datagrid-interactions.json`
 - `artifacts/performance/bench-datagrid-datasource-churn.json`
 - `artifacts/performance/bench-datagrid-derived-cache.json`
+- `artifacts/performance/bench-datagrid-pivot-workload.json`
 - `artifacts/performance/bench-datagrid-dependency-graph.json` (targeted dense dependency graph benchmark)
 - `artifacts/performance/bench-datagrid-tree-workload.json`
 - `artifacts/performance/bench-datagrid-tree-workload-matrix.json`
@@ -99,6 +100,21 @@ CI harness (`DATAGRID_BENCH_MODE=ci`) applies:
   - `PERF_BUDGET_MIN_STABLE_SORT_HIT_RATE_PCT=90`
   - `PERF_BUDGET_MIN_STABLE_GROUP_HIT_RATE_PCT=70`
   - `PERF_BUDGET_MIN_INVALIDATED_FILTER_MISSES=10`
+- Pivot workload (pivot stage rebuild + patch frozen/reapply pressure):
+  - `BENCH_PIVOT_ROW_COUNT=20000`
+  - `BENCH_PIVOT_REBUILD_ITERATIONS=100`
+  - `BENCH_PIVOT_PATCH_FROZEN_ITERATIONS=140`
+  - `BENCH_PIVOT_PATCH_REAPPLY_ITERATIONS=80`
+  - `BENCH_PIVOT_MEASUREMENT_BATCH_SIZE=2`
+  - `BENCH_PIVOT_WARMUP_BATCHES=0`
+  - `PERF_BUDGET_TOTAL_MS=9000`
+  - `PERF_BUDGET_MAX_PIVOT_REBUILD_P95_MS=30`
+  - `PERF_BUDGET_MAX_PIVOT_REBUILD_P99_MS=45`
+  - `PERF_BUDGET_MAX_PIVOT_PATCH_FROZEN_P95_MS=8`
+  - `PERF_BUDGET_MAX_PIVOT_PATCH_FROZEN_P99_MS=14`
+  - `PERF_BUDGET_MAX_PIVOT_PATCH_REAPPLY_P95_MS=20`
+  - `PERF_BUDGET_MAX_PIVOT_PATCH_REAPPLY_P99_MS=35`
+  - `PERF_BUDGET_MIN_PIVOT_COLUMNS=2`
 - Dependency graph (dense graph register/expand pressure; standalone assert command):
   - `PERF_BUDGET_MAX_REGISTER_MS=2500`
   - `PERF_BUDGET_MAX_STRUCTURAL_EXPAND_P95_MS=20`
@@ -127,7 +143,7 @@ Perf-contract fail-fast gate:
 - `pnpm run quality:perf:datagrid`
 - Script: `scripts/check-datagrid-perf-contracts.mjs`
 - Report: `artifacts/quality/datagrid-perf-contracts-report.json`
-- Includes static guard for benchmark harness task matrix (`vue-adapters`, `laravel-morph`, `interaction-models`, `datasource-churn`, `derived-cache`, `tree-workload`, `row-models`) and mode-scoped budget wiring.
+- Includes static guard for benchmark harness task matrix (`vue-adapters`, `laravel-morph`, `interaction-models`, `datasource-churn`, `derived-cache`, `pivot-workload`, `tree-workload`, `row-models`) and mode-scoped budget wiring.
 
 Fail-fast behavior:
 - Harness exits non-zero when any benchmark fails budget checks.

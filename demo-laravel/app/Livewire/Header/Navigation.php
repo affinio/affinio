@@ -36,6 +36,7 @@ class Navigation extends Component
             ['value' => 'listbox', 'name' => 'Listbox', 'path' => '/listbox'],
             ['value' => 'combobox', 'name' => 'Combobox', 'path' => '/combobox'],
             ['value' => 'datagrid', 'name' => 'DataGrid', 'path' => '/datagrid'],
+            ['value' => 'datagrid-pivot', 'name' => 'DataGrid Pivot', 'path' => '/datagrid/pivot'],
             ['value' => 'menus', 'name' => 'Menus', 'path' => '/menus'],
             ['value' => 'popovers', 'name' => 'Popovers', 'path' => '/popovers'],
             ['value' => 'dialogs', 'name' => 'Dialogs', 'path' => '/dialogs'],

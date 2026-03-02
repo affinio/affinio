@@ -2,6 +2,7 @@
 
 use App\Livewire\Page\Combobox as ComboboxPage;
 use App\Livewire\Page\DataGrid as DataGridPage;
+use App\Livewire\Page\DataGridPivot as DataGridPivotPage;
 use App\Livewire\Page\Dialogs as DialogsPage;
 use App\Livewire\Page\Disclosure as DisclosurePage;
 use App\Livewire\Page\Listbox as ListboxPage;
@@ -20,6 +21,7 @@ Route::get('/disclosure', DisclosurePage::class)->name('pages.disclosure');
 Route::get('/listbox', ListboxPage::class)->name('pages.listbox');
 Route::get('/combobox', ComboboxPage::class)->name('pages.combobox');
 Route::get('/datagrid', DataGridPage::class)->name('pages.datagrid');
+Route::get('/datagrid/pivot', DataGridPivotPage::class)->name('pages.datagrid-pivot');
 Route::get('/menus', MenusPage::class)->name('pages.menus');
 Route::get('/popovers', PopoversPage::class)->name('pages.popovers');
 Route::get('/dialogs', DialogsPage::class)->name('pages.dialogs');

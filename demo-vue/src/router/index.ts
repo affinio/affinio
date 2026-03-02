@@ -81,6 +81,12 @@ const router = createRouter({
       meta: { layoutWidth: "full", lockMainScroll: true, fitViewport: true },
     },
     {
+      path: "/datagrid/pivot",
+      name: "datagrid-pivot-demo",
+      component: () => import("@/pages/datagrid/DataGridPivotPage.vue"),
+      meta: { layoutWidth: "full", lockMainScroll: true, fitViewport: true },
+    },
+    {
       path: "/dialogs",
       name: "dialog-demo",
       component: () => import("@/pages/DialogPage.vue"),
