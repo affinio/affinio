@@ -54,6 +54,17 @@ Component-only entrypoint (template usage).
 ### `@affino/datagrid-vue/advanced`
 
 Advanced Vue composables for custom interaction/layout wiring.
+Compatibility barrel for legacy-wide imports.
+
+Preferred domain entrypoints for new integrations:
+
+- `@affino/datagrid-vue/advanced/layout`
+- `@affino/datagrid-vue/advanced/pointer`
+- `@affino/datagrid-vue/advanced/selection`
+- `@affino/datagrid-vue/advanced/editing`
+- `@affino/datagrid-vue/advanced/clipboard`
+- `@affino/datagrid-vue/advanced/filtering`
+- `@affino/datagrid-vue/advanced/history`
 
 Typical uses:
 
@@ -181,4 +192,3 @@ Use direct `@affino/datagrid-core` or `@affino/datagrid-orchestration` imports o
 - non-Vue adapters
 - low-level deterministic runtime experiments
 - docs/tests for core/orchestration packages themselves
-

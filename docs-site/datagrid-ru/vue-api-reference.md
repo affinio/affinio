@@ -54,6 +54,17 @@ Stable-фасад также реэкспортит общие типы и pure 
 ### `@affino/datagrid-vue/advanced`
 
 Advanced Vue composables для кастомной wiring-логики interaction/layout.
+Compatibility barrel для legacy-wide import.
+
+Для новых интеграций предпочитайте domain entrypoints:
+
+- `@affino/datagrid-vue/advanced/layout`
+- `@affino/datagrid-vue/advanced/pointer`
+- `@affino/datagrid-vue/advanced/selection`
+- `@affino/datagrid-vue/advanced/editing`
+- `@affino/datagrid-vue/advanced/clipboard`
+- `@affino/datagrid-vue/advanced/filtering`
+- `@affino/datagrid-vue/advanced/history`
 
 Типичные случаи:
 
@@ -181,4 +192,3 @@ runtime.autoReapply.value = true
 - не-Vue адаптеры
 - low-level deterministic runtime эксперименты
 - документацию/тесты для самих core/orchestration пакетов
-

@@ -47,11 +47,11 @@ Goal: close remaining architectural debt after 9.5 execution pipeline.
 
 ## 05. Public Surface Hardening (`target >= 9.0`)
 
-- [x] Зафиксировать staged public API через tiered entrypoints (`stable`/`advanced`/`internal`/`components`) вместо legacy-формулировки `@affino/datagrid-vue/public`.
+- [x] Зафиксировать staged public API через tiered entrypoints (`stable`/`advanced`/`components`) вместо legacy-формулировки `@affino/datagrid-vue/public`.
 - [x] Формально зафиксировать compatibility contract для deep imports (versioned public protocol + codemod contracts).
 - [x] Зафиксировать guard в consumer path: semver-safe exports map + forbid deep imports в protocol rules.
 - [x] Финальная оценка пункта: `9.0`.
-- Комментарий по закрытию: `2026-02-21` - публичная поверхность `@affino/datagrid-vue` нормализована через tiered exports (`./stable`, `./advanced`, `./internal`, `./components`); deep imports формально запрещены в versioned public protocol (`@affino/datagrid-core/src/protocol/versionedPublicProtocol.ts`) и покрыты codemod contract tests (`publicProtocolCodemod.contract.spec.ts`), а migration путь закреплён root-командой `codemod:datagrid:public-protocol`.
+- Комментарий по закрытию: `2026-02-21` - публичная поверхность `@affino/datagrid-vue` нормализована через tiered exports (`./stable`, `./advanced`, `./components`); deep imports формально запрещены в versioned public protocol (`@affino/datagrid-core/src/protocol/versionedPublicProtocol.ts`) и покрыты codemod contract tests (`publicProtocolCodemod.contract.spec.ts`), а migration путь закреплён root-командой `codemod:datagrid:public-protocol`.
 
 ## Close Log
 

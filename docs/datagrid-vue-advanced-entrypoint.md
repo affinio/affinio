@@ -7,6 +7,15 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 ## Entrypoint
 
 - `@affino/datagrid-vue/advanced`
+- `@affino/datagrid-vue/advanced/layout`
+- `@affino/datagrid-vue/advanced/pointer`
+- `@affino/datagrid-vue/advanced/selection`
+- `@affino/datagrid-vue/advanced/editing`
+- `@affino/datagrid-vue/advanced/clipboard`
+- `@affino/datagrid-vue/advanced/filtering`
+- `@affino/datagrid-vue/advanced/history`
+
+`@affino/datagrid-vue/advanced` is the canonical aggregate barrel. Prefer domain entrypoints for stricter import boundaries.
 
 ## Advanced Surface
 

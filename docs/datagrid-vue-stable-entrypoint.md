@@ -32,11 +32,10 @@ This document defines the stable, semver-safe entrypoints for common `@affino/da
   - `mapDataGridA11yCellAttributes`
   - `useDataGridContextMenu`
 
-No advanced/internal hooks are part of this surface.
+No advanced hooks are part of this surface.
 
 Advanced hooks are available only via:
 - `@affino/datagrid-vue/advanced`
-- `@affino/datagrid-vue/internal` (demo/workbench only)
 
 ## 60-Second Setup (Recommended)
 

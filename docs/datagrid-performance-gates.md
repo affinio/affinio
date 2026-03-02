@@ -182,6 +182,36 @@ Status in this local environment:
 Runtime perf-by-design contract reference:
 - `docs/datagrid-perf-by-design-runtime.md`
 
+## Optional Hardcore Stress Suite (Non-blocking)
+
+For deep local stress runs (not part of CI blocking harness by default):
+
+- `pnpm run bench:datagrid:hardcore`
+- `pnpm run bench:datagrid:hardcore:assert`
+- `pnpm run bench:datagrid:soak`
+- `pnpm run bench:datagrid:soak:assert`
+- `pnpm run bench:datagrid:group-depth`
+- `pnpm run bench:datagrid:group-depth:assert`
+- `pnpm run bench:datagrid:pivot:server-interop`
+- `pnpm run bench:datagrid:pivot:server-interop:assert`
+- `pnpm run bench:datagrid:browser-frames`
+- `pnpm run bench:datagrid:browser-frames:assert`
+
+Hardcore suite covers:
+
+- cold start bootstrap envelopes (`10k/50k/100k`)
+- massive sort stress
+- filter profile stress (`30%`, `1%`, `0%` match)
+- patch storm throughput + manual reapply latency
+- determinism hash lock (same seed + same operation sequence => same output hash)
+
+Additional optional suites cover:
+
+- long-session soak/leak trends under mixed mutation + projection operations
+- deep groupBy explosion scenarios (5+ levels, expand/collapse pressure)
+- server-backed pivot pull path + pivot interop/export/import + drilldown latency
+- browser frame pacing (`fps`, dropped frames, long-task frames) in real viewport scrolling
+
 ## Runtime Scroll Telemetry (Demo Layer)
 
 The demo runtime now includes an adapter-level telemetry primitive:

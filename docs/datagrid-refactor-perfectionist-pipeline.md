@@ -25,6 +25,24 @@ Goal: reduce architectural entropy in DataGrid core by splitting oversized files
   - [x] `clientRowProjectionGroupStage.ts` (`group`)
   - [x] `clientRowProjectionAggregateStage.ts` (`aggregate`)
 - [~] Keep only high-level orchestration and API wiring in `clientRowModel.ts`.
+  - [x] Extract pivot cell drilldown resolver runtime from row model.
+    - File: `packages/datagrid-core/src/models/clientRowPivotDrilldownRuntime.ts`
+  - [x] Extract group/pivot/tree expansion state resolver + apply runtime.
+    - File: `packages/datagrid-core/src/models/clientRowExpansionRuntime.ts`
+  - [x] Extract patchRows update/apply/projection-plan runtime.
+    - File: `packages/datagrid-core/src/models/clientRowPatchRuntime.ts`
+  - [x] Extract patchRows orchestration coordinator runtime (`patchRows` API method delegation).
+    - File: `packages/datagrid-core/src/models/clientRowPatchCoordinatorRuntime.ts`
+  - [x] Extract row-state mutator runtime (`set*Model`, pagination, viewport, group expansion commands).
+    - File: `packages/datagrid-core/src/models/clientRowStateMutationsRuntime.ts`
+  - [x] Extract snapshot + projection diagnostics runtime.
+    - File: `packages/datagrid-core/src/models/clientRowSnapshotRuntime.ts`
+  - [x] Extract source-row mutation runtime (`setRows`, `reorderRows`).
+    - File: `packages/datagrid-core/src/models/clientRowRowsMutationsRuntime.ts`
+  - [x] Extract projection stage-handlers runtime (`run*Stage`, `finalizeProjectionRecompute`, handlers assembly).
+    - File: `packages/datagrid-core/src/models/clientRowProjectionHandlersRuntime.ts`
+  - [x] Move pivot patch dependency collectors (axis/value fields) into patch analyzer.
+    - File: `packages/datagrid-core/src/models/rowPatchAnalyzer.ts`
 
 ## Phase 2.1: Core API decomposition
 

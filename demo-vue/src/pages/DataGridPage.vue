@@ -39,8 +39,8 @@ import {
   useDataGridContextMenu,
   useDataGridRuntime,
 } from "@affino/datagrid-vue"
-import { useDataGridManagedWheelScroll } from "@affino/datagrid-vue/advanced"
 import {
+  useDataGridManagedWheelScroll,
   useDataGridCellNavigation,
   useDataGridClipboardValuePolicy,
   useDataGridCopyRangeHelpers,
@@ -113,7 +113,7 @@ import {
   useDataGridViewportBlurHandler,
   useDataGridViewportScrollLifecycle,
   useDataGridViewportContextMenuRouter,
-} from "@affino/datagrid-vue/internal"
+} from "@affino/datagrid-vue/advanced"
 
 type Severity = "critical" | "high" | "medium" | "low"
 type Status = "stable" | "watch" | "degraded"
