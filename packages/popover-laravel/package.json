@@ -25,7 +25,7 @@
     "@affino/popover-core": "workspace:*"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.15",
+    "@vitest/coverage-v8": "^4.0.18",
     "tsup": "^8.0.1",
     "vitest": "^4.0.15"
   },
