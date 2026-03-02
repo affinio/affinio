@@ -21,6 +21,13 @@ As of this baseline, the stable public adapter API covers runtime, sugar integra
 - `mapDataGridA11yCellAttributes`
 - `useDataGridContextMenu`
 
+Pivot interop is included on stable runtime API:
+
+- `setPivotModel` / `getPivotModel`
+- `getPivotCellDrilldown`
+- `exportPivotLayout` / `importPivotLayout`
+- `exportPivotInterop`
+
 Cross-platform runtime protocol (from core):
 
 - `createDataGridAdapterRuntime`
@@ -49,7 +56,7 @@ const columns = [
 ]
 ```
 
-```vue
+```html
 <AffinoDataGridSimple
   v-model:rows="rows"
   :columns="columns"

@@ -32,12 +32,20 @@ interface HeaderFilterStateLike {
   type: HeaderFilterType
 }
 
+interface DataGridSugarDataCellClickPayload {
+  rowNode: DataGridRowNode<RowLike>
+  rowIndex: number
+  columnKey: string
+  event: MouseEvent
+}
+
 const props = defineProps<{
   grid: UseAffinoDataGridResult<RowLike>
   showPagination?: boolean
   treeTabular?: boolean
   treePrimaryColumnKey?: string
   treeSubtitleColumnKey?: string
+  onDataCellClick?: (payload: DataGridSugarDataCellClickPayload) => void
   wheelMode?: "managed" | "native"
   wheelAxisLock?: "off" | "dominant" | "vertical-preferred" | "horizontal-preferred"
   wheelPreventDefaultWhenHandled?: boolean
@@ -310,13 +318,15 @@ const composeHandlers = <Args extends unknown[]>(
 }
 
 const bindLeafCell = (
-  row: RowLike,
+  rowNode: DataGridRowNode<RowLike>,
   rowIndex: number,
   columnKey: string,
 ): Record<string, unknown> => {
+  const row = rowNode.data
+  const rowIdentity = String(rowNode.rowId ?? rowNode.rowKey ?? "")
   if (columnKey === "select") {
     return {
-      "data-row-key": String(row.rowId ?? ""),
+      "data-row-key": rowIdentity,
       "data-column-key": columnKey,
       "data-row-index": rowIndex,
       "data-col-key": columnKey,
@@ -332,6 +342,14 @@ const bindLeafCell = (
   })
   const selectionCell = grid.value.bindings.cellSelection({ row, rowIndex, columnKey })
   const rangeSurface = bindRangeSurface(rowIndex, columnKey)
+  const onDataCellClick = (event: MouseEvent): void => {
+    props.onDataCellClick?.({
+      rowNode,
+      rowIndex,
+      columnKey,
+      event,
+    })
+  }
 
   return {
     ...dataCell,
@@ -341,11 +359,15 @@ const bindLeafCell = (
     "data-col-key": columnKey,
     tabindex: 0,
     onFocus: () => {
-      const rowKey = String(row.rowId ?? "")
-      if (rowKey.length > 0) {
-        grid.value.cellSelection.setCellByKey(rowKey, columnKey)
+      if (rowIdentity.length > 0) {
+        grid.value.cellSelection.setCellByKey(rowIdentity, columnKey)
       }
     },
+    onClick: composeHandlers(
+      (dataCell as { onClick?: (event: MouseEvent) => void }).onClick,
+      (selectionCell as { onClick?: (event: MouseEvent) => void }).onClick,
+      onDataCellClick,
+    ),
     onKeydown: composeHandlers(dataCell.onKeydown, selectionCell.onKeydown),
     onMouseenter: composeHandlers(
       (selectionCell as { onMouseenter?: (event: MouseEvent) => void }).onMouseenter,
@@ -1021,7 +1043,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="datagrid-sugar-stage__group-toggle"
-              @click="rowNode.groupMeta?.groupKey ? grid.features.tree.toggleGroup(rowNode.groupMeta.groupKey) : null"
+              @click="rowNode.groupMeta?.groupKey ? grid.api.toggleGroup(rowNode.groupMeta.groupKey) : null"
             >
               <span aria-hidden="true">{{ rowNode.state.expanded ? "▾" : "▸" }}</span>
               <span>{{ rowNode.groupMeta?.groupValue ?? "Group" }} ({{ rowNode.groupMeta?.childrenCount ?? 0 }})</span>
@@ -1045,7 +1067,7 @@ onBeforeUnmount(() => {
               type="button"
               class="datagrid-sugar-stage__group-toggle datagrid-sugar-stage__group-toggle--tabular"
               :style="resolveGroupToggleStyle(rowNode)"
-              @click="rowNode.groupMeta?.groupKey ? grid.features.tree.toggleGroup(rowNode.groupMeta.groupKey) : null"
+              @click="rowNode.groupMeta?.groupKey ? grid.api.toggleGroup(rowNode.groupMeta.groupKey) : null"
             >
               <span class="datagrid-sugar-stage__group-chevron" aria-hidden="true">{{ rowNode.state.expanded ? "▾" : "▸" }}</span>
               <span class="datagrid-sugar-stage__group-copy">
@@ -1080,7 +1102,7 @@ onBeforeUnmount(() => {
               'is-pinned-right': column.pin === 'right',
             }"
             :style="resolveRowCellStyleForRow(String(rowNode.rowId ?? rowNode.rowKey ?? resolveRenderedRowIndex(rowIndex)), column.key, column.pin)"
-            v-bind="bindLeafCell(rowNode.data, resolveRenderedRowIndex(rowIndex), column.key)"
+            v-bind="bindLeafCell(rowNode, resolveRenderedRowIndex(rowIndex), column.key)"
           >
             <template v-if="column.key === 'select'">
               <button

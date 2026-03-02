@@ -25,6 +25,19 @@ const VALUE_PRESETS = {
   "latencyMs:avg": { field: "latencyMs", agg: "avg", label: "latencyMs:avg" },
 }
 
+function resolveValuePreset(value) {
+  if (!value || typeof value !== "object") {
+    return "revenue:sum"
+  }
+  if (value.field === "orders" && value.agg === "sum") {
+    return "orders:sum"
+  }
+  if (value.field === "latencyMs" && value.agg === "avg") {
+    return "latencyMs:avg"
+  }
+  return "revenue:sum"
+}
+
 function toNumber(value, fallback) {
   const parsed = Number.parseInt(String(value ?? ""), 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
@@ -76,7 +89,12 @@ function resolvePivotModel(root) {
   const rowFieldPrimarySelect = root.querySelector("[data-pivot-row-field]")
   const rowFieldSecondarySelect = root.querySelector("[data-pivot-row-field-secondary]")
   const columnFieldSelect = root.querySelector("[data-pivot-column-field]")
+  const columnFieldSecondarySelect = root.querySelector("[data-pivot-column-field-secondary]")
   const valuePresetSelect = root.querySelector("[data-pivot-value-preset]")
+  const columnSubtotalsSelect = root.querySelector("[data-pivot-column-subtotals]")
+  const columnGrandTotalSelect = root.querySelector("[data-pivot-column-grand-total]")
+  const columnSubtotalPositionSelect = root.querySelector("[data-pivot-column-subtotal-position]")
+  const columnGrandTotalPositionSelect = root.querySelector("[data-pivot-column-grand-total-position]")
 
   const enabled = String(enabledSelect?.value ?? "on") === "on"
   if (!enabled) {
@@ -85,7 +103,16 @@ function resolvePivotModel(root) {
   const rowFieldPrimary = String(rowFieldPrimarySelect?.value ?? "region").trim()
   const rowFieldSecondary = String(rowFieldSecondarySelect?.value ?? "none").trim()
   const columnField = String(columnFieldSelect?.value ?? "year").trim()
+  const columnFieldSecondary = String(columnFieldSecondarySelect?.value ?? "none").trim()
   const valuePresetKey = String(valuePresetSelect?.value ?? "revenue:sum").trim()
+  const columnSubtotals = String(columnSubtotalsSelect?.value ?? "on") === "on"
+  const columnGrandTotal = String(columnGrandTotalSelect?.value ?? "on") === "on"
+  const columnSubtotalPosition = String(columnSubtotalPositionSelect?.value ?? "after").trim() === "before"
+    ? "before"
+    : "after"
+  const columnGrandTotalPosition = String(columnGrandTotalPositionSelect?.value ?? "last").trim() === "first"
+    ? "first"
+    : "last"
   const valuePreset = VALUE_PRESETS[valuePresetKey] ?? VALUE_PRESETS["revenue:sum"]
 
   if (rowFieldPrimary === "none" || columnField === "none") {
@@ -96,12 +123,20 @@ function resolvePivotModel(root) {
   if (rowFieldSecondary !== "none" && rowFieldSecondary !== rowFieldPrimary) {
     rowAxes.push(rowFieldSecondary)
   }
+  const columnAxes = [columnField]
+  if (columnFieldSecondary !== "none" && columnFieldSecondary !== columnField && !rowAxes.includes(columnFieldSecondary)) {
+    columnAxes.push(columnFieldSecondary)
+  }
 
   return {
     rows: rowAxes,
-    columns: [columnField],
+    columns: columnAxes,
     values: [{ field: valuePreset.field, agg: valuePreset.agg }],
     rowSubtotals: true,
+    columnSubtotals,
+    columnGrandTotal,
+    columnSubtotalPosition,
+    columnGrandTotalPosition,
     grandTotal: true,
   }
 }
@@ -116,8 +151,17 @@ function mountPivotDemo(root) {
   const rowFieldPrimarySelect = root.querySelector("[data-pivot-row-field]")
   const rowFieldSecondarySelect = root.querySelector("[data-pivot-row-field-secondary]")
   const columnFieldSelect = root.querySelector("[data-pivot-column-field]")
+  const columnFieldSecondarySelect = root.querySelector("[data-pivot-column-field-secondary]")
   const valuePresetSelect = root.querySelector("[data-pivot-value-preset]")
+  const columnSubtotalsSelect = root.querySelector("[data-pivot-column-subtotals]")
+  const columnGrandTotalSelect = root.querySelector("[data-pivot-column-grand-total]")
+  const columnSubtotalPositionSelect = root.querySelector("[data-pivot-column-subtotal-position]")
+  const columnGrandTotalPositionSelect = root.querySelector("[data-pivot-column-grand-total-position]")
   const randomizeButton = root.querySelector("[data-pivot-randomize]")
+  const expandButton = root.querySelector("[data-pivot-expand]")
+  const collapseButton = root.querySelector("[data-pivot-collapse]")
+  const saveLayoutButton = root.querySelector("[data-pivot-save-layout]")
+  const reapplyLayoutButton = root.querySelector("[data-pivot-reapply-layout]")
   const resetButton = root.querySelector("[data-pivot-reset]")
   const headerHost = root.querySelector("[data-pivot-header]")
   const bodyHost = root.querySelector("[data-pivot-body]")
@@ -126,6 +170,8 @@ function mountPivotDemo(root) {
   const modelNode = root.querySelector("[data-pivot-model]")
   const statusNode = root.querySelector("[data-pivot-status]")
   const previewNode = root.querySelector("[data-pivot-column-preview]")
+  const drilldownMetaNode = root.querySelector("[data-pivot-drilldown-meta]")
+  const drilldownRowsNode = root.querySelector("[data-pivot-drilldown-rows]")
 
   if (
     !(sizeSelect instanceof HTMLSelectElement) ||
@@ -133,8 +179,17 @@ function mountPivotDemo(root) {
     !(rowFieldPrimarySelect instanceof HTMLSelectElement) ||
     !(rowFieldSecondarySelect instanceof HTMLSelectElement) ||
     !(columnFieldSelect instanceof HTMLSelectElement) ||
+    !(columnFieldSecondarySelect instanceof HTMLSelectElement) ||
     !(valuePresetSelect instanceof HTMLSelectElement) ||
+    !(columnSubtotalsSelect instanceof HTMLSelectElement) ||
+    !(columnGrandTotalSelect instanceof HTMLSelectElement) ||
+    !(columnSubtotalPositionSelect instanceof HTMLSelectElement) ||
+    !(columnGrandTotalPositionSelect instanceof HTMLSelectElement) ||
     !(randomizeButton instanceof HTMLButtonElement) ||
+    !(expandButton instanceof HTMLButtonElement) ||
+    !(collapseButton instanceof HTMLButtonElement) ||
+    !(saveLayoutButton instanceof HTMLButtonElement) ||
+    !(reapplyLayoutButton instanceof HTMLButtonElement) ||
     !(resetButton instanceof HTMLButtonElement) ||
     !(headerHost instanceof HTMLElement) ||
     !(bodyHost instanceof HTMLElement)
@@ -144,6 +199,8 @@ function mountPivotDemo(root) {
 
   let generation = 1
   let rows = buildRows(toNumber(root.dataset.pivotInitialRows, 480), generation)
+  let activeDrilldown = null
+  let savedLayout = null
   const runtime = createDataGridRuntime({
     rows,
     columns: SOURCE_COLUMNS,
@@ -157,10 +214,46 @@ function mountPivotDemo(root) {
     }
   }
 
+  const renderDrilldown = (drilldown) => {
+    if (drilldownMetaNode instanceof HTMLElement) {
+      if (!drilldown) {
+        drilldownMetaNode.textContent = "Click a generated pivot cell in the table."
+      } else {
+        drilldownMetaNode.textContent = `${drilldown.columnLabel} · ${drilldown.agg}(${drilldown.valueField})=${formatValue(drilldown.cellValue)} · matches ${drilldown.matchCount}${drilldown.truncated ? " (truncated)" : ""}`
+      }
+    }
+    if (drilldownRowsNode instanceof HTMLElement) {
+      drilldownRowsNode.innerHTML = ""
+      if (!drilldown || !Array.isArray(drilldown.rows) || drilldown.rows.length === 0) {
+        const empty = document.createElement("li")
+        empty.textContent = "No drilldown selected"
+        drilldownRowsNode.appendChild(empty)
+        return
+      }
+      for (const rowNode of drilldown.rows.slice(0, 12)) {
+        const row = rowNode?.data ?? {}
+        const li = document.createElement("li")
+        li.textContent = `${String(row.rowId ?? rowNode.rowId ?? "row")} · ${String(row.region ?? "—")} / ${String(row.team ?? "—")} / ${String(row.owner ?? "—")} / ${String(row.year ?? "—")}-${String(row.quarter ?? "—")} · ${drilldown.valueField}=${formatValue(row[drilldown.valueField])}`
+        drilldownRowsNode.appendChild(li)
+      }
+    }
+  }
+
   const render = () => {
     const snapshot = rowModel.getSnapshot()
     const pivotModel = snapshot.pivotModel ?? null
     const pivotColumns = snapshot.pivotColumns ?? []
+    const pivotColumnsById = new Map(pivotColumns.map(column => [column.id, column]))
+    const expansionSnapshot = snapshot.groupExpansion
+    const toggledGroupKeys = new Set(expansionSnapshot.toggledGroupKeys ?? [])
+    const isGroupExpanded = (groupKey) => {
+      if (typeof groupKey !== "string" || groupKey.length === 0) {
+        return false
+      }
+      return expansionSnapshot.expandedByDefault
+        ? !toggledGroupKeys.has(groupKey)
+        : toggledGroupKeys.has(groupKey)
+    }
     const rowCount = api.getRowCount()
     const rowsInRange = rowCount > 0 ? api.getRowsInRange({ start: 0, end: rowCount - 1 }) : []
 
@@ -197,13 +290,57 @@ function mountPivotDemo(root) {
     headerHost.appendChild(headerRow)
 
     bodyHost.innerHTML = ""
+    const firstColumnKey = displayColumns[0]?.key ?? null
     for (const rowNode of rowsInRange) {
       const tr = document.createElement("tr")
       tr.dataset.kind = rowNode.kind
-      for (const column of displayColumns) {
+      for (let index = 0; index < displayColumns.length; index += 1) {
+        const column = displayColumns[index]
+        if (!column) {
+          continue
+        }
         const td = document.createElement("td")
         const value = rowNode.data?.[column.key]
-        td.textContent = formatValue(value)
+        if (
+          rowNode.kind === "group" &&
+          firstColumnKey &&
+          column.key === firstColumnKey &&
+          typeof rowNode.groupMeta?.groupKey === "string"
+        ) {
+          const toggle = document.createElement("button")
+          toggle.type = "button"
+          toggle.className = "affino-datagrid-pivot__group-toggle"
+          const expanded = isGroupExpanded(rowNode.groupMeta.groupKey)
+          toggle.textContent = `${expanded ? "▾" : "▸"} ${formatValue(value)} (${rowNode.groupMeta.childrenCount ?? 0})`
+          toggle.addEventListener("click", () => {
+            api.toggleGroup(rowNode.groupMeta.groupKey)
+          })
+          td.appendChild(toggle)
+        } else {
+          td.textContent = formatValue(value)
+          if (pivotModel && rowNode.kind === "leaf" && pivotColumnsById.has(column.key)) {
+            td.classList.add("is-clickable")
+            td.title = "Open pivot drilldown"
+            td.addEventListener("click", () => {
+              const drilldown = api.getPivotCellDrilldown({
+                rowId: rowNode.rowId,
+                columnId: column.key,
+                limit: 50,
+              })
+              if (!drilldown) {
+                activeDrilldown = null
+                renderDrilldown(activeDrilldown)
+                return
+              }
+              activeDrilldown = {
+                ...drilldown,
+                columnLabel: pivotColumnsById.get(column.key)?.label ?? column.key,
+              }
+              syncStatus(`Drilldown ${activeDrilldown.columnLabel}: ${drilldown.matchCount} rows`)
+              renderDrilldown(activeDrilldown)
+            })
+          }
+        }
         tr.appendChild(td)
       }
       bodyHost.appendChild(tr)
@@ -220,7 +357,7 @@ function mountPivotDemo(root) {
         modelNode.textContent = "disabled"
       } else {
         const value = pivotModel.values[0]
-        modelNode.textContent = `rows=${pivotModel.rows.join(",")} columns=${pivotModel.columns.join(",")} value=${value?.field}:${value?.agg}`
+        modelNode.textContent = `rows=${pivotModel.rows.join(",")} columns=${pivotModel.columns.join(",")} value=${value?.field}:${value?.agg} columnSubtotals=${pivotModel.columnSubtotals ? "on" : "off"} columnGrandTotal=${pivotModel.columnGrandTotal ? "on" : "off"} subtotalPos=${pivotModel.columnSubtotalPosition ?? "after"} grandTotalColPos=${pivotModel.columnGrandTotalPosition ?? "last"}`
       }
     }
     if (previewNode instanceof HTMLElement) {
@@ -237,6 +374,29 @@ function mountPivotDemo(root) {
         }
       }
     }
+    if (!pivotModel) {
+      activeDrilldown = null
+    } else if (activeDrilldown && !pivotColumnsById.has(activeDrilldown.columnId)) {
+      activeDrilldown = null
+    }
+    renderDrilldown(activeDrilldown)
+  }
+
+  const applyControlValuesFromPivotModel = (pivotModel) => {
+    if (!pivotModel) {
+      enabledSelect.value = "off"
+      return
+    }
+    enabledSelect.value = "on"
+    rowFieldPrimarySelect.value = String(pivotModel.rows?.[0] ?? "region")
+    rowFieldSecondarySelect.value = String(pivotModel.rows?.[1] ?? "none")
+    columnFieldSelect.value = String(pivotModel.columns?.[0] ?? "year")
+    columnFieldSecondarySelect.value = String(pivotModel.columns?.[1] ?? "none")
+    valuePresetSelect.value = resolveValuePreset(pivotModel.values?.[0])
+    columnSubtotalsSelect.value = pivotModel.columnSubtotals === true ? "on" : "off"
+    columnGrandTotalSelect.value = pivotModel.columnGrandTotal === true ? "on" : "off"
+    columnSubtotalPositionSelect.value = pivotModel.columnSubtotalPosition === "before" ? "before" : "after"
+    columnGrandTotalPositionSelect.value = pivotModel.columnGrandTotalPosition === "first" ? "first" : "last"
   }
 
   const applyPivotModel = () => {
@@ -249,6 +409,13 @@ function mountPivotDemo(root) {
           return field !== rowFieldPrimarySelect.value && field !== rowFieldSecondarySelect.value
         })
         columnFieldSelect.value = fallback ?? "year"
+      }
+      if (columnFieldSecondarySelect.value !== "none") {
+        const blocked = new Set([rowFieldPrimarySelect.value, rowFieldSecondarySelect.value, columnFieldSelect.value].filter(Boolean))
+        if (blocked.has(columnFieldSecondarySelect.value)) {
+          const fallback = ["quarter", "year", "region", "team", "owner"].find(field => !blocked.has(field))
+          columnFieldSecondarySelect.value = fallback ?? "none"
+        }
       }
     }
     const model = resolvePivotModel(root)
@@ -264,6 +431,7 @@ function mountPivotDemo(root) {
   const rebuildRows = (nextCount) => {
     generation += 1
     rows = buildRows(nextCount, generation)
+    activeDrilldown = null
     rowModel.setRows(rows)
     applyPivotModel()
   }
@@ -276,6 +444,7 @@ function mountPivotDemo(root) {
       orders: 10 + (((index + generation) * 9) % 280),
       latencyMs: 20 + (((index + generation) * 15) % 360),
     }))
+    activeDrilldown = null
     rowModel.setRows(rows)
     syncStatus("Values randomized")
     render()
@@ -284,12 +453,41 @@ function mountPivotDemo(root) {
   const onControlsChange = () => applyPivotModel()
   const onSizeChange = () => rebuildRows(toNumber(sizeSelect.value, 480))
   const onRandomize = () => randomizeRows()
+  const onExpand = () => {
+    api.expandAllGroups()
+    syncStatus("Pivot row groups expanded")
+  }
+  const onCollapse = () => {
+    api.collapseAllGroups()
+    syncStatus("Pivot row groups collapsed")
+  }
+  const onSaveLayout = () => {
+    savedLayout = api.exportPivotLayout()
+    syncStatus(`Pivot layout saved (v${savedLayout.version})`)
+  }
+  const onReapplyLayout = () => {
+    if (!savedLayout) {
+      syncStatus("No saved pivot layout")
+      return
+    }
+    api.importPivotLayout(savedLayout)
+    applyControlValuesFromPivotModel(savedLayout.pivotModel ?? null)
+    activeDrilldown = null
+    syncStatus("Saved pivot layout reapplied")
+    render()
+  }
   const onReset = () => {
     enabledSelect.value = "on"
     rowFieldPrimarySelect.value = "region"
     rowFieldSecondarySelect.value = "team"
     columnFieldSelect.value = "year"
+    columnFieldSecondarySelect.value = "quarter"
     valuePresetSelect.value = "revenue:sum"
+    columnSubtotalsSelect.value = "on"
+    columnGrandTotalSelect.value = "on"
+    columnSubtotalPositionSelect.value = "after"
+    columnGrandTotalPositionSelect.value = "last"
+    activeDrilldown = null
     applyPivotModel()
   }
 
@@ -298,8 +496,17 @@ function mountPivotDemo(root) {
   rowFieldPrimarySelect.addEventListener("change", onControlsChange)
   rowFieldSecondarySelect.addEventListener("change", onControlsChange)
   columnFieldSelect.addEventListener("change", onControlsChange)
+  columnFieldSecondarySelect.addEventListener("change", onControlsChange)
   valuePresetSelect.addEventListener("change", onControlsChange)
+  columnSubtotalsSelect.addEventListener("change", onControlsChange)
+  columnGrandTotalSelect.addEventListener("change", onControlsChange)
+  columnSubtotalPositionSelect.addEventListener("change", onControlsChange)
+  columnGrandTotalPositionSelect.addEventListener("change", onControlsChange)
   randomizeButton.addEventListener("click", onRandomize)
+  expandButton.addEventListener("click", onExpand)
+  collapseButton.addEventListener("click", onCollapse)
+  saveLayoutButton.addEventListener("click", onSaveLayout)
+  reapplyLayoutButton.addEventListener("click", onReapplyLayout)
   resetButton.addEventListener("click", onReset)
 
   const unsubscribe = rowModel.subscribe(() => {
@@ -315,8 +522,17 @@ function mountPivotDemo(root) {
     rowFieldPrimarySelect.removeEventListener("change", onControlsChange)
     rowFieldSecondarySelect.removeEventListener("change", onControlsChange)
     columnFieldSelect.removeEventListener("change", onControlsChange)
+    columnFieldSecondarySelect.removeEventListener("change", onControlsChange)
     valuePresetSelect.removeEventListener("change", onControlsChange)
+    columnSubtotalsSelect.removeEventListener("change", onControlsChange)
+    columnGrandTotalSelect.removeEventListener("change", onControlsChange)
+    columnSubtotalPositionSelect.removeEventListener("change", onControlsChange)
+    columnGrandTotalPositionSelect.removeEventListener("change", onControlsChange)
     randomizeButton.removeEventListener("click", onRandomize)
+    expandButton.removeEventListener("click", onExpand)
+    collapseButton.removeEventListener("click", onCollapse)
+    saveLayoutButton.removeEventListener("click", onSaveLayout)
+    reapplyLayoutButton.removeEventListener("click", onReapplyLayout)
     resetButton.removeEventListener("click", onReset)
     try {
       api.stop()

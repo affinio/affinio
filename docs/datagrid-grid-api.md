@@ -46,8 +46,12 @@ Creation is fail-fast for missing required services (`rowModel` / `columnModel`)
   - `setSortModel`
   - `setFilterModel`
   - `setGroupBy`
+  - `setPivotModel` / `getPivotModel`
+  - `getPivotCellDrilldown`
+  - `exportPivotLayout` / `importPivotLayout`
+  - `exportPivotInterop`
   - `toggleGroup`
-  - `refreshRows`
+  - `refresh`
 - column model:
   - snapshot + `getColumn`
   - `setColumns`

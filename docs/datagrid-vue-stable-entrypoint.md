@@ -18,6 +18,7 @@ This document defines the stable, semver-safe entrypoints for common `@affino/da
   - `createDataGridVueRuntime`
   - `useDataGridRuntime`
   - `DataGrid`
+  - Pivot utilities through `useDataGridRuntime`: `setPivotModel`, `getPivotModel`, `getPivotCellDrilldown`, `exportPivotLayout`, `importPivotLayout`, `exportPivotInterop`
 - Sugar API:
   - `useAffinoDataGrid`
   - `useAffinoDataGridUi`

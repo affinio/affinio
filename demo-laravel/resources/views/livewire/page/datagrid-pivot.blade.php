@@ -82,6 +82,18 @@
                 </label>
 
                 <label class="affino-datagrid-pivot__control">
+                    <span>Columns axis 2</span>
+                    <select data-pivot-column-field-secondary>
+                        <option value="none">none</option>
+                        <option value="quarter" selected>quarter</option>
+                        <option value="year">year</option>
+                        <option value="region">region</option>
+                        <option value="team">team</option>
+                        <option value="owner">owner</option>
+                    </select>
+                </label>
+
+                <label class="affino-datagrid-pivot__control">
                     <span>Value aggregation</span>
                     <select data-pivot-value-preset>
                         <option value="revenue:sum" selected>revenue:sum</option>
@@ -89,11 +101,55 @@
                         <option value="latencyMs:avg">latencyMs:avg</option>
                     </select>
                 </label>
+
+                <label class="affino-datagrid-pivot__control">
+                    <span>Column subtotals</span>
+                    <select data-pivot-column-subtotals>
+                        <option value="on" selected>On</option>
+                        <option value="off">Off</option>
+                    </select>
+                </label>
+
+                <label class="affino-datagrid-pivot__control">
+                    <span>Column grand total</span>
+                    <select data-pivot-column-grand-total>
+                        <option value="on" selected>On</option>
+                        <option value="off">Off</option>
+                    </select>
+                </label>
+
+                <label class="affino-datagrid-pivot__control">
+                    <span>Subtotal position</span>
+                    <select data-pivot-column-subtotal-position>
+                        <option value="after" selected>after leaf columns</option>
+                        <option value="before">before leaf columns</option>
+                    </select>
+                </label>
+
+                <label class="affino-datagrid-pivot__control">
+                    <span>Grand total column</span>
+                    <select data-pivot-column-grand-total-position>
+                        <option value="last" selected>last</option>
+                        <option value="first">first</option>
+                    </select>
+                </label>
             </div>
 
             <div class="affino-datagrid-pivot__actions">
                 <button type="button" class="affino-datagrid-pivot__button" data-pivot-randomize>
                     Randomize values
+                </button>
+                <button type="button" class="affino-datagrid-pivot__button ghost" data-pivot-expand>
+                    Expand rows
+                </button>
+                <button type="button" class="affino-datagrid-pivot__button ghost" data-pivot-collapse>
+                    Collapse rows
+                </button>
+                <button type="button" class="affino-datagrid-pivot__button ghost" data-pivot-save-layout>
+                    Save layout
+                </button>
+                <button type="button" class="affino-datagrid-pivot__button ghost" data-pivot-reapply-layout>
+                    Reapply layout
                 </button>
                 <button type="button" class="affino-datagrid-pivot__button ghost" data-pivot-reset>
                     Reset preset
@@ -123,6 +179,14 @@
                 <p>Generated columns</p>
                 <ul data-pivot-column-preview>
                     <li>No pivot columns</li>
+                </ul>
+            </div>
+
+            <div class="affino-datagrid-pivot__preview">
+                <p>Pivot cell drilldown</p>
+                <div data-pivot-drilldown-meta>Click a generated pivot cell in the table.</div>
+                <ul data-pivot-drilldown-rows>
+                    <li>No drilldown selected</li>
                 </ul>
             </div>
         </aside>

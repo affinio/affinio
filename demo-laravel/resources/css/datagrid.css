@@ -427,6 +427,10 @@
         margin-bottom: 0;
     }
 
+    .affino-datagrid-pivot__preview [data-pivot-drilldown-meta] {
+        @apply mt-2 text-xs text-[var(--text-soft)];
+    }
+
     .affino-datagrid-pivot__preview li {
         @apply rounded-[0.6rem] border border-[var(--panel-border)] bg-[rgba(5,8,16,0.84)] px-2 py-1 text-xs text-[var(--text-strong)];
     }
@@ -454,8 +458,27 @@
         white-space: nowrap;
     }
 
+    .affino-datagrid-pivot__table tbody td.is-clickable {
+        cursor: pointer;
+        color: color-mix(in srgb, var(--text-strong) 86%, #8fd3ff);
+    }
+
+    .affino-datagrid-pivot__table tbody td.is-clickable:hover {
+        background: rgba(20, 36, 58, 0.95);
+    }
+
     .affino-datagrid-pivot__table tbody tr:nth-child(even) td {
         background: rgba(9, 14, 24, 0.94);
+    }
+
+    .affino-datagrid-pivot__table tbody tr[data-kind="group"] td {
+        @apply bg-[rgba(14,22,38,0.96)] text-[var(--text-strong)];
+    }
+
+    .affino-datagrid-pivot__group-toggle {
+        @apply inline-flex items-center gap-2 border-none bg-transparent p-0 text-left text-[var(--text-strong)] hover:text-sky-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/70;
+        font: inherit;
+        cursor: pointer;
     }
 
     .affino-datagrid-pivot__table tbody td:last-child,

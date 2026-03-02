@@ -5,7 +5,9 @@ import {
   useAffinoDataGrid,
   type DataGridAggOp,
   type DataGridColumnDef,
+  type DataGridPivotLayoutSnapshot,
   type DataGridPivotSpec,
+  type DataGridRowNode,
   type UseAffinoDataGridResult,
 } from "@affino/datagrid-vue"
 import DataGridSugarStage from "@/components/DataGridSugarStage.vue"
@@ -29,6 +31,8 @@ type RowLike = {
 
 type PivotField = "none" | "team" | "owner" | "region" | "year" | "quarter"
 type PivotValuePreset = "revenue:sum" | "orders:sum" | "latencyMs:avg"
+type PivotSubtotalPosition = "after" | "before"
+type PivotGrandTotalColumnPosition = "last" | "first"
 
 const columns: readonly DataGridColumnDef[] = [
   { key: "region", label: "Region", width: 130, pin: "left" },
@@ -80,7 +84,12 @@ const rows = ref<PivotDemoRow[]>(createRows(rowCount.value, generation.value))
 const rowFieldPrimary = ref<PivotField>("region")
 const rowFieldSecondary = ref<PivotField>("team")
 const columnField = ref<PivotField>("year")
+const columnFieldSecondary = ref<PivotField>("quarter")
 const valuePreset = ref<PivotValuePreset>("revenue:sum")
+const columnSubtotals = ref(true)
+const columnGrandTotal = ref(true)
+const columnSubtotalPosition = ref<PivotSubtotalPosition>("after")
+const columnGrandTotalPosition = ref<PivotGrandTotalColumnPosition>("last")
 const pivotEnabled = ref(true)
 const status = ref("Pivot active")
 
@@ -116,6 +125,19 @@ const grid = useAffinoDataGrid<PivotDemoRow>({
 const gridStage = computed(() => grid as unknown as UseAffinoDataGridResult<RowLike>)
 const rowModelRevision = ref(0)
 const pivotColumns = ref<readonly { id: string; label: string }[]>([])
+const savedLayout = ref<DataGridPivotLayoutSnapshot<PivotDemoRow> | null>(null)
+const drilldown = ref<{
+  rowId: string | number
+  columnId: string
+  columnLabel: string
+  valueField: string
+  agg: DataGridAggOp
+  cellValue: unknown
+  matchCount: number
+  truncated: boolean
+  rows: readonly PivotDemoRow[]
+} | null>(null)
+const applyingImportedLayout = ref(false)
 
 const unsubscribeRowModel = grid.rowModel.subscribe(snapshot => {
   rowModelRevision.value = snapshot.revision ?? (rowModelRevision.value + 1)
@@ -146,6 +168,41 @@ const parseValuePreset = (preset: PivotValuePreset): { field: "revenue" | "order
   return { field: "revenue", agg: "sum" }
 }
 
+const resolveValuePreset = (value: { field: string; agg: DataGridAggOp } | undefined): PivotValuePreset => {
+  if (!value) {
+    return "revenue:sum"
+  }
+  if (value.field === "orders" && value.agg === "sum") {
+    return "orders:sum"
+  }
+  if (value.field === "latencyMs" && value.agg === "avg") {
+    return "latencyMs:avg"
+  }
+  return "revenue:sum"
+}
+
+const applyPivotControlsFromModel = (model: DataGridPivotSpec | null): void => {
+  applyingImportedLayout.value = true
+  try {
+    if (!model) {
+      pivotEnabled.value = false
+      return
+    }
+    pivotEnabled.value = true
+    rowFieldPrimary.value = (model.rows[0] as PivotField | undefined) ?? "region"
+    rowFieldSecondary.value = (model.rows[1] as PivotField | undefined) ?? "none"
+    columnField.value = (model.columns[0] as PivotField | undefined) ?? "year"
+    columnFieldSecondary.value = (model.columns[1] as PivotField | undefined) ?? "none"
+    valuePreset.value = resolveValuePreset(model.values[0])
+    columnSubtotals.value = model.columnSubtotals === true
+    columnGrandTotal.value = model.columnGrandTotal === true
+    columnSubtotalPosition.value = model.columnSubtotalPosition === "before" ? "before" : "after"
+    columnGrandTotalPosition.value = model.columnGrandTotalPosition === "first" ? "first" : "last"
+  } finally {
+    applyingImportedLayout.value = false
+  }
+}
+
 const buildPivotModel = (): DataGridPivotSpec | null => {
   if (!pivotEnabled.value) {
     return null
@@ -161,11 +218,23 @@ const buildPivotModel = (): DataGridPivotSpec | null => {
   ) {
     rowAxes.push(rowFieldSecondary.value)
   }
+  const columnAxes: string[] = [columnField.value]
+  if (
+    columnFieldSecondary.value !== "none"
+    && columnFieldSecondary.value !== columnField.value
+    && !rowAxes.includes(columnFieldSecondary.value)
+  ) {
+    columnAxes.push(columnFieldSecondary.value)
+  }
   return {
     rows: rowAxes,
-    columns: [columnField.value],
+    columns: columnAxes,
     values: [{ field: value.field, agg: value.agg }],
     rowSubtotals: true,
+    columnSubtotals: columnSubtotals.value,
+    columnGrandTotal: columnGrandTotal.value,
+    columnSubtotalPosition: columnSubtotalPosition.value,
+    columnGrandTotalPosition: columnGrandTotalPosition.value,
     grandTotal: true,
   }
 }
@@ -173,6 +242,7 @@ const buildPivotModel = (): DataGridPivotSpec | null => {
 const applyPivotModel = (): void => {
   const nextModel = buildPivotModel()
   grid.api.setPivotModel(nextModel)
+  drilldown.value = null
   const visibleSourceColumns = new Set<string>(nextModel?.rows ?? [])
   for (const column of columns) {
     grid.api.setColumnVisibility(
@@ -185,10 +255,13 @@ const applyPivotModel = (): void => {
     return
   }
   const value = nextModel.values[0]
-  status.value = `Pivot: rows=${nextModel.rows.join(",")} columns=${nextModel.columns.join(",")} value=${value?.field}:${value?.agg}`
+  status.value = `Pivot: rows=${nextModel.rows.join(",")} columns=${nextModel.columns.join(",")} value=${value?.field}:${value?.agg} columnSubtotals=${nextModel.columnSubtotals ? "on" : "off"} columnGrandTotal=${nextModel.columnGrandTotal ? "on" : "off"} subtotalPos=${nextModel.columnSubtotalPosition ?? "after"} grandTotalColPos=${nextModel.columnGrandTotalPosition ?? "last"}`
 }
 
-watch([pivotEnabled, rowFieldPrimary, rowFieldSecondary, columnField, valuePreset], () => {
+watch([pivotEnabled, rowFieldPrimary, rowFieldSecondary, columnField, columnFieldSecondary, valuePreset, columnSubtotals, columnGrandTotal, columnSubtotalPosition, columnGrandTotalPosition], () => {
+  if (applyingImportedLayout.value) {
+    return
+  }
   if (pivotEnabled.value) {
     if (rowFieldSecondary.value !== "none" && rowFieldSecondary.value === rowFieldPrimary.value) {
       rowFieldSecondary.value = "none"
@@ -199,6 +272,15 @@ watch([pivotEnabled, rowFieldPrimary, rowFieldSecondary, columnField, valuePrese
       })
       columnField.value = fallback ?? "year"
     }
+    if (columnFieldSecondary.value !== "none") {
+      const blocked = new Set<string>([rowFieldPrimary.value, rowFieldSecondary.value, columnField.value].filter(Boolean))
+      if (blocked.has(columnFieldSecondary.value)) {
+        const fallback = (["quarter", "year", "region", "team", "owner"] as const).find(field => {
+          return !blocked.has(field)
+        })
+        columnFieldSecondary.value = fallback ?? "none"
+      }
+    }
   }
   applyPivotModel()
 }, { immediate: true })
@@ -206,6 +288,7 @@ watch([pivotEnabled, rowFieldPrimary, rowFieldSecondary, columnField, valuePrese
 watch(rowCount, nextCount => {
   generation.value += 1
   rows.value = createRows(nextCount, generation.value)
+  drilldown.value = null
   status.value = `Dataset rebuilt: ${rows.value.length} rows`
 })
 
@@ -217,6 +300,7 @@ const randomizeRevenue = (): void => {
     orders: 10 + (((index + generation.value) * 9) % 280),
     latencyMs: 20 + (((index + generation.value) * 15) % 360),
   }))
+  drilldown.value = null
   status.value = "Revenue / orders randomized"
 }
 
@@ -225,8 +309,99 @@ const resetPivot = (): void => {
   rowFieldPrimary.value = "region"
   rowFieldSecondary.value = "team"
   columnField.value = "year"
+  columnFieldSecondary.value = "quarter"
   valuePreset.value = "revenue:sum"
+  columnSubtotals.value = true
+  columnGrandTotal.value = true
+  columnSubtotalPosition.value = "after"
+  columnGrandTotalPosition.value = "last"
+  drilldown.value = null
   applyPivotModel()
+}
+
+const savePivotLayout = (): void => {
+  savedLayout.value = grid.api.exportPivotLayout()
+  status.value = `Pivot layout saved (v${savedLayout.value.version})`
+}
+
+const reapplyPivotLayout = (): void => {
+  if (!savedLayout.value) {
+    status.value = "No saved pivot layout"
+    return
+  }
+  const layout = savedLayout.value
+  grid.api.importPivotLayout(layout)
+  applyPivotControlsFromModel(layout.pivotModel ?? null)
+  drilldown.value = null
+  status.value = "Saved pivot layout reapplied"
+}
+
+const formatMetricValue = (value: unknown): string => {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return "—"
+    }
+    if (Math.abs(value) >= 1000) {
+      return new Intl.NumberFormat("en-GB", { maximumFractionDigits: 2 }).format(value)
+    }
+    return Number.isInteger(value) ? String(value) : value.toFixed(2)
+  }
+  if (value == null) {
+    return "—"
+  }
+  return String(value)
+}
+
+const handlePivotCellClick = (payload: {
+  rowNode: DataGridRowNode<RowLike>
+  rowIndex: number
+  columnKey: string
+  event: MouseEvent
+}): void => {
+  if (!pivotEnabled.value) {
+    return
+  }
+  const pivotColumn = pivotColumns.value.find(column => column.id === payload.columnKey)
+  if (!pivotColumn) {
+    return
+  }
+  const result = grid.api.getPivotCellDrilldown({
+    rowId: payload.rowNode.rowId,
+    columnId: payload.columnKey,
+    limit: 60,
+  })
+  if (!result) {
+    drilldown.value = null
+    return
+  }
+  drilldown.value = {
+    rowId: result.rowId,
+    columnId: result.columnId,
+    columnLabel: pivotColumn.label,
+    valueField: result.valueField,
+    agg: result.agg,
+    cellValue: result.cellValue,
+    matchCount: result.matchCount,
+    truncated: result.truncated,
+    rows: result.rows.map(entry => entry.data as PivotDemoRow),
+  }
+  status.value = `Drilldown ${pivotColumn.label}: ${result.matchCount} rows`
+}
+
+const expandPivotRows = (): void => {
+  if (!pivotEnabled.value || rowFieldSecondary.value === "none") {
+    return
+  }
+  grid.api.expandAllGroups()
+  status.value = "Pivot row groups expanded"
+}
+
+const collapsePivotRows = (): void => {
+  if (!pivotEnabled.value || rowFieldSecondary.value === "none") {
+    return
+  }
+  grid.api.collapseAllGroups()
+  status.value = "Pivot row groups collapsed"
 }
 </script>
 
@@ -248,111 +423,195 @@ const resetPivot = (): void => {
       </div>
     </header>
 
-    <section class="datagrid-pivot-page__controls">
-      <label>
-        <span>Rows in source dataset</span>
-        <select v-model.number="rowCount">
-          <option :value="240">240</option>
-          <option :value="480">480</option>
-          <option :value="1200">1200</option>
-        </select>
-      </label>
+    <section class="datagrid-pivot-page__workspace">
+      <aside class="datagrid-pivot-page__sidebar">
+        <section class="datagrid-pivot-page__controls">
+          <label>
+            <span>Rows in source dataset</span>
+            <select v-model.number="rowCount">
+              <option :value="240">240</option>
+              <option :value="480">480</option>
+              <option :value="1200">1200</option>
+            </select>
+          </label>
 
-      <label>
-        <span>Pivot enabled</span>
-        <select v-model="pivotEnabled">
-          <option :value="true">On</option>
-          <option :value="false">Off</option>
-        </select>
-      </label>
+          <label>
+            <span>Pivot enabled</span>
+            <select v-model="pivotEnabled">
+              <option :value="true">On</option>
+              <option :value="false">Off</option>
+            </select>
+          </label>
 
-      <label>
-        <span>Rows axis</span>
-        <select v-model="rowFieldPrimary">
-          <option value="region">region</option>
-          <option value="team">team</option>
-          <option value="owner">owner</option>
-          <option value="year">year</option>
-          <option value="quarter">quarter</option>
-          <option value="none">none</option>
-        </select>
-      </label>
+          <label>
+            <span>Rows axis</span>
+            <select v-model="rowFieldPrimary">
+              <option value="region">region</option>
+              <option value="team">team</option>
+              <option value="owner">owner</option>
+              <option value="year">year</option>
+              <option value="quarter">quarter</option>
+              <option value="none">none</option>
+            </select>
+          </label>
 
-      <label>
-        <span>Rows axis 2</span>
-        <select v-model="rowFieldSecondary">
-          <option value="none">none</option>
-          <option value="region">region</option>
-          <option value="team">team</option>
-          <option value="owner">owner</option>
-          <option value="year">year</option>
-          <option value="quarter">quarter</option>
-        </select>
-      </label>
+          <label>
+            <span>Rows axis 2</span>
+            <select v-model="rowFieldSecondary">
+              <option value="none">none</option>
+              <option value="region">region</option>
+              <option value="team">team</option>
+              <option value="owner">owner</option>
+              <option value="year">year</option>
+              <option value="quarter">quarter</option>
+            </select>
+          </label>
 
-      <label>
-        <span>Columns axis</span>
-        <select v-model="columnField">
-          <option value="year">year</option>
-          <option value="quarter">quarter</option>
-          <option value="region">region</option>
-          <option value="team">team</option>
-          <option value="owner">owner</option>
-          <option value="none">none</option>
-        </select>
-      </label>
+          <label>
+            <span>Columns axis</span>
+            <select v-model="columnField">
+              <option value="year">year</option>
+              <option value="quarter">quarter</option>
+              <option value="region">region</option>
+              <option value="team">team</option>
+              <option value="owner">owner</option>
+              <option value="none">none</option>
+            </select>
+          </label>
 
-      <label>
-        <span>Value aggregation</span>
-        <select v-model="valuePreset">
-          <option value="revenue:sum">revenue:sum</option>
-          <option value="orders:sum">orders:sum</option>
-          <option value="latencyMs:avg">latencyMs:avg</option>
-        </select>
-      </label>
+          <label>
+            <span>Columns axis 2</span>
+            <select v-model="columnFieldSecondary">
+              <option value="none">none</option>
+              <option value="quarter">quarter</option>
+              <option value="year">year</option>
+              <option value="region">region</option>
+              <option value="team">team</option>
+              <option value="owner">owner</option>
+            </select>
+          </label>
 
-      <div class="datagrid-pivot-page__actions">
-        <button type="button" @click="randomizeRevenue">Randomize values</button>
-        <button type="button" @click="resetPivot">Reset pivot preset</button>
+          <label>
+            <span>Value aggregation</span>
+            <select v-model="valuePreset">
+              <option value="revenue:sum">revenue:sum</option>
+              <option value="orders:sum">orders:sum</option>
+              <option value="latencyMs:avg">latencyMs:avg</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Column subtotals</span>
+            <select v-model="columnSubtotals">
+              <option :value="true">On</option>
+              <option :value="false">Off</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Column grand total</span>
+            <select v-model="columnGrandTotal">
+              <option :value="true">On</option>
+              <option :value="false">Off</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Subtotal position</span>
+            <select v-model="columnSubtotalPosition">
+              <option value="after">after leaf columns</option>
+              <option value="before">before leaf columns</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Grand total column</span>
+            <select v-model="columnGrandTotalPosition">
+              <option value="last">last</option>
+              <option value="first">first</option>
+            </select>
+          </label>
+
+          <div class="datagrid-pivot-page__actions">
+            <button type="button" @click="randomizeRevenue">Randomize values</button>
+            <button type="button" @click="expandPivotRows">Expand rows</button>
+            <button type="button" @click="collapsePivotRows">Collapse rows</button>
+            <button type="button" @click="savePivotLayout">Save layout</button>
+            <button type="button" @click="reapplyPivotLayout">Reapply layout</button>
+            <button type="button" @click="resetPivot">Reset pivot preset</button>
+          </div>
+
+          <dl class="datagrid-pivot-page__metrics">
+            <div>
+              <dt>Visible rows</dt>
+              <dd>{{ visibleRows }}</dd>
+            </div>
+            <div>
+              <dt>Pivot columns</dt>
+              <dd>{{ pivotColumns.length }}</dd>
+            </div>
+            <div class="datagrid-pivot-page__metrics-status">
+              <dt>Status</dt>
+              <dd>{{ status }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="datagrid-pivot-page__pivot-columns">
+          <h2>Generated pivot columns</h2>
+          <p v-if="previewPivotColumns.length === 0">No pivot columns generated yet.</p>
+          <ul v-else>
+            <li v-for="column in previewPivotColumns" :key="column.id">{{ column.label }}</li>
+          </ul>
+
+          <div class="datagrid-pivot-page__drilldown">
+            <h3>Pivot cell drilldown</h3>
+            <p v-if="!drilldown">Click a generated pivot cell in the grid.</p>
+            <template v-else>
+              <p>
+                <strong>{{ drilldown.columnLabel }}</strong>
+                · {{ drilldown.agg }}({{ drilldown.valueField }}) = {{ formatMetricValue(drilldown.cellValue) }}
+                · matches {{ drilldown.matchCount }} rows<span v-if="drilldown.truncated"> (truncated)</span>
+              </p>
+              <ul>
+                <li v-for="row in drilldown.rows.slice(0, 12)" :key="row.rowId">
+                  {{ row.rowId }} · {{ row.region }} / {{ row.team }} / {{ row.owner }} / {{ row.year }}-{{ row.quarter }}
+                  · {{ drilldown.valueField }}={{ formatMetricValue((row as Record<string, unknown>)[drilldown.valueField]) }}
+                </li>
+              </ul>
+            </template>
+          </div>
+        </section>
+      </aside>
+
+      <div class="datagrid-pivot-page__stage">
+        <DataGridSugarStage :grid="gridStage" :showPagination="false" :onDataCellClick="handlePivotCellClick" />
       </div>
-
-      <dl class="datagrid-pivot-page__metrics">
-        <div>
-          <dt>Visible rows</dt>
-          <dd>{{ visibleRows }}</dd>
-        </div>
-        <div>
-          <dt>Pivot columns</dt>
-          <dd>{{ pivotColumns.length }}</dd>
-        </div>
-        <div>
-          <dt>Status</dt>
-          <dd>{{ status }}</dd>
-        </div>
-      </dl>
     </section>
-
-    <section class="datagrid-pivot-page__pivot-columns">
-      <h2>Generated pivot columns</h2>
-      <p v-if="previewPivotColumns.length === 0">No pivot columns generated yet.</p>
-      <ul v-else>
-        <li v-for="column in previewPivotColumns" :key="column.id">{{ column.label }}</li>
-      </ul>
-    </section>
-
-    <div class="datagrid-pivot-page__stage">
-      <DataGridSugarStage :grid="gridStage" :showPagination="false" />
-    </div>
   </section>
 </template>
 
 <style scoped>
 .datagrid-pivot-page {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 0.75rem;
   min-height: 0;
   height: 100%;
+}
+
+.datagrid-pivot-page__workspace {
+  display: grid;
+  grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.datagrid-pivot-page__sidebar {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  min-height: 0;
 }
 
 .datagrid-pivot-page__header h1 {
@@ -385,9 +644,11 @@ const resetPivot = (): void => {
   background: var(--glass-bg);
   padding: 0.65rem;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: end;
   gap: 0.55rem;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .datagrid-pivot-page__controls label {
@@ -448,11 +709,17 @@ const resetPivot = (): void => {
   color: var(--text-primary);
 }
 
+.datagrid-pivot-page__metrics-status {
+  grid-column: 1 / -1;
+}
+
 .datagrid-pivot-page__pivot-columns {
   border: 1px solid var(--glass-border);
   border-radius: 0.75rem;
   background: var(--glass-bg);
   padding: 0.6rem 0.7rem;
+  min-height: 0;
+  overflow: auto;
 }
 
 .datagrid-pivot-page__pivot-columns h2 {
@@ -483,6 +750,25 @@ const resetPivot = (): void => {
   background: color-mix(in srgb, var(--surface-bg, #0b1220) 82%, transparent);
 }
 
+.datagrid-pivot-page__drilldown {
+  margin-top: 0.6rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--glass-border);
+}
+
+.datagrid-pivot-page__drilldown h3 {
+  margin: 0 0 0.32rem;
+  font-size: 0.82rem;
+}
+
+.datagrid-pivot-page__drilldown p {
+  margin: 0;
+}
+
+.datagrid-pivot-page__drilldown ul {
+  margin-top: 0.38rem;
+}
+
 .datagrid-pivot-page__stage {
   min-height: 0;
   overflow: hidden;
@@ -498,6 +784,19 @@ const resetPivot = (): void => {
 }
 
 @media (max-width: 1280px) {
+  .datagrid-pivot-page {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .datagrid-pivot-page__workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .datagrid-pivot-page__sidebar {
+    grid-template-rows: auto auto;
+  }
+
   .datagrid-pivot-page__controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
