@@ -1043,7 +1043,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="datagrid-sugar-stage__group-toggle"
-              @click="rowNode.groupMeta?.groupKey ? grid.api.toggleGroup(rowNode.groupMeta.groupKey) : null"
+              @click="rowNode.groupMeta?.groupKey ? grid.api.rows.toggleGroup(rowNode.groupMeta.groupKey) : null"
             >
               <span aria-hidden="true">{{ rowNode.state.expanded ? "▾" : "▸" }}</span>
               <span>{{ rowNode.groupMeta?.groupValue ?? "Group" }} ({{ rowNode.groupMeta?.childrenCount ?? 0 }})</span>
@@ -1067,7 +1067,7 @@ onBeforeUnmount(() => {
               type="button"
               class="datagrid-sugar-stage__group-toggle datagrid-sugar-stage__group-toggle--tabular"
               :style="resolveGroupToggleStyle(rowNode)"
-              @click="rowNode.groupMeta?.groupKey ? grid.api.toggleGroup(rowNode.groupMeta.groupKey) : null"
+              @click="rowNode.groupMeta?.groupKey ? grid.api.rows.toggleGroup(rowNode.groupMeta.groupKey) : null"
             >
               <span class="datagrid-sugar-stage__group-chevron" aria-hidden="true">{{ rowNode.state.expanded ? "▾" : "▸" }}</span>
               <span class="datagrid-sugar-stage__group-copy">

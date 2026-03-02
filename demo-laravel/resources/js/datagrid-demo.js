@@ -301,7 +301,7 @@ function mountDatagridDemo(root) {
     const { api, rowModel, core } = runtime;
     void api.start();
     if (autoReapplyToggle instanceof HTMLInputElement) {
-        autoReapplyToggle.checked = api.getAutoReapply();
+        autoReapplyToggle.checked = api.rows.getAutoReapply();
     }
 
     let frameHandle = null;
@@ -510,7 +510,7 @@ function mountDatagridDemo(root) {
         return activeRows.findIndex((row) => String(row.rowId) === String(rowKey));
     };
 
-    const getColumnSnapshot = () => api.getColumnModelSnapshot?.() ?? { visibleColumns: [], allColumns: [] };
+    const getColumnSnapshot = () => api.columns?.getSnapshot?.() ?? { visibleColumns: [], allColumns: [] };
 
     const resolveVisibleColumns = () => orderColumns(getColumnSnapshot().visibleColumns ?? []);
 
@@ -527,7 +527,7 @@ function mountDatagridDemo(root) {
         const snapshot = getColumnSnapshot();
         (snapshot.allColumns ?? []).forEach((column) => {
             const shouldBeVisible = visibleSet.has(column.key);
-            api.setColumnVisibility(column.key, shouldBeVisible);
+            api.columns.setVisibility(column.key, shouldBeVisible);
         });
     };
 
@@ -1326,8 +1326,8 @@ function mountDatagridDemo(root) {
             resolveColumnWidth,
             virtualWindow: buildColumnVirtualWindow({
                 rowStart: 0,
-                rowEnd: Math.max(0, api.getRowCount() - 1),
-                rowTotal: api.getRowCount(),
+                rowEnd: Math.max(0, api.rows.getCount() - 1),
+                rowTotal: api.rows.getCount(),
                 colTotal: visibleColumns.length,
             }),
         });
@@ -2129,7 +2129,7 @@ function mountDatagridDemo(root) {
 
     const onPinStatus = () => {
         const pin = pinStatusToggle?.checked ? "left" : "none";
-        api.setColumnPin("status", pin);
+        api.columns.setPin("status", pin);
         setStatus(pin === "left" ? "Status column pinned" : "Status column unpinned");
         requestRender();
     };
@@ -2137,14 +2137,14 @@ function mountDatagridDemo(root) {
 
     const onAutoReapply = () => {
         const enabled = Boolean(autoReapplyToggle?.checked);
-        api.setAutoReapply(enabled);
+        api.rows.setAutoReapply(enabled);
         setStatus(enabled ? "Auto reapply view enabled" : "Auto reapply view disabled");
         requestRender();
     };
     autoReapplyToggle?.addEventListener("change", onAutoReapply);
 
     const onReapply = () => {
-        api.reapplyView();
+        api.view.reapply();
         setStatus("Projection reapply requested");
         requestRender();
     };
@@ -2220,10 +2220,10 @@ function mountDatagridDemo(root) {
             pinStatusToggle.checked = false;
         }
         if (autoReapplyToggle) {
-            autoReapplyToggle.checked = api.getAutoReapply();
+            autoReapplyToggle.checked = api.rows.getAutoReapply();
         }
         applyColumnVisibilityPreset();
-        api.setColumnPin("status", "none");
+        api.columns.setPin("status", "none");
         setStatus("Dataset reset");
         applyProjection({ resetScroll: true });
     };
@@ -2275,14 +2275,14 @@ function mountDatagridDemo(root) {
         rowModel.setRows(activeRows);
 
         if (groupMode === "none") {
-            api.setAggregationModel(null);
-            api.setGroupBy(null);
+            api.rows.setAggregationModel(null);
+            api.rows.setGroupBy(null);
         } else {
-            api.setAggregationModel({
+            api.rows.setAggregationModel({
                 basis: GROUP_AGGREGATION_MODEL.basis,
                 columns: GROUP_AGGREGATION_MODEL.columns.map((column) => ({ ...column })),
             });
-            api.setGroupBy({
+            api.rows.setGroupBy({
                 fields: [groupMode],
                 expandedByDefault: true,
             });
@@ -2384,7 +2384,7 @@ function mountDatagridDemo(root) {
     function renderRows(columns, layers, layerTrackTemplate, start, end) {
         rowsHost.innerHTML = "";
         const handleRange = resolveEffectiveSelectionRange();
-        const rows = start <= end ? api.getRowsInRange({ start, end }) : [];
+        const rows = start <= end ? api.rows.getRange({ start, end }) : [];
         const columnIndexByKey = new Map();
         columns.forEach((column, index) => {
             columnIndexByKey.set(column.key, index);
@@ -2417,7 +2417,7 @@ function mountDatagridDemo(root) {
                 groupCell.textContent = `${expanded ? "▾" : "▸"} ${field}: ${value} (${count})${aggregateSummary ? ` · ${aggregateSummary}` : ""}`;
                 groupCell.addEventListener("click", () => {
                     if (meta?.groupKey) {
-                        api.toggleGroup(meta.groupKey);
+                        api.rows.toggleGroup(meta.groupKey);
                         setStatus(`${expanded ? "Collapsed" : "Expanded"} group ${value}`);
                     }
                 });
@@ -2856,13 +2856,13 @@ function mountDatagridDemo(root) {
     function render() {
         const renderScrollTop = viewport.scrollTop;
         const renderScrollLeft = viewport.scrollLeft;
-        const rowCount = api.getRowCount();
+        const rowCount = api.rows.getCount();
         const viewportHeight = Math.max(viewport.clientHeight, ROW_HEIGHT);
         const visibleRows = Math.max(1, Math.ceil(viewportHeight / ROW_HEIGHT) + OVERSCAN_ROWS * 2);
         const start = Math.max(0, Math.floor(viewport.scrollTop / ROW_HEIGHT) - OVERSCAN_ROWS);
         const end = rowCount > 0 ? Math.min(rowCount - 1, start + visibleRows - 1) : -1;
 
-        api.setViewportRange({ start: Math.max(0, start), end: Math.max(0, end) });
+        api.view.setViewportRange({ start: Math.max(0, start), end: Math.max(0, end) });
 
         const visibleColumns = getColumnSnapshot().visibleColumns ?? [];
         const columnLayout = useDataGridColumnLayoutOrchestration({

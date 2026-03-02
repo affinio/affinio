@@ -254,8 +254,8 @@ function mountPivotDemo(root) {
         ? !toggledGroupKeys.has(groupKey)
         : toggledGroupKeys.has(groupKey)
     }
-    const rowCount = api.getRowCount()
-    const rowsInRange = rowCount > 0 ? api.getRowsInRange({ start: 0, end: rowCount - 1 }) : []
+    const rowCount = api.rows.getCount()
+    const rowsInRange = rowCount > 0 ? api.rows.getRange({ start: 0, end: rowCount - 1 }) : []
 
     const displayColumns = []
     if (pivotModel && pivotModel.rows.length > 0) {
@@ -313,7 +313,7 @@ function mountPivotDemo(root) {
           const expanded = isGroupExpanded(rowNode.groupMeta.groupKey)
           toggle.textContent = `${expanded ? "▾" : "▸"} ${formatValue(value)} (${rowNode.groupMeta.childrenCount ?? 0})`
           toggle.addEventListener("click", () => {
-            api.toggleGroup(rowNode.groupMeta.groupKey)
+            api.rows.toggleGroup(rowNode.groupMeta.groupKey)
           })
           td.appendChild(toggle)
         } else {
@@ -322,7 +322,7 @@ function mountPivotDemo(root) {
             td.classList.add("is-clickable")
             td.title = "Open pivot drilldown"
             td.addEventListener("click", () => {
-              const drilldown = api.getPivotCellDrilldown({
+              const drilldown = api.pivot.getCellDrilldown({
                 rowId: rowNode.rowId,
                 columnId: column.key,
                 limit: 50,
@@ -419,7 +419,7 @@ function mountPivotDemo(root) {
       }
     }
     const model = resolvePivotModel(root)
-    api.setPivotModel(model)
+    api.pivot.setModel(model)
     if (!model) {
       syncStatus("Pivot disabled")
     } else {
@@ -454,15 +454,15 @@ function mountPivotDemo(root) {
   const onSizeChange = () => rebuildRows(toNumber(sizeSelect.value, 480))
   const onRandomize = () => randomizeRows()
   const onExpand = () => {
-    api.expandAllGroups()
+    api.view.expandAllGroups()
     syncStatus("Pivot row groups expanded")
   }
   const onCollapse = () => {
-    api.collapseAllGroups()
+    api.view.collapseAllGroups()
     syncStatus("Pivot row groups collapsed")
   }
   const onSaveLayout = () => {
-    savedLayout = api.exportPivotLayout()
+    savedLayout = api.pivot.exportLayout()
     syncStatus(`Pivot layout saved (v${savedLayout.version})`)
   }
   const onReapplyLayout = () => {
@@ -470,7 +470,7 @@ function mountPivotDemo(root) {
       syncStatus("No saved pivot layout")
       return
     }
-    api.importPivotLayout(savedLayout)
+    api.pivot.importLayout(savedLayout)
     applyControlValuesFromPivotModel(savedLayout.pivotModel ?? null)
     activeDrilldown = null
     syncStatus("Saved pivot layout reapplied")

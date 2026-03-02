@@ -241,11 +241,11 @@ const buildPivotModel = (): DataGridPivotSpec | null => {
 
 const applyPivotModel = (): void => {
   const nextModel = buildPivotModel()
-  grid.api.setPivotModel(nextModel)
+  grid.api.pivot.setModel(nextModel)
   drilldown.value = null
   const visibleSourceColumns = new Set<string>(nextModel?.rows ?? [])
   for (const column of columns) {
-    grid.api.setColumnVisibility(
+    grid.api.columns.setVisibility(
       column.key,
       nextModel ? visibleSourceColumns.has(column.key) : true,
     )
@@ -320,7 +320,7 @@ const resetPivot = (): void => {
 }
 
 const savePivotLayout = (): void => {
-  savedLayout.value = grid.api.exportPivotLayout()
+  savedLayout.value = grid.api.pivot.exportLayout()
   status.value = `Pivot layout saved (v${savedLayout.value.version})`
 }
 
@@ -330,7 +330,7 @@ const reapplyPivotLayout = (): void => {
     return
   }
   const layout = savedLayout.value
-  grid.api.importPivotLayout(layout)
+  grid.api.pivot.importLayout(layout)
   applyPivotControlsFromModel(layout.pivotModel ?? null)
   drilldown.value = null
   status.value = "Saved pivot layout reapplied"
@@ -365,7 +365,7 @@ const handlePivotCellClick = (payload: {
   if (!pivotColumn) {
     return
   }
-  const result = grid.api.getPivotCellDrilldown({
+  const result = grid.api.pivot.getCellDrilldown({
     rowId: payload.rowNode.rowId,
     columnId: payload.columnKey,
     limit: 60,
@@ -392,7 +392,7 @@ const expandPivotRows = (): void => {
   if (!pivotEnabled.value || rowFieldSecondary.value === "none") {
     return
   }
-  grid.api.expandAllGroups()
+  grid.api.view.expandAllGroups()
   status.value = "Pivot row groups expanded"
 }
 
@@ -400,7 +400,7 @@ const collapsePivotRows = (): void => {
   if (!pivotEnabled.value || rowFieldSecondary.value === "none") {
     return
   }
-  grid.api.collapseAllGroups()
+  grid.api.view.collapseAllGroups()
   status.value = "Pivot row groups collapsed"
 }
 </script>

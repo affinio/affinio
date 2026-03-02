@@ -12,6 +12,12 @@ Fail-fast architecture acceptance:
 - Script: `scripts/check-datagrid-architecture-acceptance.mjs`
 - Report: `artifacts/quality/datagrid-architecture-acceptance-report.json`
 
+Legacy flat API usage gate (zero-tolerance):
+- `pnpm run quality:api:datagrid:flat`
+- Script: `scripts/check-datagrid-flat-api-usage.mjs`
+- Baseline: `docs/quality/datagrid-flat-api-baseline.json`
+- Report: `artifacts/quality/datagrid-flat-api-usage-report.json`
+
 ## Perf Contract Gate
 
 Fail-fast performance contract acceptance:

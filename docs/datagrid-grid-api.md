@@ -37,41 +37,38 @@ Creation is fail-fast for missing required services (`rowModel` / `columnModel`)
 
 ## Covered Operations
 
-`GridApi` provides:
+`GridApi` provides namespaced surfaces (preferred):
 
-- lifecycle proxy: `init/start/stop/dispose`
-- row model:
-  - snapshot + row access
-  - `setViewportRange`
-  - `setSortModel`
-  - `setFilterModel`
-  - `setGroupBy`
-  - `setPivotModel` / `getPivotModel`
-  - `getPivotCellDrilldown`
-  - `exportPivotLayout` / `importPivotLayout`
-  - `exportPivotInterop`
-  - `toggleGroup`
-  - `refresh`
-- column model:
-  - snapshot + `getColumn`
-  - `setColumns`
-  - `setColumnOrder`
-  - `setColumnVisibility`
-  - `setColumnWidth`
-  - `setColumnPin`
-- selection:
-  - `hasSelectionSupport`
-  - `getSelectionSnapshot`
-  - `setSelectionSnapshot`
-  - `clearSelection`
-  - `summarizeSelection`
-- transaction:
-  - `hasTransactionSupport`
-  - `getTransactionSnapshot`
-  - `beginTransactionBatch` / `commitTransactionBatch` / `rollbackTransactionBatch`
-  - `applyTransaction`
-  - `canUndoTransaction` / `canRedoTransaction`
-  - `undoTransaction` / `redoTransaction`
+- `api.rows.*` (row model and projection controls)
+- `api.columns.*` (column model controls and histogram)
+- `api.view.*` (viewport range, refresh, cell refresh hooks)
+- `api.pivot.*` (pivot model, drilldown, layout/interop import-export)
+- `api.selection.*` (selection snapshot and summary)
+- `api.transaction.*` (transaction history and batch lifecycle)
+- `api.capabilities` (readonly capability flags for UI feature gating)
+
+`api.capabilities` fields:
+
+- `patch`
+- `selection`
+- `transaction`
+- `histogram`
+- `sortFilterBatch`
+
+Capability resolution in API is lazy-cached per API instance.
+
+Flat API methods are removed from `DataGridApi`.
+Use namespaced APIs only.
+
+Semantics note:
+
+- `rows.applyEdits(...)` mutates row data (optionally with reapply policy).
+- `view.reapply()` recomputes projection only (no data mutation).
+
+Pivot domain note:
+
+- pivot is exposed under `api.pivot.*` as a separate analytical subsystem.
+- it is intentionally not nested under `api.rows.*`.
 
 Selection contract in `GridApi` is headless:
 

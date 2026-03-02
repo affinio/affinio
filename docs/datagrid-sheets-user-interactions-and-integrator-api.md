@@ -99,20 +99,20 @@ await api.start()
 ### Common API operations
 
 - Data projection:
-  - `api.setSortModel(...)`
-  - `api.setFilterModel(...)`
-  - `api.setGroupBy(...)`
-  - `api.toggleGroup(groupKey)`
+  - `api.rows.setSortModel(...)`
+  - `api.rows.setFilterModel(...)`
+  - `api.rows.setGroupBy(...)`
+  - `api.rows.toggleGroup(groupKey)`
 - Column state:
-  - `api.setColumnWidth(key, width)`
-  - `api.setColumnPin(key, "left" | "right" | "none")`
-  - `api.setColumnVisibility(key, visible)`
+  - `api.columns.setWidth(key, width)`
+  - `api.columns.setPin(key, "left" | "right" | "none")`
+  - `api.columns.setVisibility(key, visible)`
 - History:
-  - `api.applyTransaction(tx)`
-  - `api.undoTransaction()`
-  - `api.redoTransaction()`
+  - `api.transaction.apply(tx)`
+  - `api.transaction.undo()`
+  - `api.transaction.redo()`
 - Selection summary:
-  - `api.summarizeSelection({ columns, defaultAggregations })`
+  - `api.selection.summarize({ columns, defaultAggregations })`
 
 ## 3) Related References
 

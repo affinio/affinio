@@ -15,9 +15,11 @@ interface IncidentRow {
 }
 
 interface FilteringApi {
-  getRowCount: () => number
-  getRowModelSnapshot: () => { rowCount: number; filterModel: DataGridFilterSnapshot | null }
-  setFilterModel: (filterModel: DataGridFilterSnapshot | null) => void
+  rows: {
+    getCount: () => number
+    getSnapshot: () => { rowCount: number; filterModel: DataGridFilterSnapshot | null }
+    setFilterModel: (filterModel: DataGridFilterSnapshot | null) => void
+  }
 }
 
 interface GridRefShape {
@@ -101,8 +103,8 @@ function syncFromApi() {
   if (!api) {
     return
   }
-  visibleRows.value = api.getRowCount()
-  activeFilterModel.value = api.getRowModelSnapshot().filterModel
+  visibleRows.value = api.rows.getCount()
+  activeFilterModel.value = api.rows.getSnapshot().filterModel
 }
 
 function applyFilter() {
@@ -118,7 +120,7 @@ function applyFilter() {
         advancedExpression: expression,
       }
     : null
-  api.setFilterModel(model)
+  api.rows.setFilterModel(model)
   syncFromApi()
   status.value = model ? "Advanced filter applied (set + date)" : "Filter cleared"
 }
@@ -128,7 +130,7 @@ function clearFilter() {
   if (!api) {
     return
   }
-  api.setFilterModel(null)
+  api.rows.setFilterModel(null)
   syncFromApi()
   status.value = "Filter cleared"
 }
@@ -138,8 +140,8 @@ function roundtripFilter() {
   if (!api) {
     return
   }
-  const snapshotModel = api.getRowModelSnapshot().filterModel
-  api.setFilterModel(snapshotModel)
+  const snapshotModel = api.rows.getSnapshot().filterModel
+  api.rows.setFilterModel(snapshotModel)
   syncFromApi()
   status.value = "Snapshot roundtrip applied"
 }

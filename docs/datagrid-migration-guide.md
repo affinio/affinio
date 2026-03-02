@@ -49,6 +49,40 @@ Migration rule:
 5. Remove direct dependency on legacy internal path aliases.
 6. Re-run quality/perf gates before release.
 
+## GridApi Namespace Migration (Flat -> Namespaced)
+
+Preferred API shape:
+
+- `api.rows.*`
+- `api.columns.*`
+- `api.view.*`
+- `api.pivot.*`
+- `api.selection.*`
+- `api.transaction.*`
+- `api.capabilities`
+
+Legacy flat methods are removed from `DataGridApi`.
+
+Examples:
+
+- `api.setColumnWidth(key, width)` -> `api.columns.setWidth(key, width)`
+- `api.getRowCount()` -> `api.rows.getCount()`
+- `api.getRowsInRange(range)` -> `api.rows.getRange(range)`
+- `api.setPivotModel(model)` -> `api.pivot.setModel(model)`
+- `api.getSelectionSnapshot()` -> `api.selection.getSnapshot()`
+- `api.applyTransaction(tx)` -> `api.transaction.apply(tx)`
+- `api.refresh()` -> `api.view.refresh()`
+
+Semantics:
+
+- `api.rows.applyEdits(...)` mutates data.
+- `api.view.reapply()` only recomputes projection.
+
+Enforcement:
+
+- flat usage baseline lock: `pnpm run quality:api:datagrid:flat`
+- baseline file: `/Users/anton/Projects/affinio/docs/quality/datagrid-flat-api-baseline.json`
+
 ## GroupBy-only -> TreeData Migration
 
 Use this path when hierarchy is intrinsic (parent/path), not analytical grouping.
@@ -80,8 +114,8 @@ Runtime API:
 
 - `rowModel.setAggregationModel(model | null)`
 - `rowModel.getAggregationModel()`
-- `api.setAggregationModel(model | null)`
-- `api.getAggregationModel()`
+- `api.rows.setAggregationModel(model | null)`
+- `api.rows.getAggregationModel()`
 
 Recommended model:
 
@@ -96,10 +130,10 @@ Important caveat:
 
 API-level edit flow:
 
-- `api.patchRows(updates, options)` forwards explicit patch policy flags.
-- `api.applyEdits(updates, { reapply? })` uses Excel-like defaults and optional live reapply.
-- `api.setAutoReapply(boolean)` / `api.getAutoReapply()` control default apply-edits behavior.
-- `api.reapplyView()` explicitly reapplies sort/filter/group projection.
+- `api.rows.patch(updates, options)` forwards explicit patch policy flags.
+- `api.rows.applyEdits(updates, { reapply? })` uses Excel-like defaults and optional live reapply.
+- `api.rows.setAutoReapply(boolean)` / `api.rows.getAutoReapply()` control default apply-edits behavior.
+- `api.view.reapply()` explicitly reapplies sort/filter/group projection.
 
 ## Verification Checklist
 

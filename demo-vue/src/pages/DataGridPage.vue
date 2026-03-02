@@ -948,7 +948,7 @@ const setFilterHistogramEntries = computed(() => {
     return buildSourceAllSetFilterHistogram(draft.columnKey)
   }
 
-  const histogram = api.getColumnHistogram(draft.columnKey, {
+  const histogram = api.columns.getHistogram(draft.columnKey, {
     scope: "filtered",
     ignoreSelfFilter: true,
     orderBy: "valueAsc",
@@ -1670,7 +1670,7 @@ const headerResize = useDataGridHeaderResizeOrchestration<IncidentRow>({
     return 110
   },
   applyColumnWidth(columnKey, width) {
-    api.setColumnWidth(columnKey, width)
+    api.columns.setWidth(columnKey, width)
   },
   isColumnResizable,
   isFillDragging() {
@@ -2435,7 +2435,7 @@ const {
     transaction: history.transactionService,
   },
 })
-const unsubscribeCellsRefresh = api.onCellsRefresh(batch => {
+const unsubscribeCellsRefresh = api.view.onCellsRefresh(batch => {
   const reason = batch.reason ? ` · reason: ${batch.reason}` : ""
   lastAction.value = `Cell refresh batch: ${batch.cells.length} cells${reason}`
 })
@@ -2488,7 +2488,7 @@ const paginationSliceSummary = computed(() => {
 })
 
 function syncPaginationState(): void {
-  const next = api.getPaginationSnapshot()
+  const next = api.rows.getPagination()
   paginationSnapshot.value = next
   paginationPageSize.value = next.enabled ? next.pageSize : 0
   paginationTargetPage.value = next.currentPage + 1
@@ -2498,13 +2498,13 @@ function setPaginationPageSize(nextPageSize: number): void {
   const normalizedPageSize = Number.isFinite(nextPageSize) && nextPageSize > 0
     ? Math.max(1, Math.trunc(nextPageSize))
     : 0
-  const snapshot = paginationSnapshot.value ?? api.getPaginationSnapshot()
+  const snapshot = paginationSnapshot.value ?? api.rows.getPagination()
   const activePageSize = snapshot.enabled ? snapshot.pageSize : 0
   if (normalizedPageSize === activePageSize) {
     return
   }
-  api.setPageSize(normalizedPageSize > 0 ? normalizedPageSize : null)
-  api.setCurrentPage(0)
+  api.rows.setPageSize(normalizedPageSize > 0 ? normalizedPageSize : null)
+  api.rows.setCurrentPage(0)
   resetViewportScrollPosition()
   resetVisibleRowsSyncCache()
   syncVisibleRows()
@@ -2516,7 +2516,7 @@ function setPaginationPageSize(nextPageSize: number): void {
 }
 
 function applyPaginationTargetPage(nextPage: number): void {
-  const snapshot = paginationSnapshot.value ?? api.getPaginationSnapshot()
+  const snapshot = paginationSnapshot.value ?? api.rows.getPagination()
   if (!snapshot.enabled) {
     return
   }
@@ -2527,7 +2527,7 @@ function applyPaginationTargetPage(nextPage: number): void {
   if (normalizedPage === snapshot.currentPage + 1) {
     return
   }
-  api.setCurrentPage(normalizedPage - 1)
+  api.rows.setCurrentPage(normalizedPage - 1)
   resetViewportScrollPosition()
   resetVisibleRowsSyncCache()
   syncVisibleRows()
@@ -2553,16 +2553,16 @@ function goPaginationNext(): void {
 }
 
 function applyPaginationRoundtrip(): void {
-  const snapshot = paginationSnapshot.value ?? api.getPaginationSnapshot()
+  const snapshot = paginationSnapshot.value ?? api.rows.getPagination()
   if (!snapshot.enabled) {
     lastAction.value = "Pagination is disabled"
     return
   }
-  api.setPagination({
+  api.rows.setPagination({
     pageSize: snapshot.pageSize,
     currentPage: snapshot.currentPage,
   })
-  api.refresh()
+  api.view.refresh()
   resetVisibleRowsSyncCache()
   syncVisibleRows()
   syncPaginationState()
@@ -2629,7 +2629,7 @@ function applyColumnVisibilityPreset(preset: ColumnVisibilityPreset): void {
   for (const column of DATA_GRID_COLUMNS) {
     const isAllowed = allowedKeys.has(column.key)
     const shouldBeVisible = isAllowed && (column.key === "select" || showAll || presetKeys.has(column.key))
-    api.setColumnVisibility(column.key, shouldBeVisible)
+    api.columns.setVisibility(column.key, shouldBeVisible)
   }
 }
 
@@ -2653,15 +2653,15 @@ function captureColumnState(snapshot: DataGridColumnModelSnapshot): DataGridColu
 }
 
 function applyCapturedColumnState(state: DataGridColumnStateSnapshot): void {
-  api.setColumnOrder(state.order)
+  api.columns.setOrder(state.order)
   for (const [key, visible] of Object.entries(state.visibility)) {
-    api.setColumnVisibility(key, visible)
+    api.columns.setVisibility(key, visible)
   }
   for (const [key, width] of Object.entries(state.widths)) {
-    api.setColumnWidth(key, width)
+    api.columns.setWidth(key, width)
   }
   for (const [key, pin] of Object.entries(state.pinning)) {
-    api.setColumnPin(key, pin)
+    api.columns.setPin(key, pin)
   }
 }
 
@@ -2680,20 +2680,20 @@ function mutateColumnStateDemo(): void {
     "availabilityPct",
     "updatedAt",
   ]
-  api.setColumnOrder(reordered)
-  api.setColumnVisibility("runbook", false)
-  api.setColumnVisibility("channel", false)
-  api.setColumnWidth("service", 300)
-  api.setColumnWidth("owner", 210)
-  api.setColumnPin("owner", "left")
-  api.setColumnPin("status", "right")
+  api.columns.setOrder(reordered)
+  api.columns.setVisibility("runbook", false)
+  api.columns.setVisibility("channel", false)
+  api.columns.setWidth("service", 300)
+  api.columns.setWidth("owner", 210)
+  api.columns.setPin("owner", "left")
+  api.columns.setPin("status", "right")
   pinStatusColumn.value = false
   pinUpdatedAtRight.value = false
   lastAction.value = "Mutated column state (order/visibility/width/pin)"
 }
 
 function saveCurrentColumnState(): void {
-  const state = captureColumnState(api.getColumnModelSnapshot())
+  const state = captureColumnState(api.columns.getSnapshot())
   columnStateAdapter.setColumnState(COLUMN_STATE_TABLE_ID, state)
   savedColumnState.value = columnStateAdapter.getColumnState(COLUMN_STATE_TABLE_ID)
   lastAction.value = "Saved column state snapshot"
@@ -2717,7 +2717,7 @@ function clearSavedColumnState(): void {
 }
 
 function setColumnVisibilityFromMenu(columnKey: string, visible: boolean): void {
-  api.setColumnVisibility(columnKey, visible)
+  api.columns.setVisibility(columnKey, visible)
   lastAction.value = visible
     ? `Column ${columnKey} shown`
     : `Column ${columnKey} hidden`
@@ -2732,7 +2732,7 @@ function onColumnStateVisibilityChange(columnKey: string, event: Event): void {
 }
 
 function setColumnPinFromMenu(columnKey: string, pin: "left" | "right" | "none"): void {
-  api.setColumnPin(columnKey, pin)
+  api.columns.setPin(columnKey, pin)
   lastAction.value = pin === "none"
     ? `Column ${columnKey} unpinned`
     : `Column ${columnKey} pinned ${pin}`
@@ -2740,7 +2740,7 @@ function setColumnPinFromMenu(columnKey: string, pin: "left" | "right" | "none")
 
 function showAllColumnsFromMenu(): void {
   for (const column of columnStateMenuColumns.value) {
-    api.setColumnVisibility(column.key, true)
+    api.columns.setVisibility(column.key, true)
   }
   lastAction.value = "All columns visible"
 }
@@ -2777,10 +2777,10 @@ function resetCustomRowHeights(): void {
 
 function applyRuntimeGroupBy(nextGroupBy: GroupByColumnKey): void {
   if (nextGroupBy === "none") {
-    api.setGroupBy(null)
+    api.rows.setGroupBy(null)
     return
   }
-  api.setGroupBy({
+  api.rows.setGroupBy({
     fields: [nextGroupBy],
     expandedByDefault: true,
   })
@@ -2788,10 +2788,10 @@ function applyRuntimeGroupBy(nextGroupBy: GroupByColumnKey): void {
 
 function applyRuntimeAggregationModel(nextGroupBy: GroupByColumnKey): void {
   if (nextGroupBy === "none") {
-    api.setAggregationModel(null)
+    api.rows.setAggregationModel(null)
     return
   }
-  api.setAggregationModel({
+  api.rows.setAggregationModel({
     basis: GROUP_AGGREGATION_MODEL.basis,
     columns: GROUP_AGGREGATION_MODEL.columns.map(column => ({ ...column })),
   })
@@ -2802,7 +2802,7 @@ function toggleRuntimeGroup(row: DataGridRowNode<IncidentRow>): void {
     return
   }
   const groupKey = row.groupMeta?.groupKey ?? String(row.rowId ?? row.rowKey)
-  api.toggleGroup(groupKey)
+  api.rows.toggleGroup(groupKey)
   resetVisibleRowsSyncCache()
   syncVisibleRows()
   const label = resolveTreeGroupLabel(row)
@@ -2827,7 +2827,7 @@ function reorderVisibleColumnsByKey(sourceKey: string, targetKey: string): boole
     return false
   }
 
-  const snapshot = api.getColumnModelSnapshot()
+  const snapshot = api.columns.getSnapshot()
   const visibleOrder = snapshot.columns
     .filter(column => column.visible)
     .map(column => column.key)
@@ -2842,7 +2842,7 @@ function reorderVisibleColumnsByKey(sourceKey: string, targetKey: string): boole
     return false
   }
   nextOrder.splice(targetIndex, 0, sourceKey)
-  api.setColumnOrder(nextOrder)
+  api.columns.setOrder(nextOrder)
   return true
 }
 
@@ -4240,7 +4240,7 @@ function runCellRefreshProbe() {
     }
   })
 
-  api.refreshCellsByRowKeys(
+  api.view.refreshCellsByRowKeys(
     [row.rowId],
     ["latencyMs", "errorRate", "status", "updatedAt"],
     {
@@ -4286,12 +4286,12 @@ watch(rowCount, () => {
 
 watch(pinStatusColumn, value => {
   applyColumnVisibilityPreset(columnVisibilityPreset.value)
-  api.setColumnPin("status", value ? "left" : "none")
+  api.columns.setPin("status", value ? "left" : "none")
   lastAction.value = value ? "Pinned status column" : "Unpinned status column"
 })
 watch(pinUpdatedAtRight, value => {
   applyColumnVisibilityPreset(columnVisibilityPreset.value)
-  api.setColumnPin("updatedAt", value ? "right" : "none")
+  api.columns.setPin("updatedAt", value ? "right" : "none")
   lastAction.value = value ? "Pinned updatedAt right" : "Unpinned updatedAt"
 })
 

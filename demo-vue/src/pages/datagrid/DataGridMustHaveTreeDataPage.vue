@@ -178,11 +178,11 @@ const visibleRows = computed(() => {
 })
 const groupRows = computed(() => {
   void rowModelRevision.value
-  const total = grid.api.getRowCount()
+  const total = grid.api.rows.getCount()
   if (total <= 0) {
     return 0
   }
-  return grid.api.getRowsInRange({ start: 0, end: total - 1 }).filter(row => row.kind === "group").length
+  return grid.api.rows.getRange({ start: 0, end: total - 1 }).filter(row => row.kind === "group").length
 })
 
 const sortStateText = computed(() => {

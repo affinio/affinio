@@ -15,11 +15,15 @@ interface IncidentRow {
 }
 
 interface PaginationApi {
-  setPagination: (pagination: { pageSize: number; currentPage: number } | null) => void
-  setPageSize: (pageSize: number | null) => void
-  setCurrentPage: (page: number) => void
-  getPaginationSnapshot: () => DataGridPaginationSnapshot
-  refresh: (options?: { reset?: boolean }) => void | Promise<void>
+  rows: {
+    setPagination: (pagination: { pageSize: number; currentPage: number } | null) => void
+    setPageSize: (pageSize: number | null) => void
+    setCurrentPage: (page: number) => void
+    getPagination: () => DataGridPaginationSnapshot
+  }
+  view: {
+    refresh: (options?: { reset?: boolean }) => void | Promise<void>
+  }
 }
 
 interface GridRefShape {
@@ -60,7 +64,7 @@ const paginationState = ref<DataGridPaginationSnapshot | null>(null)
 const gridRef = ref<GridRefShape | null>(null)
 
 const syncPaginationState = () => {
-  const snapshot = gridRef.value?.api?.getPaginationSnapshot?.()
+  const snapshot = gridRef.value?.api?.rows?.getPagination?.()
   if (!snapshot) {
     paginationState.value = null
     return
@@ -75,8 +79,8 @@ const setPageSizeValue = (nextPageSize: number | null) => {
   if (!api) {
     return
   }
-  api.setPageSize(nextPageSize)
-  api.setCurrentPage(0)
+  api.rows.setPageSize(nextPageSize)
+  api.rows.setCurrentPage(0)
   syncPaginationState()
   status.value = nextPageSize && nextPageSize > 0
     ? `Page size applied: ${nextPageSize}`
@@ -88,7 +92,7 @@ const goToPage = (pageOneBased: number) => {
   if (!api) {
     return
   }
-  api.setCurrentPage(Math.max(0, pageOneBased - 1))
+  api.rows.setCurrentPage(Math.max(0, pageOneBased - 1))
   syncPaginationState()
   const snapshot = paginationState.value
   if (!snapshot) {
@@ -119,11 +123,11 @@ const refreshRoundtrip = () => {
   if (!api || !snapshot) {
     return
   }
-  api.setPagination({
+  api.rows.setPagination({
     pageSize: snapshot.pageSize,
     currentPage: snapshot.currentPage,
   })
-  api.refresh()
+  api.view.refresh()
   syncPaginationState()
   status.value = "Snapshot roundtrip applied without state drift"
 }

@@ -19,11 +19,13 @@ interface IncidentRow {
 }
 
 interface ColumnStateApi {
-  getColumnModelSnapshot: () => DataGridColumnModelSnapshot
-  setColumnOrder: (keys: readonly string[]) => void
-  setColumnVisibility: (key: string, visible: boolean) => void
-  setColumnWidth: (key: string, width: number | null) => void
-  setColumnPin: (key: string, pin: "left" | "right" | "none") => void
+  columns: {
+    getSnapshot: () => DataGridColumnModelSnapshot
+    setOrder: (keys: readonly string[]) => void
+    setVisibility: (key: string, visible: boolean) => void
+    setWidth: (key: string, width: number | null) => void
+    setPin: (key: string, pin: "left" | "right" | "none") => void
+  }
 }
 
 interface GridRefShape {
@@ -87,15 +89,15 @@ const applyColumnState = (state: DataGridColumnStateSnapshot) => {
   if (!api) {
     return
   }
-  api.setColumnOrder(state.order)
+  api.columns.setOrder(state.order)
   Object.entries(state.visibility).forEach(([key, visible]) => {
-    api.setColumnVisibility(key, visible)
+    api.columns.setVisibility(key, visible)
   })
   Object.entries(state.widths).forEach(([key, width]) => {
-    api.setColumnWidth(key, width)
+    api.columns.setWidth(key, width)
   })
   Object.entries(state.pinning).forEach(([key, pin]) => {
-    api.setColumnPin(key, pin)
+    api.columns.setPin(key, pin)
   })
 }
 
@@ -104,10 +106,10 @@ const mutateColumnState = () => {
   if (!api) {
     return
   }
-  api.setColumnOrder(["owner", "service", "severity", "latencyMs", "region"])
-  api.setColumnVisibility("region", false)
-  api.setColumnWidth("service", 280)
-  api.setColumnPin("owner", "left")
+  api.columns.setOrder(["owner", "service", "severity", "latencyMs", "region"])
+  api.columns.setVisibility("region", false)
+  api.columns.setWidth("service", 280)
+  api.columns.setPin("owner", "left")
   status.value = "Mutated: order/visibility/width/pin changed"
 }
 
@@ -116,7 +118,7 @@ const saveState = () => {
   if (!api) {
     return
   }
-  const state = captureColumnState(api.getColumnModelSnapshot())
+  const state = captureColumnState(api.columns.getSnapshot())
   settingsAdapter.setColumnState(tableId, state)
   savedState.value = settingsAdapter.getColumnState(tableId)
   status.value = "Column state persisted via DataGridSettingsAdapter"
