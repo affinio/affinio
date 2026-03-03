@@ -9,7 +9,7 @@ This is the constructor-level reference for `@affino/datagrid-core` stable entry
 | Factory | Returns | Typical use |
 | --- | --- | --- |
 | `createDataGridCore(options?)` | `DataGridCore` | Service registry and lifecycle wiring. |
-| `createDataGridApi(options)` | `DataGridApi` | Stable namespace facade (`rows/columns/view/pivot/...`). |
+| `createDataGridApi(options)` | `DataGridApi` | Stable namespace facade (`lifecycle/rows/data/columns/view/pivot/selection/transaction/state/events/meta/policy/compute/diagnostics/plugins`). |
 | `createClientRowModel(options?)` | `ClientRowModel<T>` | In-memory projection (filter/sort/group/pivot/aggregate/paginate). |
 | `createDataGridColumnModel(options?)` | `DataGridColumnModel` | Column definitions/order/visibility/width/pin state. |
 | `createDataGridEditModel(options?)` | `DataGridEditModel` | Headless edit patches and revision tracking. |

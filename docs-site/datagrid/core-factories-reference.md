@@ -13,7 +13,7 @@ Use it when you build headless integrations directly on Core.
 | Factory | Returns | Typical use |
 | --- | --- | --- |
 | `createDataGridCore(options?)` | `DataGridCore` | Compose service registry and lifecycle orchestration. |
-| `createDataGridApi(options)` | `DataGridApi` | Namespace facade over rows/columns/pivot/selection/transaction/view. |
+| `createDataGridApi(options)` | `DataGridApi` | Namespace facade over lifecycle/rows/data/columns/view/pivot/selection/transaction/state/events/meta/policy/compute/diagnostics/plugins. |
 | `createClientRowModel(options?)` | `ClientRowModel<T>` | In-memory projection pipeline with sort/filter/group/pivot/aggregate/paginate. |
 | `createDataGridColumnModel(options?)` | `DataGridColumnModel` | Column definitions, order, visibility, width, pin. |
 | `createDataGridEditModel(options?)` | `DataGridEditModel` | Headless edit patch state and revision tracking. |

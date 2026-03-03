@@ -16,13 +16,15 @@ interface IncidentRow {
   priority: number
 }
 
-interface ClientRowModelLike {
-  reorderRows: (input: DataGridClientRowReorderInput) => boolean
+interface RowReorderFacadeLike {
+  moveByIndex: (fromIndex: number, toIndex: number, count?: number) => Promise<boolean>
 }
 
 interface GridRefShape {
   api?: DataGridApi<IncidentRow>
-  rowModel?: ClientRowModelLike
+  grid?: {
+    rowReorder: RowReorderFacadeLike
+  }
 }
 
 const columns = ref<readonly DataGridColumnDef[]>([
@@ -57,37 +59,37 @@ const syncVisibleHead = () => {
     .map(row => String((row.row as IncidentRow).priority))
 }
 
-const applyReorder = (input: DataGridClientRowReorderInput, label: string) => {
-  const rowModel = gridRef.value?.rowModel
-  if (!rowModel) {
+const applyReorder = async (input: DataGridClientRowReorderInput, label: string) => {
+  const rowReorder = gridRef.value?.grid?.rowReorder
+  if (!rowReorder) {
     return
   }
-  const moved = rowModel.reorderRows(input)
+  const moved = await rowReorder.moveByIndex(input.fromIndex, input.toIndex, input.count ?? 1)
   syncVisibleHead()
   status.value = moved ? `${label} applied` : `${label} skipped`
 }
 
-const moveFirstToEnd = () => {
-  applyReorder({ fromIndex: 0, toIndex: 24 }, "Move first -> end")
+const moveFirstToEnd = async () => {
+  await applyReorder({ fromIndex: 0, toIndex: 24 }, "Move first -> end")
 }
 
-const moveLastToTop = () => {
-  applyReorder({ fromIndex: 23, toIndex: 0 }, "Move last -> top")
+const moveLastToTop = async () => {
+  await applyReorder({ fromIndex: 23, toIndex: 0 }, "Move last -> top")
 }
 
-const moveBlock = () => {
-  applyReorder({ fromIndex: 2, toIndex: 12, count: 3 }, "Move block [3..5] -> after 12")
+const moveBlock = async () => {
+  await applyReorder({ fromIndex: 2, toIndex: 12, count: 3 }, "Move block [3..5] -> after 12")
 }
 
-const paginateAndReorder = () => {
+const paginateAndReorder = async () => {
   const api = gridRef.value?.api
-  const rowModel = gridRef.value?.rowModel
-  if (!rowModel || !api) {
+  const rowReorder = gridRef.value?.grid?.rowReorder
+  if (!rowReorder || !api) {
     return
   }
   api.rows.setPageSize(8)
   api.rows.setCurrentPage(1)
-  const moved = rowModel.reorderRows({ fromIndex: 10, toIndex: 1 })
+  const moved = await rowReorder.moveByIndex(10, 1, 1)
   syncVisibleHead()
   status.value = moved
     ? "Reorder done with pagination (pageSize=8, currentPage=2)"
@@ -107,14 +109,15 @@ onMounted(() => {
       <p class="datagrid-musthave-reorder__eyebrow">DataGrid Must-Have · Scenario 04</p>
       <h1>Client Row Reordering</h1>
       <p>
-        Deterministic reorder pipeline: facade API for projection/pagination reads, with low-level `rowModel.reorderRows`
-        mutation path where reorder remains row-model scoped.
+        Deterministic reorder pipeline through stable adapter surface (`grid.rowReorder.moveByIndex`) and facade API
+        reads for projection/pagination.
       </p>
       <div class="datagrid-musthave-reorder__links">
         <RouterLink to="/datagrid/must-have/pagination">Pagination</RouterLink>
         <RouterLink to="/datagrid/must-have/filtering">Filtering</RouterLink>
         <RouterLink to="/datagrid/must-have/column-state">Column state</RouterLink>
         <RouterLink to="/datagrid/must-have/row-height">Row-height</RouterLink>
+        <RouterLink to="/datagrid/must-have/tree-data">Tree data</RouterLink>
       </div>
     </header>
 

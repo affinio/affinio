@@ -53,12 +53,21 @@ Migration rule:
 
 Preferred API shape:
 
+- `api.lifecycle`
 - `api.rows.*`
+- `api.data.*`
 - `api.columns.*`
 - `api.view.*`
 - `api.pivot.*`
 - `api.selection.*`
 - `api.transaction.*`
+- `api.compute.*`
+- `api.diagnostics.*`
+- `api.meta.*`
+- `api.policy.*`
+- `api.plugins.*`
+- `api.state.*`
+- `api.events.*`
 - `api.capabilities`
 
 Legacy flat methods are removed from `DataGridApi`.

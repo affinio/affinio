@@ -13,7 +13,7 @@ title: Справочник фабрик и контрактов Core
 | Фабрика | Что возвращает | Типовой сценарий |
 | --- | --- | --- |
 | `createDataGridCore(options?)` | `DataGridCore` | Сборка service registry и orchestration жизненного цикла. |
-| `createDataGridApi(options)` | `DataGridApi` | Namespace-фасад над rows/columns/pivot/selection/transaction/view. |
+| `createDataGridApi(options)` | `DataGridApi` | Namespace-фасад над lifecycle/rows/data/columns/view/pivot/selection/transaction/state/events/meta/policy/compute/diagnostics/plugins. |
 | `createClientRowModel(options?)` | `ClientRowModel<T>` | In-memory pipeline: sort/filter/group/pivot/aggregate/paginate. |
 | `createDataGridColumnModel(options?)` | `DataGridColumnModel` | Дефиниции колонок, order, visibility, width, pin. |
 | `createDataGridEditModel(options?)` | `DataGridEditModel` | Headless-состояние edit patches и tracking ревизий. |

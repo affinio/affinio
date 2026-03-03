@@ -43,7 +43,19 @@ import {
 
 Это соответствует пути интеграции Laravel datagrid demo и убирает прямые импорты `@affino/datagrid-core` / `@affino/datagrid-orchestration`.
 
-## 4) Рекомендуемая import-policy
+## 4) API-first правило для runtime
+
+При использовании `createDataGridRuntime(...)` предпочтителен фасад через `runtime.api.*`:
+
+- `runtime.api.rows.setData(...)`
+- `runtime.api.rows.patch(...)`
+- `runtime.api.rows.setFilterModel(...)`
+- `runtime.api.rows.batch(() => { ... })` для grouped mutation boundary
+- `runtime.api.state.get/set(...)`, `runtime.api.events.on(...)`, `runtime.api.diagnostics.getAll()`
+
+Избегайте прямых вызовов `rowModel.*` / `columnModel.*` в Laravel app-коде, если это не целевой low-level runtime эксперимент.
+
+## 5) Рекомендуемая import-policy
 
 Laravel app / demo код:
 
@@ -53,9 +65,8 @@ Laravel app / demo код:
 
 - импортировать из `@affino/datagrid-core` / `@affino/datagrid-orchestration`
 
-## 5) Типичное разделение ответственности
+## 6) Типичное разделение ответственности
 
 - Laravel (Blade/Livewire): DOM shell, controls, hydration lifecycle
 - `@affino/datagrid-laravel`: datagrid runtime/orchestration facade
 - DataGrid engine internals: скрыты за фасадом
-

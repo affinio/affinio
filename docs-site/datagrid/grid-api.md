@@ -28,6 +28,7 @@ await api.start()
 - `api.lifecycle`
 - `api.capabilities`
 - `api.rows.*`
+- `api.data.*`
 - `api.columns.*`
 - `api.view.*`
 - `api.pivot.*`
@@ -48,6 +49,7 @@ await api.start()
 
 - `patch`
 - `dataMutation`
+- `backpressureControl`
 - `compute`
 - `selection`
 - `transaction`
@@ -107,6 +109,16 @@ Use it to guard optional flows before capability-dependent calls.
 | `applyEdits(updates, options?)` | High-level edit flow with reapply policy. |
 | `setAutoReapply(value)` | Set edit policy (`false` = freeze view by default). |
 | `getAutoReapply()` | Read auto-reapply policy. |
+| `batch(fn)` | Explicit bulk mutation boundary with coalesced facade event-cycle. |
+
+## `api.data` namespace
+
+| Method | Purpose |
+| --- | --- |
+| `hasBackpressureControlSupport()` | Whether current row model exposes backpressure controls. |
+| `pause()` | Pause pull/warmup pressure on supported server/data-source models. |
+| `resume()` | Resume paused pull/warmup pressure and process pending demand. |
+| `flush()` | Drain in-flight + pending backpressure queue deterministically. |
 
 ## `api.columns` namespace
 
@@ -164,7 +176,7 @@ Use it to guard optional flows before capability-dependent calls.
 | `beginBatch(label?)` | Open transaction batch. |
 | `commitBatch(batchId?)` | Commit one/all pending batches. |
 | `rollbackBatch(batchId?)` | Roll back one/all pending batches. |
-| `apply(transaction)` | Apply transaction entry. |
+| `apply(transaction, options?)` | Apply transaction entry (`options.signal` supports abort-before-dispatch). |
 | `canUndo()` / `canRedo()` | Undo/redo capability checks. |
 | `undo()` / `redo()` | Execute undo/redo. |
 
@@ -188,6 +200,9 @@ Use it to guard optional flows before capability-dependent calls.
 | Method | Purpose |
 | --- | --- |
 | `getSchema()` | Runtime schema snapshot (row model kind + columns). |
+| `getRowModelKind()` | Runtime row model kind (`client/server/data-source/worker-owned`). |
+| `getApiVersion()` | Public API semantic version identifier. |
+| `getProtocolVersion()` | Public protocol semantic version identifier. |
 | `getCapabilities()` | Same capability snapshot as `api.capabilities`. |
 | `getRuntimeInfo()` | Lifecycle/runtime summary (revision/loading/viewport/projection mode/compute mode). |
 
@@ -213,6 +228,7 @@ Use it to guard optional flows before capability-dependent calls.
 | Method | Purpose |
 | --- | --- |
 | `get()` | Unified state snapshot export. |
+| `migrate(state, options?)` | Validate/migrate external payload to current unified state version. |
 | `set(state, options?)` | Unified state restore (`applyColumns/applySelection/applyViewport/strict`). |
 
 ## `api.events` namespace
@@ -230,11 +246,86 @@ Stable events:
 - `pivot:changed`
 - `transaction:changed`
 - `viewport:changed`
+- `state:import:begin`
+- `state:import:end`
 - `state:imported`
+- `error`
 
-## Semantics notes
+## Runtime guarantees
+
+### Snapshot isolation
+
+- Public read calls are revision-consistent within the same synchronous call stack.
+- If your code performs only reads (`rows.getSnapshot/getCount/getRange`, `state.get`, `meta.getRuntimeInfo`, `diagnostics.getAll`) without mutation calls between them, they observe one logical revision.
+
+### Mutation execution model
+
+- Guarded high-impact operations are serialized through lifecycle exclusivity:
+  - `state.set(...)`
+  - `compute.switchMode(...)`
+  - transaction mutators (`begin/commit/rollback/apply/undo/redo`)
+  - `rows.batch(...)`
+- Non-guarded row/query operations execute synchronously in caller stack.
+
+### Event reentrancy
+
+- Mutation from inside an event handler is allowed.
+- Reentrant event emissions are queued FIFO and drained deterministically.
+- Plugin handler exceptions are isolated from core dispatch.
+- Exceptions thrown by direct `api.events` listeners propagate to caller.
+
+## State import atomicity (`api.state.set`)
+
+- `api.state.set(...)` is a logical begin/end boundary, not a single-event atomic payload.
+- Event lifecycle for one restore call:
+  1. `state:import:begin`
+  2. row/column/selection events during restore application
+  3. `state:imported` on successful apply
+  4. `state:import:end`
+- Subscribers to `rows:changed` or `columns:changed` may observe intermediate restore stages between begin/end.
+- `state:import:end` means this restore call finished its synchronous apply path.
+
+## Policy enforcement matrix (`api.policy`)
+
+| Operation | `mutable` | `immutable` | `excel-like` |
+| --- | --- | --- | --- |
+| `rows.patch(...)` | Allowed; caller controls recompute flags | Rejected by facade guard | Allowed |
+| `rows.applyEdits(...)` (default options) | Allowed; default auto-reapply behavior | Rejected by facade guard | Allowed; default freeze behavior |
+| `rows.applyEdits(..., { reapply: true })` | Allowed | Rejected by facade guard | Allowed; explicit reapply path |
+| `rows.setData/replaceData/appendData/prependData` | Allowed | Rejected by facade guard | Allowed |
+| `rows.setSortModel/setFilterModel/setGroupBy` | Allowed | Allowed | Allowed |
+| `view.reapply()` | Allowed | Allowed | Allowed |
+
+Notes:
+
+- `mutable` enables auto-reapply.
+- `immutable` disables data-mutation entrypoints on facade level.
+- `excel-like` keeps freeze-first editing semantics while still allowing explicit reapply flows.
+
+## Concurrency model (`api.lifecycle`)
+
+- `isBusy()` is `true` while an exclusive operation is active or queued.
+- `whenIdle()` resolves when the exclusive lifecycle queue drains.
+- `runExclusive(fn)` schedules `fn` inside the exclusive queue and resolves with its result.
+
+## Error model (`api.events.on("error")`)
+
+- Recoverable guarded failures are emitted as typed `error` events.
+- Error payload contract: `code`, `operation`, `recoverable`, `error`.
+- Aborted guarded mutations are reported with code `aborted` and `AbortError`.
+- Fatal programming errors can still throw directly (for example invalid usage outside guarded paths).
+
+## Plugin safety model (`api.plugins`)
+
+- Plugins are observational by default and consume only public event payloads.
+- `onEvent` receives a snapshot payload object (top-level immutable view for plugin callbacks).
+- Plugin exceptions are isolated and do not stop core event dispatch.
+- Plugins may mutate grid state only through public API calls; internal service registry is not exposed.
+
+## Additional semantics
 
 - `rows.applyEdits(...)` mutates data (optionally with reapply policy).
+- `rows.patch(...)`, `rows.applyEdits(...)`, `transaction.apply(...)` support abort-before-dispatch via `options.signal`.
 - `view.reapply()` recomputes projection only.
 - `pivot` is intentionally a separate analytical subsystem, not nested under `rows`.
 

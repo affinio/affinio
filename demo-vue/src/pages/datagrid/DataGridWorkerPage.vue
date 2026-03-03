@@ -306,6 +306,14 @@ const activeDerivedCacheSummary = computed(() => {
     + diagnostics.groupValueMisses
   return `${totalLookups} lookups`
 })
+const activeLifecycleState = computed(() => {
+  void diagnosticsSnapshot.value
+  return activeGrid.value.api.lifecycle.state
+})
+const activeLifecycleBusy = computed(() => {
+  void diagnosticsSnapshot.value
+  return activeGrid.value.api.lifecycle.isBusy()
+})
 
 watch(rowCount, nextCount => {
   generation.value += 1
@@ -388,8 +396,8 @@ const rebuildDataset = async (nextCount: number): Promise<void> => {
   generation.value += 1
   const nextRows = createWorkerOwnedDemoRows(normalizedCount, generation.value)
   rows.value = nextRows
-  mainGrid.setRows(nextRows)
-  workerGrid.setRows(nextRows)
+  mainGrid.api.rows.setData(nextRows)
+  workerGrid.api.rows.setData(nextRows)
   await nextTick()
   await waitForIdleTick(3)
 }
@@ -502,81 +510,86 @@ const runPressureScenario = async (
       : ["region", "team", "owner"]
     const expandedByDefault = pressureId % 2 !== 0
 
-    const startedAt = performance.now()
-    const sortApplyMs = await applyMutationAndWait(grid, () => {
-      grid.api.rows.setSortModel([
-        { key: "revenue", direction: sortDirection },
-        { key: "latencyMs", direction: "asc" },
-        { key: "orders", direction: "desc" },
-      ])
-    })
-    const groupApplyMs = await applyMutationAndWait(grid, () => {
-      grid.api.rows.setGroupBy({
-        fields: groupFields,
-        expandedByDefault,
+    const pressureResult = await grid.api.lifecycle.runExclusive(async () => {
+      const startedAt = performance.now()
+      const sortApplyMs = await applyMutationAndWait(grid, () => {
+        grid.api.rows.setSortModel([
+          { key: "revenue", direction: sortDirection },
+          { key: "latencyMs", direction: "asc" },
+          { key: "orders", direction: "desc" },
+        ])
       })
-    })
-    const aggregationApplyMs = await applyMutationAndWait(grid, () => {
-      grid.setAggregationModel({
-        basis: pressureId % 2 === 0 ? "source" : "filtered",
-        columns: [
-          { key: "revenue", op: "sum" },
-          { key: "orders", op: "count" },
-          { key: "latencyMs", op: "avg" },
-        ],
+      const groupApplyMs = await applyMutationAndWait(grid, () => {
+        grid.api.rows.setGroupBy({
+          fields: groupFields,
+          expandedByDefault,
+        })
       })
-    })
-    const filterApplyMs = await applyMutationAndWait(grid, () => {
-      grid.api.rows.setFilterModel({
-        columnFilters: {
-          region: {
-            kind: "valueSet",
-            tokens: filterTokens,
+      const aggregationApplyMs = await applyMutationAndWait(grid, () => {
+        grid.api.rows.setAggregationModel({
+          basis: pressureId % 2 === 0 ? "source" : "filtered",
+          columns: [
+            { key: "revenue", op: "sum" },
+            { key: "orders", op: "count" },
+            { key: "latencyMs", op: "avg" },
+          ],
+        })
+      })
+      const filterApplyMs = await applyMutationAndWait(grid, () => {
+        grid.api.rows.setFilterModel({
+          columnFilters: {
+            region: {
+              kind: "valueSet",
+              tokens: filterTokens,
+            },
           },
-        },
-        advancedFilters: {},
-        advancedExpression: null,
+          advancedFilters: {},
+          advancedExpression: null,
+        })
       })
-    })
-    await applyMutationAndWait(grid, () => {
-      grid.api.rows.expandAllGroups()
-    })
-
-    const patchDispatchDurations: number[] = []
-    const patchAppliedDurations: number[] = []
-    let pressureChecksum = 0
-
-    for (let iteration = 0; iteration < patchIterations; iteration += 1) {
-      const updates = createStressUpdates(iteration + 1, Math.min(targetPatchSize, rows.value.length))
-      const baselineRevision = grid.api.rows.getSnapshot().revision ?? 0
-      const patchStartedAt = performance.now()
-      grid.patchRows(updates, {
-        recomputeSort: true,
-        recomputeFilter: true,
-        recomputeGroup: true,
-        emit: true,
+      await applyMutationAndWait(grid, () => {
+        grid.api.rows.expandAllGroups()
       })
-      patchDispatchDurations.push(performance.now() - patchStartedAt)
-      const applied = await waitForRevisionIncrement(grid, baselineRevision, patchStartedAt)
-      patchAppliedDurations.push(applied.appliedMs)
-      pressureChecksum += runMainThreadPressure(grid, viewportSampleSize, formatterPasses, deepClonePasses)
-    }
 
-    const totalElapsedMs = performance.now() - startedAt
+      const patchDispatchDurations: number[] = []
+      const patchAppliedDurations: number[] = []
+      let pressureChecksum = 0
+
+      for (let iteration = 0; iteration < patchIterations; iteration += 1) {
+        const updates = createStressUpdates(iteration + 1, Math.min(targetPatchSize, rows.value.length))
+        const baselineRevision = grid.api.rows.getSnapshot().revision ?? 0
+        const patchStartedAt = performance.now()
+        grid.api.rows.patch(updates, {
+          recomputeSort: true,
+          recomputeFilter: true,
+          recomputeGroup: true,
+          emit: true,
+        })
+        patchDispatchDurations.push(performance.now() - patchStartedAt)
+        const applied = await waitForRevisionIncrement(grid, baselineRevision, patchStartedAt)
+        patchAppliedDurations.push(applied.appliedMs)
+        pressureChecksum += runMainThreadPressure(grid, viewportSampleSize, formatterPasses, deepClonePasses)
+      }
+
+      return {
+        totalElapsedMs: performance.now() - startedAt,
+        sortApplyMs,
+        groupApplyMs,
+        aggregationApplyMs,
+        filterApplyMs,
+        patchDispatchP95Ms: quantile(patchDispatchDurations, 0.95),
+        patchAppliedP95Ms: quantile(patchAppliedDurations, 0.95),
+        patchAppliedP99Ms: quantile(patchAppliedDurations, 0.99),
+        pressureChecksum: Number(pressureChecksum.toFixed(3)),
+      }
+    })
+
     const report: WorkerPressureScenarioReport = {
       mode,
       rowCount: targetRows,
       patchIterations,
       patchSize: targetPatchSize,
-      totalElapsedMs,
-      sortApplyMs,
-      groupApplyMs,
-      aggregationApplyMs,
-      filterApplyMs,
-      patchDispatchP95Ms: quantile(patchDispatchDurations, 0.95),
-      patchAppliedP95Ms: quantile(patchAppliedDurations, 0.95),
-      patchAppliedP99Ms: quantile(patchAppliedDurations, 0.99),
-      pressureChecksum: Number(pressureChecksum.toFixed(3)),
+      ...pressureResult,
     }
     benchmarkStatus.value =
       `Pressure complete (${mode}): total ${report.totalElapsedMs.toFixed(1)}ms, patch p95 ${report.patchAppliedP95Ms.toFixed(1)}ms`
@@ -612,21 +625,23 @@ const runPatchBenchmark = async (
   grid: UseAffinoDataGridResult<WorkerOwnedDemoRow>,
   updates: readonly DataGridClientRowPatch<WorkerOwnedDemoRow>[],
 ): Promise<BenchmarkMetric> => {
-  const baseline = grid.api.rows.getSnapshot().revision ?? 0
-  const startedAt = performance.now()
-  grid.patchRows(updates, {
-    recomputeSort: false,
-    recomputeFilter: false,
-    recomputeGroup: false,
-    emit: true,
+  return await grid.api.lifecycle.runExclusive(async () => {
+    const baseline = grid.api.rows.getSnapshot().revision ?? 0
+    const startedAt = performance.now()
+    grid.api.rows.patch(updates, {
+      recomputeSort: false,
+      recomputeFilter: false,
+      recomputeGroup: false,
+      emit: true,
+    })
+    const dispatchMs = performance.now() - startedAt
+    const applied = await waitForRevisionIncrement(grid, baseline, startedAt)
+    return {
+      dispatchMs,
+      appliedMs: applied.appliedMs,
+      revision: applied.revision,
+    }
   })
-  const dispatchMs = performance.now() - startedAt
-  const applied = await waitForRevisionIncrement(grid, baseline, startedAt)
-  return {
-    dispatchMs,
-    appliedMs: applied.appliedMs,
-    revision: applied.revision,
-  }
 }
 
 const switchComputeMode = (mode: DataGridClientComputeMode): void => {
@@ -726,7 +741,10 @@ const runPressureFromUi = async (): Promise<void> => {
 
 const resetDataset = (): void => {
   generation.value += 1
-  rows.value = createWorkerOwnedDemoRows(rowCount.value, generation.value)
+  const nextRows = createWorkerOwnedDemoRows(rowCount.value, generation.value)
+  rows.value = nextRows
+  mainGrid.api.rows.setData(nextRows)
+  workerGrid.api.rows.setData(nextRows)
   benchmarkStatus.value = "Dataset reset"
   mainMetric.value = null
   workerMetric.value = null
@@ -860,6 +878,8 @@ if (typeof window !== "undefined") {
           </dl>
         </section>
 
+        <div class="datagrid-worker-page__insights">
+
         <section class="datagrid-worker-page__benchmark">
           <h2>Last A/B benchmark</h2>
           <p class="datagrid-worker-page__benchmark-note">
@@ -954,6 +974,10 @@ if (typeof window !== "undefined") {
                 </td>
               </tr>
               <tr>
+                <th>Lifecycle state / busy</th>
+                <td>{{ activeLifecycleState }} / {{ activeLifecycleBusy ? "yes" : "no" }}</td>
+              </tr>
+              <tr>
                 <th>Derived cache</th>
                 <td>{{ activeDerivedCacheSummary }}</td>
               </tr>
@@ -983,6 +1007,7 @@ if (typeof window !== "undefined") {
             </tbody>
           </table>
         </section>
+        </div>
       </aside>
 
       <div class="datagrid-worker-page__stage">
@@ -1010,9 +1035,16 @@ if (typeof window !== "undefined") {
 
 .datagrid-worker-page__sidebar {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.75rem;
   min-height: 0;
+}
+
+.datagrid-worker-page__insights {
+  display: grid;
+  gap: 0.75rem;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .datagrid-worker-page__header h1 {

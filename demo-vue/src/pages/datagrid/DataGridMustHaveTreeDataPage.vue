@@ -168,8 +168,12 @@ const rowModelRevision = ref(grid.api.rows.getSnapshot().revision ?? 0)
 const unsubscribeRowsChanged = grid.api.events.on("rows:changed", payload => {
   rowModelRevision.value = payload.snapshot.revision ?? rowModelRevision.value + 1
 })
+const unsubscribeProjectionRecomputed = grid.api.events.on("projection:recomputed", payload => {
+  rowModelRevision.value = payload.nextVersion ?? rowModelRevision.value + 1
+})
 onBeforeUnmount(() => {
   unsubscribeRowsChanged()
+  unsubscribeProjectionRecomputed()
 })
 
 const visibleRows = computed(() => {
@@ -186,60 +190,63 @@ const groupRows = computed(() => {
 })
 
 const sortStateText = computed(() => {
-  if (grid.sortState.value.length === 0) {
+  void rowModelRevision.value
+  const sortModel = grid.api.rows.getSnapshot().sortModel
+  if (sortModel.length === 0) {
     return "none"
   }
-  return grid.sortState.value
+  return sortModel
     .map((entry, index) => `${index + 1}:${entry.key}:${entry.direction}`)
     .join(" | ")
 })
 
 const applyQuickFilter = (): void => {
   const query = quickQuery.value.trim().toLowerCase()
-  const helpers = grid.features.filtering.helpers
   if (query.length === 0) {
-    grid.features.filtering.clear()
+    grid.api.rows.setFilterModel(null)
     status.value = "Filter cleared"
     return
   }
-  const expression = helpers.or(
-    helpers.condition({ key: "service", type: "text", operator: "contains", value: query }),
-    helpers.condition({ key: "owner", type: "text", operator: "contains", value: query }),
-    helpers.condition({ key: "region", type: "text", operator: "contains", value: query }),
-  )
-  if (!expression) {
-    grid.features.filtering.clear()
-    status.value = "Filter cleared"
-    return
-  }
-  helpers.apply(expression, { mergeMode: "replace" })
+  grid.api.rows.setFilterModel({
+    columnFilters: {},
+    advancedFilters: {},
+    advancedExpression: {
+      kind: "group",
+      operator: "or",
+      children: [
+        { kind: "condition", key: "service", type: "text", operator: "contains", value: query },
+        { kind: "condition", key: "owner", type: "text", operator: "contains", value: query },
+        { kind: "condition", key: "region", type: "text", operator: "contains", value: query },
+      ],
+    },
+  })
   status.value = `Filter applied: ${query}`
 }
 
 const clearQuickFilter = (): void => {
   quickQuery.value = ""
-  grid.features.filtering.clear()
+  grid.api.rows.setFilterModel(null)
   status.value = "Filter cleared"
 }
 
 const applySortPreset = (value: string): void => {
   sortPreset.value = value
   if (value === "none") {
-    grid.setSortState([])
+    grid.api.rows.setSortModel([])
     status.value = "Sort: none"
     return
   }
   if (value === "owner-asc") {
-    grid.setSortState([{ key: "owner", direction: "asc" }])
+    grid.api.rows.setSortModel([{ key: "owner", direction: "asc" }])
     status.value = "Sort: owner asc"
     return
   }
   if (value === "latency-asc") {
-    grid.setSortState([{ key: "latencyMs", direction: "asc" }])
+    grid.api.rows.setSortModel([{ key: "latencyMs", direction: "asc" }])
     status.value = "Sort: latency asc"
     return
   }
-  grid.setSortState([{ key: "latencyMs", direction: "desc" }])
+  grid.api.rows.setSortModel([{ key: "latencyMs", direction: "desc" }])
   status.value = "Sort: latency desc"
 }
 
@@ -249,12 +256,12 @@ const onSortSelectChange = (event: Event): void => {
 }
 
 const collapseAll = (): void => {
-  const affected = grid.features.tree.collapseAll()
+  const affected = grid.api.rows.collapseAllGroups()
   status.value = `Collapsed groups: ${affected}`
 }
 
 const expandAll = (): void => {
-  const affected = grid.features.tree.expandAll()
+  const affected = grid.api.rows.expandAllGroups()
   status.value = `Expanded groups: ${affected}`
 }
 </script>
@@ -279,76 +286,86 @@ const expandAll = (): void => {
       </div>
     </header>
 
-    <section class="datagrid-musthave-tree__controls">
-      <label>
-        <span>Quick filter</span>
-        <input
-          v-model="quickQuery"
-          data-tree-quick-filter
-          type="text"
-          placeholder="service / owner / region"
-          @keydown.enter.prevent="applyQuickFilter"
+    <div class="datagrid-musthave-tree__layout">
+      <aside class="datagrid-musthave-tree__controls">
+        <label>
+          <span>Quick filter</span>
+          <input
+            v-model="quickQuery"
+            data-tree-quick-filter
+            type="text"
+            placeholder="service / owner / region"
+            @keydown.enter.prevent="applyQuickFilter"
+          />
+        </label>
+        <div class="datagrid-musthave-tree__actions">
+          <button type="button" data-tree-apply-filter @click="applyQuickFilter">Apply filter</button>
+          <button type="button" data-tree-clear-filter @click="clearQuickFilter">Clear filter</button>
+        </div>
+
+        <label>
+          <span>Sort preset</span>
+          <select data-tree-sort-select :value="sortPreset" @change="onSortSelectChange">
+            <option value="latency-desc">Latency desc</option>
+            <option value="latency-asc">Latency asc</option>
+            <option value="owner-asc">Owner asc</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+
+        <div class="datagrid-musthave-tree__actions">
+          <button type="button" data-tree-collapse-all @click="collapseAll">Collapse all</button>
+          <button type="button" data-tree-expand-all @click="expandAll">Expand all</button>
+        </div>
+
+        <dl class="datagrid-musthave-tree__metrics">
+          <div>
+            <dt>Visible rows</dt>
+            <dd data-tree-visible-rows>{{ visibleRows }}</dd>
+          </div>
+          <div>
+            <dt>Visible groups</dt>
+            <dd data-tree-group-rows>{{ groupRows }}</dd>
+          </div>
+          <div>
+            <dt>Sort state</dt>
+            <dd data-tree-sort-state>{{ sortStateText }}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd data-tree-status>{{ status }}</dd>
+          </div>
+        </dl>
+      </aside>
+
+      <main class="datagrid-musthave-tree__stage">
+        <DataGridSugarStage
+          :grid="gridStage"
+          :showPagination="false"
+          tree-tabular
+          tree-primary-column-key="service"
+          tree-subtitle-column-key="owner"
         />
-      </label>
-      <div class="datagrid-musthave-tree__actions">
-        <button type="button" data-tree-apply-filter @click="applyQuickFilter">Apply filter</button>
-        <button type="button" data-tree-clear-filter @click="clearQuickFilter">Clear filter</button>
-      </div>
-
-      <label>
-        <span>Sort preset</span>
-        <select data-tree-sort-select :value="sortPreset" @change="onSortSelectChange">
-          <option value="latency-desc">Latency desc</option>
-          <option value="latency-asc">Latency asc</option>
-          <option value="owner-asc">Owner asc</option>
-          <option value="none">None</option>
-        </select>
-      </label>
-
-      <div class="datagrid-musthave-tree__actions">
-        <button type="button" data-tree-collapse-all @click="collapseAll">Collapse all</button>
-        <button type="button" data-tree-expand-all @click="expandAll">Expand all</button>
-      </div>
-
-      <dl class="datagrid-musthave-tree__metrics">
-        <div>
-          <dt>Visible rows</dt>
-          <dd data-tree-visible-rows>{{ visibleRows }}</dd>
-        </div>
-        <div>
-          <dt>Visible groups</dt>
-          <dd data-tree-group-rows>{{ groupRows }}</dd>
-        </div>
-        <div>
-          <dt>Sort state</dt>
-          <dd data-tree-sort-state>{{ sortStateText }}</dd>
-        </div>
-        <div>
-          <dt>Status</dt>
-          <dd data-tree-status>{{ status }}</dd>
-        </div>
-      </dl>
-    </section>
-
-    <div class="datagrid-musthave-tree__stage">
-      <DataGridSugarStage
-        :grid="gridStage"
-        :showPagination="false"
-        tree-tabular
-        tree-primary-column-key="service"
-        tree-subtitle-column-key="owner"
-      />
+      </main>
     </div>
   </section>
 </template>
 
 <style scoped>
 .datagrid-musthave-tree {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
   min-height: 0;
   height: 100%;
+}
+
+.datagrid-musthave-tree__layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 0.75rem;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .datagrid-musthave-tree__header h1 {
@@ -379,10 +396,13 @@ const expandAll = (): void => {
   border-radius: 0.75rem;
   background: var(--glass-bg);
   padding: 0.65rem;
-  display: grid;
-  grid-template-columns: minmax(260px, 2fr) auto minmax(200px, 1fr) auto 1.7fr;
-  align-items: end;
+  display: flex;
+  flex-direction: column;
   gap: 0.55rem;
+  min-height: 0;
+  overflow-y: auto;
+  position: relative;
+  z-index: 2;
 }
 
 .datagrid-musthave-tree__controls label {
@@ -447,6 +467,9 @@ const expandAll = (): void => {
 .datagrid-musthave-tree__stage {
   min-height: 0;
   overflow: hidden;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 :deep(.datagrid-sugar-stage) {
@@ -482,9 +505,13 @@ const expandAll = (): void => {
   background: rgba(14, 26, 40, 0.84);
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1100px) {
+  .datagrid-musthave-tree__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .datagrid-musthave-tree__controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
   }
 }
 </style>

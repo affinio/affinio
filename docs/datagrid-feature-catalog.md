@@ -20,15 +20,20 @@ Use it as a single decision sheet to understand whether the platform fits your p
 
 | Area | Capability | Scope | Runtime mode | Notes |
 | --- | --- | --- | --- | --- |
-| API | Stable namespace-based facade (`DataGridApi`) | Core + Adapter | all | Single public surface: `rows/columns/view/state/events/meta/policy/compute/diagnostics/plugins`. |
+| API | Stable namespace-based facade (`DataGridApi`) | Core + Adapter | all | Single public surface: `lifecycle/rows/data/columns/view/pivot/selection/transaction/state/events/meta/policy/compute/diagnostics/plugins`. |
 | Row models | Client row model (`createClientRowModel`) | Core + Adapter | main-thread, worker-owned | Sorting/filtering/grouping/pagination/visible projection pipeline. |
 | Row models | Worker-owned row model (`createDataGridWorkerOwnedRowModel`) | Core worker + Adapter | worker-owned | Compute/state owned by worker, main thread consumes snapshots/windows. |
 | Row models | Data source backed row model (`createDataSourceBackedRowModel`) | Core + Adapter + Backend | server-side | Protocol-first pull/push/invalidation/backpressure contract for backend-driven datasets. |
 | Row models | Server backed row model (`createServerBackedRowModel`) | Core + Adapter + Backend | server-side | Server-fetch oriented model with explicit lazy/block fetch flow and cached snapshots. |
 | State | Unified state export/import (`api.state.get/set`) | Core + Adapter | all | V1 is model-centric transport (`rows.snapshot` + `columns` + `selection` + `transaction`) for restore/integration boundaries. |
+| State | State migration hook (`api.state.migrate`) | Core + Adapter | all | Explicit payload migration/validation path before restore (`strict` mode supported). |
 | State | Partial + strict restore policies | Core + Adapter | all | `applyColumns/applySelection/applyViewport/strict` restore options. |
-| Events | Typed public event surface (`api.events.on`) | Core + Adapter | all | Typed events for rows/columns/projection/selection/pivot/transaction/viewport/state. |
+| State | Explicit import boundaries (`state:import:begin/end`) | Core + Adapter | all | Logical begin/end envelope for `api.state.set(...)`, with `state:imported` emitted on successful apply. |
+| State | Snapshot isolation contract (sync stack) | Core + Adapter | all | Read operations are revision-consistent within one synchronous call stack unless a mutation is executed in between. |
+| Events | Typed public event surface (`api.events.on`) | Core + Adapter | all | Typed events for rows/columns/projection/selection/pivot/transaction/viewport/state/error. |
 | Events | Event ordering guarantees | Core + Adapter | all | Row tick order is explicit: `rows:changed` -> `projection:recomputed` -> `pivot:changed` -> `viewport:changed` (when applicable). |
+| Events | Deterministic reentrancy queue | Core + Adapter | all | Reentrant event emissions are queued FIFO within the current runtime tick. |
+| Events | Error surface (`error` event + error codes) | Core + Adapter | all | Structured error payload (`code/operation/recoverable/error`) for integration-safe recovery handling. |
 | Query | Sort model (single/multi column) | Core + Adapter | all | Deterministic sort state and projection stage integration. |
 | Query | Column filters | Core + Adapter | all | Predicate-based column filtering with snapshot state. |
 | Query | Advanced filter expressions | Core + Adapter | all | Structured boolean expression tree normalization/evaluation. |
@@ -52,6 +57,7 @@ Use it as a single decision sheet to understand whether the platform fits your p
 | Reordering | Client row reorder mutation (`rowModel.reorderRows`) | Core + Adapter | main-thread, worker-owned | Officially row-model-scoped in current stable facade; adapters may wrap it, `api.rows` alias is not yet part of semver contract. |
 | Editing | Patch updates (`patchRows`) | Core + Adapter | all | Partial row updates with field-aware stage invalidation. |
 | Editing | Editing lifecycle controls (`patch/applyEdits/reapply`) | Core + Adapter | main-thread, worker-owned | Explicit mutation lifecycle for edit-heavy UX flows. |
+| Editing | Abortable mutation dispatch (`AbortSignal`) | Core + Adapter | all | `rows.patch`, `rows.applyEdits`, `transaction.apply` support abort-before-dispatch semantics. |
 | Editing | Projection policy (`mutable/immutable/excel-like`) | Core + Adapter | all | `mutable` enables auto-reapply; `immutable`/`excel-like` disable auto-reapply (explicit reapply flow). |
 | Editing | Deterministic edit revisions | Core + Adapter | all | Revision snapshots are monotonic across edit pipelines. |
 | Editing | Stage invalidation guarantees | Core + Adapter | all | Field-aware invalidation keeps recompute scope explicit and observable. |
@@ -59,14 +65,17 @@ Use it as a single decision sheet to understand whether the platform fits your p
 | Interaction | Pointer/context-menu orchestration | Core + Adapter | main-thread, worker-owned | Advanced pointer routing and context menu action contracts. |
 | Accessibility | A11y attributes + state machine | Core advanced + Adapter | all | Deterministic ARIA mapping and keyboard/a11y state support. |
 | Compute | Mode switch (`api.compute.getMode/switchMode`) | Core + Adapter | main-thread, worker-owned | Synchronous mode switch control for sync/worker paths; does not implicitly recompute projection. |
+| Lifecycle | Concurrency helpers (`api.lifecycle.isBusy/whenIdle/runExclusive`) | Core + Adapter | all | Public lifecycle guard layer for serializing high-impact operations. |
 | Diagnostics | Aggregated diagnostics snapshot (`api.diagnostics.getAll`) | Core + Adapter | all | Read-only diagnostics payload (`rowModel/compute/cache/backpressure`) without triggering recompute. |
 | Diagnostics | Projection stage health | Core + Adapter | all | Stage/version/stale diagnostics for runtime health and regression debugging. |
 | Diagnostics | Compute transport health | Core + Adapter | main-thread, worker-owned | Dispatch/fallback/transport diagnostics for worker and hybrid pipelines. |
+| Metadata | API/protocol version introspection (`api.meta.getApiVersion/getProtocolVersion`) | Core + Adapter | all | Enables compatibility checks in multi-runtime integrations. |
 | Transactions | Transaction service (undo/redo/batch/rollback) | Core advanced + Adapter | main-thread, worker-owned | Advanced transaction capability surface. |
 | Determinism | Deterministic projection lifecycle | Core + Adapter | all | Projection recompute lifecycle is snapshot-driven and stage-aware. |
 | Determinism | Revision-based state tracking | Core + Adapter | all | Monotonic revisions support restore/checkpoint/test assertions. |
 | Determinism | Predictable mutation pipeline | Core + Adapter | all | Structured mutation + event payloads support deterministic integration flows and regression assertions. |
 | Extensibility | Stable plugin registration surface (`api.plugins.*`) | Core + Adapter | all | Register/unregister/list plugins on stable API facade with lifecycle hooks (`onRegister/onDispose`) and event tap (`onEvent`). |
+| Extensibility | Plugin sandbox contract | Core + Adapter | all | Plugins are observational by default; state changes must go through public API and cannot mutate internal service registry directly. |
 | Extensibility | Advanced runtime plugin hooks | Core advanced + Adapter | all | Host/plugin runtime hooks for power-user integration layers. |
 | Protocols | Worker protocol (commands/updates/transport) | Core worker + Adapter | worker-owned | Typed worker messaging for compute and row-model ownership. |
 | Protocols | Data source pull/push/invalidation/backpressure | Core + Adapter + Backend | server-side | Backend integration contract for remote and streaming data flows. |

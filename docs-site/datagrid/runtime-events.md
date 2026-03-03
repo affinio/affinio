@@ -17,7 +17,10 @@ Stable `DataGridApi` exposes a typed public event surface via `api.events.on(...
 | `pivot:changed` | `{ pivotModel, pivotColumns }`. |
 | `transaction:changed` | `{ snapshot }` transaction snapshot or `null`. |
 | `viewport:changed` | `{ range, snapshot }` viewport range + row snapshot. |
+| `state:import:begin` | `{ state }` emitted at logical start of `api.state.set(...)`. |
+| `state:import:end` | `{ state }` emitted at logical end of `api.state.set(...)` (success or failure path). |
 | `state:imported` | `{ state }` unified state payload passed to `api.state.set(...)`. |
+| `error` | `{ code, operation, recoverable, error }` guarded facade/runtime failure details. |
 
 ## 2) Subscription
 
@@ -33,11 +36,19 @@ const offProjection = api.events.on("projection:recomputed", payload => {
 const offStateImported = api.events.on("state:imported", payload => {
   // payload.state
 })
+const offStateImportBegin = api.events.on("state:import:begin", payload => {
+  // payload.state
+})
+const offStateImportEnd = api.events.on("state:import:end", payload => {
+  // payload.state
+})
 
 // later
 offRows()
 offProjection()
 offStateImported()
+offStateImportBegin()
+offStateImportEnd()
 ```
 
 ## 3) Ordering and semantics
@@ -52,17 +63,24 @@ Guaranteed sequencing:
 - `columns:changed` is emitted from column-model ticks.
 - `selection:changed` is emitted by selection facade operations.
 - `transaction:changed` is emitted by transaction facade operations.
-- `state:imported` is emitted at the end of successful `api.state.set(...)`.
+- `api.state.set(...)` emits explicit import boundaries:
+  1. `state:import:begin`
+  2. internal row/column/selection events while restore is applied
+  3. `state:imported` (on successful apply)
+  4. `state:import:end`
+- Reentrant emissions are queued FIFO inside a runtime tick.
 
 Non-guarantees:
 
-- `api.state.set(...)` may emit multiple row/column events during apply; it is not an atomic single-event boundary.
+- `api.state.set(...)` may emit multiple row/column events between begin/end boundaries.
 - No cross-thread/distributed ordering guarantee is provided (surface is in-process only).
 
 Guidance:
 
 - Use event payloads as source of truth for reactive diagnostics panels.
 - Prefer event-driven updates over polling `api.rows.getSnapshot()` in hot paths.
+- Plugin event-handler exceptions are isolated from core event dispatch.
+- Exceptions thrown by direct `api.events` listeners propagate to caller.
 
 ## 4) When to use advanced runtime events
 

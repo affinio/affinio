@@ -617,7 +617,7 @@ const collapsePivotRows = (): void => {
 
 .datagrid-pivot-page__sidebar {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 0.75rem;
   min-height: 0;
 }

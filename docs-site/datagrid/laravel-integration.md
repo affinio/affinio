@@ -43,7 +43,19 @@ import {
 
 This matches the Laravel datagrid demo integration path and avoids direct imports from `@affino/datagrid-core` / `@affino/datagrid-orchestration`.
 
-## 4) Import policy (recommended)
+## 4) API-first runtime rule
+
+When using `createDataGridRuntime(...)`, prefer facade operations through `runtime.api.*`:
+
+- `runtime.api.rows.setData(...)`
+- `runtime.api.rows.patch(...)`
+- `runtime.api.rows.setFilterModel(...)`
+- `runtime.api.rows.batch(() => { ... })` for grouped mutation boundaries
+- `runtime.api.state.get/set(...)`, `runtime.api.events.on(...)`, `runtime.api.diagnostics.getAll()`
+
+Avoid direct `rowModel.*` / `columnModel.*` calls in Laravel app code unless you are intentionally doing low-level runtime experiments.
+
+## 5) Import policy (recommended)
 
 Laravel app / demo code:
 
@@ -53,9 +65,8 @@ Core package development, benchmarks, or low-level framework-agnostic experiment
 
 - import from `@affino/datagrid-core` / `@affino/datagrid-orchestration`
 
-## 5) Typical integration split
+## 6) Typical integration split
 
 - Laravel (Blade/Livewire): DOM shell, controls, hydration lifecycle
 - `@affino/datagrid-laravel`: datagrid runtime/orchestration facade
 - DataGrid engine internals: hidden behind the facade
-

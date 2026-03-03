@@ -2,7 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import type {
   DataGridApiDiagnosticsSnapshot,
+  DataGridApiProjectionMode,
   DataGridAdvancedFilterExpression,
+  DataGridClientComputeMode,
   DataGridColumnDef,
   DataGridColumnPin,
   DataGridUnifiedState,
@@ -48,6 +50,19 @@ interface SugarGridRow {
 
 const GROUP_BY_OPTIONS = ["none", "region", "owner", "team", "severity", "status"] as const
 const SEVERITY_OPTIONS = ["critical", "high", "medium", "low"] as const
+const PROJECTION_MODE_OPTIONS: readonly DataGridApiProjectionMode[] = ["mutable", "immutable", "excel-like"]
+const NUMERIC_COLUMN_KEYS = new Set([
+  "latencyMs",
+  "errorRatePct",
+  "availabilityPct",
+  "cpuPct",
+  "memoryPct",
+  "throughputRps",
+  "mttrMin",
+  "sloBurnRate",
+  "incidents24h",
+  "queueDepth",
+])
 
 const BASE_COLUMNS: readonly DataGridColumnDef[] = [
   { key: "select", label: "", width: 54, pin: "left" },
@@ -76,6 +91,7 @@ const BASE_COLUMNS: readonly DataGridColumnDef[] = [
 
 const ROW_COUNT_PRESETS = [1000, 10000, 50000] as const
 const COLUMN_COUNT_PRESETS = [10, 50, 100] as const
+const ROW_DATASET_CACHE_LIMIT = 8
 
 const rowCount = ref(520)
 const columnCount = ref(Math.max(1, BASE_COLUMNS.length))
@@ -149,37 +165,56 @@ const buildRows = (count: number, columns: readonly DataGridColumnDef[]): SugarG
   Array.from({ length: Math.max(0, Math.round(count)) }, (_, index) => buildRow(index, columns))
 )
 
+const rowDatasetCache = new Map<string, SugarGridRow[]>()
+
+const resolveColumnsDatasetSignature = (columns: readonly DataGridColumnDef[]): string => (
+  columns.map(column => String(column.key)).join("|")
+)
+
+const resolveCachedRows = (count: number, columns: readonly DataGridColumnDef[]): SugarGridRow[] => {
+  const normalizedCount = Math.max(0, Math.round(count))
+  const cacheKey = `${normalizedCount}:${resolveColumnsDatasetSignature(columns)}`
+  const cached = rowDatasetCache.get(cacheKey)
+  if (cached) {
+    return cached
+  }
+
+  const nextRows = buildRows(normalizedCount, columns)
+  rowDatasetCache.set(cacheKey, nextRows)
+  if (rowDatasetCache.size > ROW_DATASET_CACHE_LIMIT) {
+    const oldestKey = rowDatasetCache.keys().next().value
+    if (typeof oldestKey === "string") {
+      rowDatasetCache.delete(oldestKey)
+    }
+  }
+  return nextRows
+}
+
 const columns = ref<readonly DataGridColumnDef[]>(buildColumns(columnCount.value))
-const rows = ref<SugarGridRow[]>(buildRows(rowCount.value, columns.value))
+const rows = ref<SugarGridRow[]>(resolveCachedRows(rowCount.value, columns.value))
+const currentColumns = ref<readonly DataGridColumnDef[]>(columns.value)
 
 const resolveRowKey = (row: SugarGridRow): string => row.rowId
 
-function castDraftValue(previous: unknown, draft: string): unknown {
-  if (typeof previous === "number") {
+function castDraftValue(columnKey: string, draft: string): unknown {
+  if (NUMERIC_COLUMN_KEYS.has(columnKey)) {
     const parsed = Number(draft)
-    return Number.isFinite(parsed) ? parsed : previous
+    return Number.isFinite(parsed) ? parsed : draft
   }
   return draft
 }
 
 const onCommitEdit = async (session: AffinoDataGridEditSession): Promise<void> => {
-  const rowIndex = rows.value.findIndex(row => row.rowId === session.rowKey)
-  if (rowIndex < 0) {
-    return
-  }
-  const current = rows.value[rowIndex]
-  if (!current) {
-    return
-  }
-  const nextRows = rows.value.slice()
-  nextRows[rowIndex] = {
-    ...current,
-    [session.columnKey]: castDraftValue(
-      (current as unknown as Record<string, unknown>)[session.columnKey],
-      session.draft,
-    ),
-  } as SugarGridRow
-  rows.value = nextRows
+  const nextValue = castDraftValue(session.columnKey, session.draft)
+  grid.api.rows.applyEdits([{
+    rowId: session.rowKey,
+    data: {
+      [session.columnKey]: nextValue,
+    } as Partial<SugarGridRow>,
+  }], {
+    emit: true,
+    reapply: false,
+  })
 }
 
 const features: AffinoDataGridFeatures<SugarGridRow> = {
@@ -226,11 +261,6 @@ const features: AffinoDataGridFeatures<SugarGridRow> = {
   },
   visibility: { enabled: true },
   tree: { enabled: true },
-  rowHeight: {
-    enabled: true,
-    mode: "fixed",
-    base: 36,
-  },
   interactions: {
     enabled: true,
     range: {
@@ -264,34 +294,136 @@ const gridStage = computed(() => (
   grid as unknown as UseAffinoDataGridResult<RowLike>
 ))
 const diagnosticsSnapshot = ref<DataGridApiDiagnosticsSnapshot>(grid.api.diagnostics.getAll())
+interface RuntimeStateProfile {
+  id: string
+  name: string
+  state: DataGridUnifiedState<SugarGridRow>
+}
+type RuntimeEventName =
+  | "rows:changed"
+  | "columns:changed"
+  | "projection:recomputed"
+  | "selection:changed"
+  | "pivot:changed"
+  | "transaction:changed"
+  | "viewport:changed"
+  | "state:import:begin"
+  | "state:import:end"
+  | "state:imported"
+  | "state:saved"
+  | "compute:switch"
+  | "policy:switch"
+  | "error"
+  | "idle"
+
 const savedRuntimeState = ref<DataGridUnifiedState<SugarGridRow> | null>(null)
-const runtimeEvent = ref<"none" | "rows:changed" | "projection:recomputed" | "state:imported" | "state:saved">("none")
+const runtimeEventLog = ref<readonly RuntimeEventName[]>([])
+const runtimeEvent = computed(() => runtimeEventLog.value[0] ?? "none")
+const runtimeEventTrail = computed(() => runtimeEventLog.value.slice(0, 5).join(" -> ") || "none")
+const lifecycleBusy = ref(grid.api.lifecycle.isBusy())
+const lifecycleState = ref(grid.api.lifecycle.state)
+const projectionMode = ref<DataGridApiProjectionMode>(grid.api.policy.getProjectionMode())
+const computeMode = ref<DataGridClientComputeMode>(grid.api.compute.getMode() ?? "sync")
+const computeSupported = computed(() => grid.api.compute.hasSupport())
+const stateProfiles = ref<readonly RuntimeStateProfile[]>([])
+const controlsError = ref<string | null>(null)
 const projectionStageLabel = computed(() => {
   const projection = diagnosticsSnapshot.value.rowModel.projection
   return projection ? `v${projection.version}` : "none"
 })
 
+const pushRuntimeEvent = (event: RuntimeEventName): void => {
+  runtimeEventLog.value = [event, ...runtimeEventLog.value].slice(0, 24)
+}
+
+const runControlMutation = (mutate: () => void): void => {
+  try {
+    mutate()
+    controlsError.value = null
+  } catch (error) {
+    controlsError.value = error instanceof Error ? error.message : "Control mutation failed"
+    pushRuntimeEvent("error")
+  }
+}
+
 const syncDiagnostics = (): void => {
   diagnosticsSnapshot.value = grid.api.diagnostics.getAll()
+  lifecycleBusy.value = grid.api.lifecycle.isBusy()
+  lifecycleState.value = grid.api.lifecycle.state
+  projectionMode.value = grid.api.policy.getProjectionMode()
+  computeMode.value = grid.api.compute.getMode() ?? "sync"
+}
+
+const reconcileComputeMode = (): void => {
+  const nextMode = grid.api.compute.getMode() ?? "sync"
+  if (computeMode.value !== nextMode) {
+    computeMode.value = nextMode
+    pushRuntimeEvent("compute:switch")
+  }
+}
+
+let diagnosticsSyncPending = false
+const scheduleDiagnosticsSync = (): void => {
+  if (diagnosticsSyncPending) {
+    return
+  }
+  diagnosticsSyncPending = true
+  queueMicrotask(() => {
+    diagnosticsSyncPending = false
+    syncDiagnostics()
+  })
 }
 
 const unsubscribeRuntimeEvents = [
   grid.api.events.on("rows:changed", () => {
-    runtimeEvent.value = "rows:changed"
-    syncDiagnostics()
+    pushRuntimeEvent("rows:changed")
+    scheduleDiagnosticsSync()
+  }),
+  grid.api.events.on("columns:changed", () => {
+    pushRuntimeEvent("columns:changed")
+    scheduleDiagnosticsSync()
   }),
   grid.api.events.on("projection:recomputed", () => {
-    runtimeEvent.value = "projection:recomputed"
-    syncDiagnostics()
+    pushRuntimeEvent("projection:recomputed")
+    scheduleDiagnosticsSync()
+  }),
+  grid.api.events.on("selection:changed", () => {
+    pushRuntimeEvent("selection:changed")
+    scheduleDiagnosticsSync()
+  }),
+  grid.api.events.on("pivot:changed", () => {
+    pushRuntimeEvent("pivot:changed")
+    scheduleDiagnosticsSync()
+  }),
+  grid.api.events.on("transaction:changed", () => {
+    pushRuntimeEvent("transaction:changed")
+    scheduleDiagnosticsSync()
+  }),
+  grid.api.events.on("viewport:changed", () => {
+    pushRuntimeEvent("viewport:changed")
+    scheduleDiagnosticsSync()
   }),
   grid.api.events.on("state:imported", () => {
-    runtimeEvent.value = "state:imported"
-    syncDiagnostics()
+    pushRuntimeEvent("state:imported")
+    scheduleDiagnosticsSync()
+  }),
+  grid.api.events.on("state:import:begin", () => {
+    pushRuntimeEvent("state:import:begin")
+    scheduleDiagnosticsSync()
+  }),
+  grid.api.events.on("state:import:end", () => {
+    pushRuntimeEvent("state:import:end")
+    scheduleDiagnosticsSync()
+  }),
+  grid.api.events.on("error", () => {
+    pushRuntimeEvent("error")
+    scheduleDiagnosticsSync()
   }),
 ]
 
 const themeRootRef = ref<HTMLElement | null>(null)
 let themeObserver: MutationObserver | null = null
+let computeModeReconcileTimer: number | null = null
 
 const applySugarTheme = (): void => {
   if (!themeRootRef.value) {
@@ -309,8 +441,6 @@ const quickSeverity = ref<readonly string[]>([])
 const groupBy = ref<(typeof GROUP_BY_OPTIONS)[number]>("none")
 const pageSize = ref(50)
 const usePagination = ref(true)
-const rowHeightMode = ref<"fixed" | "auto">("fixed")
-const rowHeightBase = ref(36)
 const layoutName = ref("Incident triage")
 const selectedLayoutId = ref("")
 const paginationMode = computed({
@@ -352,6 +482,10 @@ onMounted(() => {
       attributeFilter: ["data-theme", "class"],
     })
   }
+  reconcileComputeMode()
+  computeModeReconcileTimer = window.setInterval(() => {
+    reconcileComputeMode()
+  }, 500)
   window.addEventListener("pointerdown", handleDocumentPointerDown, true)
 })
 
@@ -361,54 +495,51 @@ onBeforeUnmount(() => {
   }
   themeObserver?.disconnect()
   themeObserver = null
+  if (computeModeReconcileTimer !== null) {
+    window.clearInterval(computeModeReconcileTimer)
+    computeModeReconcileTimer = null
+  }
   window.removeEventListener("pointerdown", handleDocumentPointerDown, true)
 })
 
 watch(pageSize, next => {
   if (usePagination.value) {
-    grid.pagination.setPageSize(next)
+    grid.api.rows.setPageSize(next)
   }
 }, { immediate: true })
 
 watch(usePagination, (enabled) => {
   if (enabled) {
-    grid.pagination.setPageSize(pageSize.value)
-    grid.pagination.setCurrentPage(0)
-  } else {
-    grid.pagination.set(null)
-    grid.pagination.setPageSize(null)
-    grid.pagination.setCurrentPage(0)
+    grid.api.rows.setPagination({
+      pageSize: Math.max(1, Math.round(pageSize.value)),
+      currentPage: 0,
+    })
+    return
   }
+  grid.api.rows.setPagination(null)
 }, { immediate: true })
 
 watch(groupBy, next => {
   if (next === "none") {
-    grid.features.tree.clearGroupBy()
+    grid.api.rows.setGroupBy(null)
     return
   }
-  grid.features.tree.setGroupBy({ fields: [next], expandedByDefault: true })
-})
-
-watch(rowHeightMode, next => {
-  grid.features.rowHeight.setMode(next)
-  if (next === "auto") {
-    grid.features.rowHeight.measureVisible()
-    grid.features.rowHeight.apply()
-  }
-})
-
-watch(rowHeightBase, next => {
-  grid.features.rowHeight.setBase(Math.max(24, Math.min(80, Math.round(next))))
+  grid.api.rows.setGroupBy({ fields: [next], expandedByDefault: true })
 })
 
 watch(rowCount, next => {
-  rows.value = buildRows(next, columns.value)
+  const nextRows = resolveCachedRows(next, currentColumns.value)
+  grid.api.rows.setData(nextRows)
+  scheduleDiagnosticsSync()
 })
 
 watch(columnCount, next => {
   const nextColumns = buildColumns(next)
-  columns.value = nextColumns
-  rows.value = buildRows(rowCount.value, nextColumns)
+  currentColumns.value = nextColumns
+  const nextRows = resolveCachedRows(rowCount.value, nextColumns)
+  grid.api.columns.setAll([...nextColumns])
+  grid.api.rows.setData(nextRows)
+  scheduleDiagnosticsSync()
 })
 
 const setRowCountPreset = (value: number): void => {
@@ -420,52 +551,82 @@ const setColumnCountPreset = (value: number): void => {
 }
 
 const applyQuickFilter = (): void => {
-  const helpers = grid.features.filtering.helpers
   let expression: DataGridAdvancedFilterExpression | null = null
 
   const query = quickQuery.value.trim().toLowerCase()
   if (query.length > 0) {
-    expression = helpers.or(
-      helpers.condition({ key: "service", type: "text", operator: "contains", value: query }),
-      helpers.condition({ key: "owner", type: "text", operator: "contains", value: query }),
-      helpers.condition({ key: "team", type: "text", operator: "contains", value: query }),
-    )
+    expression = {
+      kind: "group",
+      operator: "or",
+      children: [
+        { kind: "condition", key: "service", type: "text", operator: "contains", value: query },
+        { kind: "condition", key: "owner", type: "text", operator: "contains", value: query },
+        { kind: "condition", key: "team", type: "text", operator: "contains", value: query },
+      ],
+    }
   }
 
   if (quickSeverity.value.length > 0) {
-    const severityExpr = helpers.condition({
+    const severityExpr: DataGridAdvancedFilterExpression = {
+      kind: "condition",
       key: "severity",
       type: "set",
       operator: "in",
       value: [...quickSeverity.value],
-    })
-    expression = expression ? helpers.and(expression, severityExpr) : severityExpr
+    }
+    expression = expression
+      ? { kind: "group", operator: "and", children: [expression, severityExpr] }
+      : severityExpr
   }
 
-  helpers.apply(expression, { mergeMode: "replace" })
+  runControlMutation(() => {
+    grid.api.rows.setFilterModel(expression ? {
+      columnFilters: {},
+      advancedFilters: {},
+      advancedExpression: expression,
+    } : null)
+  })
   closePanels()
 }
 
 const clearQuickFilter = (): void => {
   quickQuery.value = ""
   quickSeverity.value = []
-  grid.features.filtering.clear()
+  runControlMutation(() => {
+    grid.api.rows.setFilterModel(null)
+  })
   closePanels()
 }
 
 const captureLayout = (): void => {
-  const profile = grid.layoutProfiles?.capture(layoutName.value || "Layout")
-  if (profile) {
-    selectedLayoutId.value = profile.id
+  const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  const profileName = layoutName.value.trim() || "Layout"
+  const profile: RuntimeStateProfile = {
+    id,
+    name: profileName,
+    state: grid.api.state.get(),
   }
+  stateProfiles.value = [...stateProfiles.value, profile]
+  selectedLayoutId.value = id
   closePanels()
 }
 
-const applySelectedLayout = (): void => {
+const applySelectedLayout = async (): Promise<void> => {
   if (!selectedLayoutId.value) {
     return
   }
-  grid.layoutProfiles?.apply(selectedLayoutId.value)
+  const profile = stateProfiles.value.find(entry => entry.id === selectedLayoutId.value)
+  if (!profile) {
+    return
+  }
+  await grid.api.lifecycle.whenIdle()
+  runControlMutation(() => {
+    grid.api.state.set(profile.state, {
+      applyColumns: true,
+      applySelection: true,
+      applyViewport: true,
+    })
+  })
   closePanels()
 }
 
@@ -473,8 +634,8 @@ const removeSelectedLayout = (): void => {
   if (!selectedLayoutId.value) {
     return
   }
-  grid.layoutProfiles?.remove(selectedLayoutId.value)
-  if (!grid.layoutProfiles?.profiles.value.some(entry => entry.id === selectedLayoutId.value)) {
+  stateProfiles.value = stateProfiles.value.filter(entry => entry.id !== selectedLayoutId.value)
+  if (!stateProfiles.value.some(entry => entry.id === selectedLayoutId.value)) {
     selectedLayoutId.value = ""
   }
   closePanels()
@@ -482,27 +643,81 @@ const removeSelectedLayout = (): void => {
 
 const saveRuntimeState = (): void => {
   savedRuntimeState.value = grid.api.state.get()
-  runtimeEvent.value = "state:saved"
-  syncDiagnostics()
+  pushRuntimeEvent("state:saved")
+  scheduleDiagnosticsSync()
 }
 
-const restoreRuntimeState = (): void => {
+const restoreRuntimeState = async (): Promise<void> => {
   if (!savedRuntimeState.value) {
     return
   }
+  await grid.api.lifecycle.whenIdle()
   grid.api.state.set(savedRuntimeState.value, {
     applyColumns: true,
     applySelection: true,
     applyViewport: true,
   })
-  syncDiagnostics()
+  scheduleDiagnosticsSync()
+}
+
+const waitUntilIdle = async (): Promise<void> => {
+  await grid.api.lifecycle.whenIdle()
+  pushRuntimeEvent("idle")
+  scheduleDiagnosticsSync()
+}
+
+const setComputeMode = (mode: DataGridClientComputeMode): void => {
+  if (!grid.api.compute.hasSupport()) {
+    return
+  }
+  runControlMutation(() => {
+    const switched = grid.api.compute.switchMode(mode)
+    if (switched) {
+      pushRuntimeEvent("compute:switch")
+    }
+  })
+  scheduleDiagnosticsSync()
+}
+
+const setProjectionMode = (mode: DataGridApiProjectionMode): void => {
+  runControlMutation(() => {
+    const applied = grid.api.policy.setProjectionMode(mode)
+    if (applied !== mode) {
+      projectionMode.value = applied
+    }
+    pushRuntimeEvent("policy:switch")
+  })
+  scheduleDiagnosticsSync()
+}
+
+const handleComputeModeChange = (event: Event): void => {
+  const target = event.target
+  if (!(target instanceof HTMLSelectElement)) {
+    return
+  }
+  setComputeMode(target.value === "worker" ? "worker" : "sync")
+}
+
+const handleProjectionModeChange = (event: Event): void => {
+  const target = event.target
+  if (!(target instanceof HTMLSelectElement)) {
+    return
+  }
+  const nextMode = target.value as DataGridApiProjectionMode
+  if (!PROJECTION_MODE_OPTIONS.includes(nextMode)) {
+    return
+  }
+  setProjectionMode(nextMode)
 }
 
 const statusMetrics = computed(() => grid.statusBar?.metrics.value ?? null)
 const feedbackLastAction = computed(() => grid.feedback?.lastAction.value ?? "Ready")
 
 const setColumnPin = (columnKey: string, pin: DataGridColumnPin): void => {
-  grid.columnState.setPin(columnKey, pin)
+  runControlMutation(() => {
+    grid.api.columns.setPin(columnKey, pin)
+  })
+  scheduleDiagnosticsSync()
 }
 </script>
 
@@ -610,15 +825,19 @@ const setColumnPin = (columnKey: string, pin: DataGridColumnPin): void => {
               </button>
             </div>
             <label>
-              <span>Row height mode</span>
-              <select v-model="rowHeightMode">
-                <option value="fixed">fixed</option>
-                <option value="auto">auto</option>
+              <span>Projection policy</span>
+              <select :value="projectionMode" @change="handleProjectionModeChange">
+                <option v-for="mode in PROJECTION_MODE_OPTIONS" :key="mode" :value="mode">
+                  {{ mode }}
+                </option>
               </select>
             </label>
             <label>
-              <span>Row height: {{ rowHeightBase }}px</span>
-              <input v-model.number="rowHeightBase" type="range" min="24" max="80" step="1" />
+              <span>Compute mode</span>
+              <select :value="computeMode" :disabled="!computeSupported" @change="handleComputeModeChange">
+                <option value="sync">sync</option>
+                <option value="worker">worker</option>
+              </select>
             </label>
             <div class="datagrid-sugar-panel__actions">
               <button type="button" class="is-ghost" @click="setColumnPin('service', 'left')">Pin service left</button>
@@ -626,14 +845,14 @@ const setColumnPin = (columnKey: string, pin: DataGridColumnPin): void => {
               <button type="button" class="is-ghost" @click="setColumnPin('service', 'none')">Unpin service</button>
             </div>
             <label>
-              <span>Layout profile</span>
+              <span>State profile</span>
               <input v-model="layoutName" type="text" placeholder="Layout name" />
             </label>
             <label>
               <span>Saved profiles</span>
               <select v-model="selectedLayoutId">
                 <option value="">Select profile...</option>
-                <option v-for="profile in grid.layoutProfiles?.profiles.value ?? []" :key="profile.id" :value="profile.id">
+                <option v-for="profile in stateProfiles" :key="profile.id" :value="profile.id">
                   {{ profile.name }}
                 </option>
               </select>
@@ -648,6 +867,7 @@ const setColumnPin = (columnKey: string, pin: DataGridColumnPin): void => {
               <button type="button" class="is-ghost" :disabled="!savedRuntimeState" @click="restoreRuntimeState">
                 Restore runtime state
               </button>
+              <button type="button" class="is-ghost" @click="waitUntilIdle">Wait lifecycle idle</button>
             </div>
           </div>
         </div>
@@ -705,8 +925,24 @@ const setColumnPin = (columnKey: string, pin: DataGridColumnPin): void => {
               <dd>{{ diagnosticsSnapshot.compute?.effectiveMode ?? "unsupported" }}</dd>
             </div>
             <div>
+              <dt>Lifecycle state</dt>
+              <dd>{{ lifecycleState }}</dd>
+            </div>
+            <div>
+              <dt>Lifecycle busy</dt>
+              <dd>{{ lifecycleBusy ? "yes" : "no" }}</dd>
+            </div>
+            <div>
               <dt>Runtime event</dt>
               <dd>{{ runtimeEvent }}</dd>
+            </div>
+            <div>
+              <dt>Event trail</dt>
+              <dd>{{ runtimeEventTrail }}</dd>
+            </div>
+            <div v-if="controlsError" class="datagrid-sugar-metrics__status">
+              <dt>Control error</dt>
+              <dd>{{ controlsError }}</dd>
             </div>
             <div class="datagrid-sugar-metrics__status">
               <dt>Last action</dt>

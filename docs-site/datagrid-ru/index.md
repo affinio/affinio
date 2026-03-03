@@ -13,6 +13,8 @@ title: DataGrid Core — Overview
 
 - **When to use Core vs Sugar** → [/datagrid-ru/core-vs-sugar](/datagrid-ru/core-vs-sugar)
 - **Треки пользователей (Core / Adapter / Sugar)** → [/datagrid-ru/audience-tracks](/datagrid-ru/audience-tracks)
+- **Режимы рантайма (main-thread / worker-owned / server-side)** → [/datagrid-ru/runtime-modes](/datagrid-ru/runtime-modes)
+- **Tree data и grouped rows** → [/datagrid-ru/tree-data](/datagrid-ru/tree-data)
 - **Контракты фабрик Core (constructor reference)** → [/datagrid-ru/core-factories-reference](/datagrid-ru/core-factories-reference)
 - **Справочник Core advanced entrypoint** → [/datagrid-ru/core-advanced-reference](/datagrid-ru/core-advanced-reference)
 - **Полный каталог возможностей** → [DataGrid Feature Catalog](https://github.com/affinio/affinio/blob/main/docs/datagrid-feature-catalog.md)
@@ -50,7 +52,7 @@ Affino DataGrid is:
 
 ## Функциональное покрытие (overview)
 
-- Стабильный фасад `DataGridApi` с namespace-доменами (`rows/columns/view/state/events/meta/policy/compute/diagnostics/plugins`).
+- Стабильный фасад `DataGridApi` с namespace-доменами (`lifecycle/rows/data/columns/view/pivot/selection/transaction/state/events/meta/policy/compute/diagnostics/plugins`).
 - State + events: unified state export/import (`api.state`) и typed public event surface (`api.events`) для детерминированных интеграций.
 - Row model: сортировка, фильтрация, группировка, пагинация, viewport range, snapshots/revisions.
 - Pivot: rows/columns/values, динамические pivot columns, subtotal/grand total, export/import layout, drilldown.
@@ -95,18 +97,20 @@ Affino DataGrid is:
 6) **Grid API**: фасад операций → [/datagrid-ru/grid-api](/datagrid-ru/grid-api)
 7) **GroupBy projection**: pipeline и группы → [/datagrid-ru/groupby-projection](/datagrid-ru/groupby-projection)
 8) **Row модели**: client/server, refresh → [/datagrid-ru/row-models](/datagrid-ru/row-models)
-9) **Interaction Orchestration Engine**: selection/clipboard/fill/move → [/datagrid-ru/orchestration](/datagrid-ru/orchestration)
-10) **Data source protocol**: pull/push/abort‑first → [/datagrid-ru/data-source-protocol](/datagrid-ru/data-source-protocol)
-11) **Deterministic integration**: pinned/overlay/viewport → [/datagrid-ru/deterministic-integration](/datagrid-ru/deterministic-integration)
-12) **Runtime events**: диагностика и интеграции → [/datagrid-ru/runtime-events](/datagrid-ru/runtime-events)
-13) **State/events/compute/diagnostics**: stable integration surface → [/datagrid-ru/state-events-compute-diagnostics](/datagrid-ru/state-events-compute-diagnostics)
-14) **Custom renderer**: `useAffinoDataGridUi` → [/datagrid-ru/custom-renderer](/datagrid-ru/custom-renderer)
-15) **Range selection engine**: anchor/focus/range → [/datagrid-ru/range-selection](/datagrid-ru/range-selection)
-16) **Fill-handle**: автозаполнение и перенос → [/datagrid-ru/fill-handle](/datagrid-ru/fill-handle)
-17) **Range move**: drag‑move диапазона → [/datagrid-ru/drag-move](/datagrid-ru/drag-move)
-18) **Reordering**: row/column drag → [/datagrid-ru/reordering](/datagrid-ru/reordering)
-19) **Viewport + a11y**: интеграция снапшотов и доступность → [/datagrid-ru/viewport-a11y](/datagrid-ru/viewport-a11y)
-20) **End‑to‑end**: полный путь Core → Interaction Runtime → UI → [/datagrid-ru/end-to-end](/datagrid-ru/end-to-end)
+9) **Режимы рантайма**: main-thread / worker-owned / server-side → [/datagrid-ru/runtime-modes](/datagrid-ru/runtime-modes)
+10) **Tree data и grouped rows**: tree-контракт для DataGrid → [/datagrid-ru/tree-data](/datagrid-ru/tree-data)
+11) **Interaction Orchestration Engine**: selection/clipboard/fill/move → [/datagrid-ru/orchestration](/datagrid-ru/orchestration)
+12) **Data source protocol**: pull/push/abort‑first → [/datagrid-ru/data-source-protocol](/datagrid-ru/data-source-protocol)
+13) **Deterministic integration**: pinned/overlay/viewport → [/datagrid-ru/deterministic-integration](/datagrid-ru/deterministic-integration)
+14) **Runtime events**: диагностика и интеграции → [/datagrid-ru/runtime-events](/datagrid-ru/runtime-events)
+15) **State/events/compute/diagnostics**: stable integration surface → [/datagrid-ru/state-events-compute-diagnostics](/datagrid-ru/state-events-compute-diagnostics)
+16) **Custom renderer**: `useAffinoDataGridUi` → [/datagrid-ru/custom-renderer](/datagrid-ru/custom-renderer)
+17) **Range selection engine**: anchor/focus/range → [/datagrid-ru/range-selection](/datagrid-ru/range-selection)
+18) **Fill-handle**: автозаполнение и перенос → [/datagrid-ru/fill-handle](/datagrid-ru/fill-handle)
+19) **Range move**: drag‑move диапазона → [/datagrid-ru/drag-move](/datagrid-ru/drag-move)
+20) **Reordering**: row/column drag → [/datagrid-ru/reordering](/datagrid-ru/reordering)
+21) **Viewport + a11y**: интеграция снапшотов и доступность → [/datagrid-ru/viewport-a11y](/datagrid-ru/viewport-a11y)
+22) **End‑to‑end**: полный путь Core → Interaction Runtime → UI → [/datagrid-ru/end-to-end](/datagrid-ru/end-to-end)
 
 ## Sugar (быстрый запуск)
 

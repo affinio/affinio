@@ -230,6 +230,7 @@ onBeforeUnmount(() => {
         <RouterLink to="/datagrid/must-have/filtering">Filtering</RouterLink>
         <RouterLink to="/datagrid/must-have/column-state">Column state</RouterLink>
         <RouterLink to="/datagrid/must-have/reorder">Reorder</RouterLink>
+        <RouterLink to="/datagrid/must-have/tree-data">Tree data</RouterLink>
       </div>
     </header>
 

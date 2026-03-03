@@ -155,24 +155,33 @@ const runtime = useDataGridRuntime({ rows, columns })
 - `runtime.api` - Grid API facade
 - `runtime.rowModel`, `runtime.columnModel`, `runtime.core`
 - `runtime.columnSnapshot`, `runtime.virtualWindow`
-- `runtime.setRows(rows)`
-- `runtime.patchRows(updates, options?)`
-- `runtime.applyEdits(updates, options?)`
-- `runtime.reapplyView()`
+- `runtime.api.rows.setData(rows)`
+- `runtime.api.rows.patch(updates, options?)`
+- `runtime.api.rows.applyEdits(updates, options?)`
+- `runtime.api.view.reapply()`
+- `runtime.api.rows.setAggregationModel(model)`, `runtime.api.rows.getAggregationModel()`
+- `runtime.api.lifecycle.runExclusive(fn)` для guarded high-impact мутаций
 - `runtime.autoReapply` (`Ref<boolean>`)
-- `runtime.setAggregationModel(model)`, `runtime.getAggregationModel()`
+
+Compatibility aliases (`runtime.setRows`, `runtime.patchRows`, `runtime.applyEdits`, `runtime.reapplyView`) пока доступны,
+но как долгосрочный контракт рекомендуется API-first стиль через `runtime.api.*`.
+
+Lifecycle note:
+
+- `runtime.api.lifecycle.runExclusive(...)` используйте для non-guarded batch-мутаций (`rows.patch`, `rows.setSortModel` и т.п.).
+- Не оборачивайте already-guarded операции (`runtime.api.state.set`, `runtime.api.compute.switchMode`, `runtime.api.transaction.*`) в `runExclusive`, иначе получите lifecycle-conflict.
 
 ## Политика редактирования и reapply (Excel-style)
 
 Рекомендуемый продуктовый паттерн:
 
-- `applyEdits()` для интерактивного редактирования ячеек
+- `runtime.api.rows.applyEdits()` для интерактивного редактирования ячеек
 - `autoReapply=false` (по умолчанию), чтобы избежать “прыжков” sort/filter/group
-- `reapplyView()` по явному действию пользователя или после commit edit-сессии
+- `runtime.api.view.reapply()` по явному действию пользователя или после commit edit-сессии
 
 ```ts
-runtime.applyEdits([{ rowId: "r-1", data: { tested_at: "2026-02-22T10:05:00Z" } }])
-runtime.reapplyView()
+runtime.api.rows.applyEdits([{ rowId: "r-1", data: { tested_at: "2026-02-22T10:05:00Z" } }])
+runtime.api.view.reapply()
 ```
 
 Включайте live reapply только если UX этого требует:

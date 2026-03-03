@@ -89,6 +89,11 @@ vite.config.ts.timestamp*
 # -----------------------
 *.vue.ts   # Volar-generated type declarations
 .vitepress/
+!docs-site/.vitepress/
+docs-site/.vitepress/theme/
+docs-site/.vitepress/cache/
+docs-site/.vitepress/dist/
+docs-site/.vitepress/.DS_Store
 
 test-results/
 playwright-report/

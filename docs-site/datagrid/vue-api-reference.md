@@ -155,24 +155,33 @@ Most-used runtime methods/refs:
 - `runtime.api` - Grid API facade
 - `runtime.rowModel`, `runtime.columnModel`, `runtime.core`
 - `runtime.columnSnapshot`, `runtime.virtualWindow`
-- `runtime.setRows(rows)`
-- `runtime.patchRows(updates, options?)`
-- `runtime.applyEdits(updates, options?)`
-- `runtime.reapplyView()`
+- `runtime.api.rows.setData(rows)`
+- `runtime.api.rows.patch(updates, options?)`
+- `runtime.api.rows.applyEdits(updates, options?)`
+- `runtime.api.view.reapply()`
+- `runtime.api.rows.setAggregationModel(model)`, `runtime.api.rows.getAggregationModel()`
+- `runtime.api.lifecycle.runExclusive(fn)` for guarded high-impact mutations
 - `runtime.autoReapply` (`Ref<boolean>`)
-- `runtime.setAggregationModel(model)`, `runtime.getAggregationModel()`
+
+Compatibility aliases still exist (`runtime.setRows`, `runtime.patchRows`, `runtime.applyEdits`, `runtime.reapplyView`),
+but API-first usage via `runtime.api.*` is the recommended long-term contract.
+
+Lifecycle note:
+
+- Use `runtime.api.lifecycle.runExclusive(...)` for non-guarded mutation batches (`rows.patch`, `rows.setSortModel`, etc.).
+- Do not wrap already guarded operations (`runtime.api.state.set`, `runtime.api.compute.switchMode`, `runtime.api.transaction.*`) in `runExclusive`, or you will get lifecycle-conflict errors.
 
 ## Editing and reapply policy (Excel-style)
 
 Recommended app pattern:
 
-- Use `applyEdits()` for interactive cell edits
+- Use `runtime.api.rows.applyEdits()` for interactive cell edits
 - Keep `autoReapply=false` (default) to avoid sort/filter/group jumps
-- Call `reapplyView()` on explicit user action or after edit session commit
+- Call `runtime.api.view.reapply()` on explicit user action or after edit session commit
 
 ```ts
-runtime.applyEdits([{ rowId: "r-1", data: { tested_at: "2026-02-22T10:05:00Z" } }])
-runtime.reapplyView()
+runtime.api.rows.applyEdits([{ rowId: "r-1", data: { tested_at: "2026-02-22T10:05:00Z" } }])
+runtime.api.view.reapply()
 ```
 
 Enable live reapply only if your UX expects re-sorting/re-filtering while typing:

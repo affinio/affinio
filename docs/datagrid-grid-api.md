@@ -17,7 +17,9 @@ Deep imports are outside the stable public contract.
 
 Stable domains:
 
+- `api.lifecycle`
 - `api.rows.*`
+- `api.data.*`
 - `api.columns.*`
 - `api.view.*`
 - `api.pivot.*`
@@ -46,6 +48,7 @@ Flat API methods are removed from `DataGridApi`.
 
 - `patch`
 - `dataMutation`
+- `backpressureControl`
 - `compute`
 - `selection`
 - `transaction`
@@ -57,20 +60,46 @@ Use it as guard before capability-dependent mutating calls.
 ## Key semantics
 
 - `rows.applyEdits(...)` mutates data (optionally with reapply policy).
+- `rows.batch(...)` is an explicit bulk mutation boundary with one coalesced facade event-cycle.
 - `view.reapply()` recomputes projection only.
 - `pivot` remains a separate analytical subsystem (intentionally not nested under `rows`).
+- `data.pause()/resume()/flush()` is the public backpressure control surface for supported server/data-source row models.
 - `state.get/set` is the unified state boundary for export/import (V1 model-centric payload).
+- `state.migrate(...)` is the explicit payload migration/validation hook before restore.
 - `events.on` is the typed public event surface with documented in-process ordering.
+- `events` includes explicit state import boundaries (`state:import:begin/end`).
 - `compute.switchMode(...)` is synchronous and does not implicitly trigger recompute.
 - `diagnostics.getAll()` is read-only and does not trigger recompute.
+- `meta.getApiVersion()/getProtocolVersion()` expose compatibility versions for multi-runtime integrations.
 - `plugins` lifecycle is event-driven (`onRegister`/`onDispose`/`onEvent`).
+
+## Runtime guarantees
+
+- Snapshot isolation: public read methods are revision-consistent within the same synchronous call stack.
+- Guarded mutation serialization: high-impact guarded operations are serialized through lifecycle exclusivity.
+- Event reentrancy: reentrant emissions are queued FIFO; mutation from handlers is allowed.
+- State import boundary: `state.set(...)` is a begin/end logical boundary, not single-event atomic payload.
+
+## Concurrency and error model
+
+- `lifecycle.runExclusive` provides exclusive mutation windows for guarded operations.
+- `lifecycle.whenIdle` resolves after the exclusive queue drains.
+- `lifecycle.isBusy()` reports whether guarded mutation queue / lifecycle transition is in progress.
+- `events.error` provides typed recoverable runtime conflict payloads.
+- Guarded operations may still throw/reject for control-flow correctness.
+
+## Plugin safety model
+
+- Plugins are observational by default and consume only public event payloads.
+- Plugin handler failures are isolated from core dispatch.
+- Plugins can mutate state only through public API calls.
 
 ## Service binding notes
 
 `createDataGridApi` binds to `GridCore` services:
 
 - required: `rowModel`, `columnModel`
-- optional capabilities: selection, transaction, viewport, histogram, compute mode switching, data mutation support
+- optional capabilities: selection, transaction, viewport, histogram, compute mode switching, data mutation support, backpressure controls
 
 Creation is fail-fast for missing required services.
 

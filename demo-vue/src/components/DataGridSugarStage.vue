@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import {
   computed,
-  effectScope,
   nextTick,
   onMounted,
   onBeforeUnmount,
   ref,
-  unref,
   watch,
   type ComponentPublicInstance,
 } from "vue"
@@ -16,20 +14,13 @@ import type {
 } from "@affino/datagrid-vue"
 import type { UseAffinoDataGridResult } from "@affino/datagrid-vue"
 import { useDataGridManagedWheelScroll } from "@affino/datagrid-vue/advanced"
-import { useFloatingPopover, usePopoverController } from "@affino/popover-vue"
+import {
+  isCellInRange,
+  isRangeFocusCell,
+} from "../../../demo-shared/datagridInteractionEngine.js"
 
 type RowLike = {
   rowId?: string | number
-}
-
-type HeaderFilterType = "text" | "number" | "date" | "set"
-
-interface HeaderFilterStateLike {
-  open: boolean
-  columnKey: string | null
-  query: string
-  operator: string
-  type: HeaderFilterType
 }
 
 interface DataGridSugarDataCellClickPayload {
@@ -55,13 +46,6 @@ const props = defineProps<{
 const grid = computed(() => props.grid)
 const showPagination = computed(() => props.showPagination ?? true)
 const treeTabular = computed(() => props.treeTabular ?? false)
-
-const headerTextValue = ref("")
-const headerNumberMin = ref("")
-const headerNumberMax = ref("")
-const headerDateFrom = ref("")
-const headerDateTo = ref("")
-const headerSetSearch = ref("")
 
 const visibleColumns = computed(() => {
   const snapshot = grid.value.columnState.snapshot.value
@@ -177,7 +161,8 @@ const handleViewportScroll = (): void => {
   updateViewportMetrics()
 }
 
-const baseRowHeight = computed(() => grid.value.features.rowHeight.base.value)
+const DEFAULT_ROW_HEIGHT = 36
+const baseRowHeight = computed(() => DEFAULT_ROW_HEIGHT)
 const BOOTSTRAP_VIEWPORT_ROWS = 160
 
 const renderRange = computed(() => {
@@ -230,8 +215,7 @@ const renderedRows = computed(() => {
 })
 
 const hasActiveFilters = computed(() => {
-  const filteringFeature = grid.value.features.filtering
-  const model = filteringFeature?.model?.value
+  const model = grid.value.api.rows.getSnapshot().filterModel
   if (!model) {
     return false
   }
@@ -308,20 +292,36 @@ onMounted(() => {
   })
 })
 
-const leafRowKeys = computed(() => (
+const visibleLeafRows = computed(() => (
   renderedRows.value
-    .filter((row): row is DataGridRowNode<RowLike> & { kind: "leaf" } => row.kind === "leaf")
-    .map(row => String(row.rowId))
+    .map((rowNode, index) => ({ rowNode, rowIndex: resolveRenderedRowIndex(index) }))
+    .filter((entry): entry is {
+      rowNode: DataGridRowNode<RowLike> & { kind: "leaf" }
+      rowIndex: number
+    } => entry.rowNode.kind === "leaf")
 ))
 
+const isLeafRowSelected = (row: RowLike, rowIndex: number): boolean => {
+  return grid.value.bindings.rowSelection(row, rowIndex)["aria-selected"] === "true"
+}
+
+const setLeafRowSelected = (row: RowLike, rowIndex: number, selected: boolean): void => {
+  const binding = grid.value.bindings.rowSelection(row, rowIndex)
+  const isSelected = binding["aria-selected"] === "true"
+  if (isSelected === selected) {
+    return
+  }
+  binding.onClick()
+}
+
 const allVisibleRowsSelected = computed(() => (
-  leafRowKeys.value.length > 0 &&
-  leafRowKeys.value.every(rowKey => grid.value.features.selection.isSelectedByKey(rowKey))
+  visibleLeafRows.value.length > 0 &&
+  visibleLeafRows.value.every(({ rowNode, rowIndex }) => isLeafRowSelected(rowNode.data, rowIndex))
 ))
 
 const someVisibleRowsSelected = computed(() => (
   !allVisibleRowsSelected.value &&
-  leafRowKeys.value.some(rowKey => grid.value.features.selection.isSelectedByKey(rowKey))
+  visibleLeafRows.value.some(({ rowNode, rowIndex }) => isLeafRowSelected(rowNode.data, rowIndex))
 ))
 
 const selectionRange = computed(() => grid.value.cellSelection.range.value)
@@ -337,7 +337,7 @@ const shouldShowRangeHandles = (rowIndex: number, columnIndex: number): boolean 
   if (!column || column.key === "select") {
     return false
   }
-  return rowIndex === range.endRow && columnIndex === range.endColumn
+  return isRangeFocusCell(range, rowIndex, columnIndex)
 }
 
 const isCellInPreview = (rowIndex: number, columnIndex: number): boolean => {
@@ -347,12 +347,7 @@ const isCellInPreview = (rowIndex: number, columnIndex: number): boolean => {
   if (!preview) {
     return false
   }
-  return (
-    rowIndex >= preview.startRow &&
-    rowIndex <= preview.endRow &&
-    columnIndex >= preview.startColumn &&
-    columnIndex <= preview.endColumn
-  )
+  return isCellInRange(preview, rowIndex, columnIndex)
 }
 
 const bindRangeHandle = (
@@ -450,8 +445,8 @@ const bindLeafCell = (
 }
 
 const toggleAllVisibleRows = (checked: boolean): void => {
-  for (const rowKey of leafRowKeys.value) {
-    grid.value.features.selection.setSelectedByKey(rowKey, checked)
+  for (const entry of visibleLeafRows.value) {
+    setLeafRowSelected(entry.rowNode.data, entry.rowIndex, checked)
   }
 }
 
@@ -460,9 +455,13 @@ const onToggleAllVisibleRowsChange = (event: Event): void => {
   toggleAllVisibleRows(Boolean(target?.checked))
 }
 
-const onToggleRowSelectedChange = (rowKey: string, event: Event): void => {
+const onToggleRowSelectedChange = (
+  row: RowLike,
+  rowIndex: number,
+  event: Event,
+): void => {
   const target = event.target as HTMLInputElement | null
-  grid.value.features.selection.setSelectedByKey(rowKey, Boolean(target?.checked))
+  setLeafRowSelected(row, rowIndex, Boolean(target?.checked))
 }
 
 const resolveNodeKey = (node: DataGridRowNode<RowLike>, fallbackIndex: number): string => {
@@ -610,264 +609,6 @@ const sortPriorityMap = computed(() => {
   return map
 })
 
-const headerFilter = computed(() => grid.value.features.headerFilters)
-const headerFilterState = computed<HeaderFilterStateLike>(() => headerFilter.value?.state.value ?? {
-  open: false,
-  columnKey: null,
-  query: "",
-  operator: "contains",
-  type: "text",
-})
-
-const activeEditSession = computed(() => grid.value.features.editing.activeSession.value)
-const lastEditCellKey = ref<{ rowKey: string; columnKey: string } | null>(null)
-const editorRefs = new Map<string, HTMLInputElement>()
-
-const setEditorRef = (rowKey: string, columnKey: string, value: unknown): void => {
-  const element = value instanceof HTMLInputElement
-    ? value
-    : (value && typeof value === "object" && "$el" in (value as Record<string, unknown>)
-        ? (value as { $el?: unknown }).$el
-        : null)
-  const key = `${rowKey}:${columnKey}`
-  if (element instanceof HTMLInputElement) {
-    editorRefs.set(key, element)
-  } else {
-    editorRefs.delete(key)
-  }
-}
-
-watch(
-  () => activeEditSession.value,
-  (session, previous) => {
-    if (!session) {
-      if (previous) {
-        lastEditCellKey.value = {
-          rowKey: previous.rowKey,
-          columnKey: previous.columnKey,
-        }
-        nextTick(() => {
-          const target = document.querySelector<HTMLElement>(
-            `[data-row-key="${lastEditCellKey.value?.rowKey ?? ""}"][data-column-key="${lastEditCellKey.value?.columnKey ?? ""}"]`,
-          )
-          target?.focus({ preventScroll: true })
-        })
-      }
-      return
-    }
-    const key = `${session.rowKey}:${session.columnKey}`
-    lastEditCellKey.value = { rowKey: session.rowKey, columnKey: session.columnKey }
-    nextTick(() => {
-      editorRefs.get(key)?.focus({ preventScroll: true })
-    })
-  },
-)
-
-type HeaderFilterPopover = {
-  controller: ReturnType<typeof usePopoverController>
-  floating: ReturnType<typeof useFloatingPopover>
-  scope: ReturnType<typeof effectScope>
-}
-
-const headerFilterTriggerRefs = new Map<string, HTMLElement>()
-
-const headerFilterPopover: HeaderFilterPopover = (() => {
-  const scope = effectScope()
-  let controller!: ReturnType<typeof usePopoverController>
-  let floating!: ReturnType<typeof useFloatingPopover>
-
-  scope.run(() => {
-    controller = usePopoverController({
-      id: "datagrid-sugar-filter",
-      role: "dialog",
-      modal: false,
-      closeOnEscape: true,
-      closeOnInteractOutside: true,
-      overlayKind: "popover",
-      overlayEntryTraits: {
-        ownerId: "datagrid-sugar-filter",
-        priority: 70,
-        returnFocus: false,
-      },
-    })
-
-    floating = useFloatingPopover(controller, {
-      placement: "bottom",
-      align: "start",
-      gutter: 8,
-      lockScroll: false,
-      returnFocus: false,
-    })
-  })
-
-  return { controller, floating, scope }
-})()
-
-const headerFilterContentStyle = computed<Record<string, string>>(() => (
-  unref(headerFilterPopover.floating.contentStyle)
-))
-
-const headerFilterTeleportTarget = computed<string | HTMLElement | null>(() => (
-  unref(headerFilterPopover.floating.teleportTarget)
-))
-
-const setHeaderFilterTriggerRef = (columnKey: string, value: unknown): void => {
-  const element = value instanceof HTMLElement
-    ? value
-    : (value && typeof value === "object" && "$el" in (value as Record<string, unknown>)
-        ? (value as { $el?: unknown }).$el
-        : null)
-  if (element instanceof HTMLElement) {
-    headerFilterTriggerRefs.set(columnKey, element)
-    if (headerFilterState.value.columnKey === columnKey) {
-      headerFilterPopover.floating.triggerRef.value = element
-    }
-  } else {
-    headerFilterTriggerRefs.delete(columnKey)
-  }
-}
-
-const setHeaderFilterContentRef = (value: unknown): void => {
-  const element = value instanceof HTMLElement
-    ? value
-    : (value && typeof value === "object" && "$el" in (value as Record<string, unknown>)
-        ? (value as { $el?: unknown }).$el
-        : null)
-  headerFilterPopover.floating.contentRef.value = element instanceof HTMLElement ? element : null
-}
-
-watch(
-  () => ({
-    open: headerFilterState.value.open,
-    columnKey: headerFilterState.value.columnKey,
-  }),
-  ({ open, columnKey }) => {
-    if (!open || !columnKey) {
-      headerFilterPopover.controller.close("programmatic")
-      return
-    }
-    headerFilterPopover.floating.triggerRef.value = headerFilterTriggerRefs.get(columnKey) ?? null
-    headerFilterPopover.controller.open("programmatic")
-    nextTick(() => {
-      headerFilterPopover.floating.updatePosition()
-    })
-  },
-)
-
-watch(
-  () => headerFilterPopover.controller.state.value.open,
-  (open) => {
-    if (!open && headerFilterState.value.open) {
-      headerFilter.value?.close()
-    }
-  },
-)
-
-onBeforeUnmount(() => {
-  headerFilterPopover.scope.stop()
-  headerFilterTriggerRefs.clear()
-})
-
-watch(
-  () => headerFilterState.value.columnKey,
-  () => {
-    headerTextValue.value = ""
-    headerNumberMin.value = ""
-    headerNumberMax.value = ""
-    headerDateFrom.value = ""
-    headerDateTo.value = ""
-    headerSetSearch.value = ""
-  },
-)
-
-const openedHeaderOperators = computed(() => {
-  const columnKey = headerFilterState.value.columnKey
-  if (!columnKey || !headerFilter.value) {
-    return []
-  }
-  return headerFilter.value.getOperators(columnKey)
-})
-
-const openedHeaderValues = computed(() => {
-  const columnKey = headerFilterState.value.columnKey
-  if (!columnKey || !headerFilter.value) {
-    return []
-  }
-  const query = headerSetSearch.value.trim().toLowerCase()
-  return headerFilter.value
-    .getUniqueValues(columnKey)
-    .filter(value => value.label.toLowerCase().includes(query))
-})
-
-const openHeaderFilter = (columnKey: string, event?: Event): void => {
-  const target = event?.currentTarget
-  if (target instanceof HTMLElement) {
-    headerFilterPopover.floating.triggerRef.value = target
-  }
-  headerFilter.value?.toggle(columnKey)
-}
-
-const onHeaderOperatorChange = (event: Event): void => {
-  const target = event.target as HTMLSelectElement | null
-  headerFilter.value?.setOperator(target?.value ?? "")
-}
-
-const onHeaderSetValueChange = (value: unknown, event: Event): void => {
-  const target = event.target as HTMLInputElement | null
-  const columnKey = headerFilterState.value.columnKey
-  if (!columnKey) {
-    return
-  }
-  headerFilter.value?.setValueSelected(columnKey, value, Boolean(target?.checked))
-}
-
-const applyOpenedHeaderFilter = (): void => {
-  const filter = headerFilter.value
-  const state = headerFilterState.value
-  if (!filter || !state.columnKey) {
-    return
-  }
-  if (state.type === "set") {
-    filter.close()
-    return
-  }
-  if (state.type === "number") {
-    filter.applyNumber(state.columnKey, {
-      operator: state.operator,
-      value: headerNumberMin.value.trim() === "" ? undefined : Number(headerNumberMin.value),
-      value2: headerNumberMax.value.trim() === "" ? undefined : Number(headerNumberMax.value),
-      mergeMode: "merge-and",
-    })
-    filter.close()
-    return
-  }
-  if (state.type === "date") {
-    filter.applyDate(state.columnKey, {
-      operator: state.operator,
-      value: headerDateFrom.value || undefined,
-      value2: headerDateTo.value || undefined,
-      mergeMode: "merge-and",
-    })
-    filter.close()
-    return
-  }
-  filter.applyText(state.columnKey, {
-    operator: state.operator,
-    value: headerTextValue.value,
-    mergeMode: "merge-and",
-  })
-  filter.close()
-}
-
-const clearOpenedHeaderFilter = (): void => {
-  const filter = headerFilter.value
-  const state = headerFilterState.value
-  if (!filter || !state.columnKey) {
-    return
-  }
-  filter.clear(state.columnKey)
-}
-
 const contextMenuOpen = computed(() => grid.value.contextMenu.state.value.visible)
 const contextMenuStyle = computed(() => grid.value.contextMenu.style.value)
 const contextMenuGroups = computed(() => grid.value.contextMenu.groupedActions?.value ?? [])
@@ -945,7 +686,7 @@ const resolveRowHeight = (rowKey: string): number => {
   if (typeof custom === "number" && Number.isFinite(custom) && custom > 0) {
     return Math.max(24, Math.round(custom))
   }
-  return grid.value.features.rowHeight.base.value
+  return baseRowHeight.value
 }
 
 const resolveRowCellStyleForRow = (
@@ -1065,17 +806,6 @@ onBeforeUnmount(() => {
               <span v-if="sortPriorityMap.get(column.key)" class="datagrid-sugar-stage__header-priority">
                 {{ sortPriorityMap.get(column.key) }}
               </span>
-              <button
-                type="button"
-                class="datagrid-sugar-stage__header-filter"
-                :ref="(el) => setHeaderFilterTriggerRef(column.key, el)"
-                v-bind="headerFilterPopover.controller.getTriggerProps()"
-                :aria-expanded="headerFilterState.columnKey === column.key ? 'true' : 'false'"
-                @click.stop="openHeaderFilter(column.key, $event)"
-                @keydown.stop
-              >
-                ⌕
-              </button>
             </span>
             <span
               class="datagrid-sugar-stage__resize-handle"
@@ -1185,8 +915,8 @@ onBeforeUnmount(() => {
               <input
                 class="datagrid-sugar-stage__checkbox"
                 type="checkbox"
-                :checked="grid.features.selection.isSelectedByKey(String(rowNode.rowId))"
-                @change="onToggleRowSelectedChange(String(rowNode.rowId), $event)"
+                :checked="isLeafRowSelected(rowNode.data, resolveRenderedRowIndex(rowIndex))"
+                @change="onToggleRowSelectedChange(rowNode.data, resolveRenderedRowIndex(rowIndex), $event)"
               />
               <span
                 class="datagrid-sugar-stage__row-resize-handle"
@@ -1197,7 +927,6 @@ onBeforeUnmount(() => {
             <input
               v-else-if="grid.bindings.isCellEditing(String(rowNode.rowId), column.key)"
               class="datagrid-sugar-stage__editor"
-              :ref="(el) => setEditorRef(String(rowNode.rowId), column.key, el)"
               v-bind="grid.bindings.inlineEditor({
                 rowKey: String(rowNode.rowId),
                 columnKey: column.key,
@@ -1251,92 +980,6 @@ onBeforeUnmount(() => {
       <button type="button" @click="grid.pagination.goToLastPage">Last</button>
     </footer>
   </main>
-
-  <Teleport :to="headerFilterTeleportTarget">
-    <section
-      v-if="headerFilterPopover.controller.state.value.open && headerFilterState.columnKey"
-      :ref="setHeaderFilterContentRef"
-      v-bind="headerFilterPopover.controller.getContentProps({ role: 'dialog', tabIndex: -1 })"
-      class="datagrid-sugar-filter-popover"
-      :style="headerFilterContentStyle"
-      @pointerdown.stop
-      @mousedown.stop
-      @click.stop
-    >
-      <h4>{{ headerFilterState.columnKey }}</h4>
-
-      <label>
-        <span>Operator</span>
-        <select
-          :value="headerFilterState.operator"
-          @change="onHeaderOperatorChange"
-        >
-          <option v-for="operator in openedHeaderOperators" :key="operator.value" :value="operator.value">
-            {{ operator.label }}
-          </option>
-        </select>
-      </label>
-
-      <template v-if="headerFilterState.type === 'set'">
-        <label>
-          <span>Search values</span>
-          <input v-model="headerSetSearch" type="search" placeholder="Search..." />
-        </label>
-        <div class="datagrid-sugar-filter-popover__set">
-          <label v-for="entry in openedHeaderValues" :key="entry.key" class="datagrid-sugar-filter-popover__set-row">
-            <input
-              type="checkbox"
-              :checked="entry.selected"
-              @change="onHeaderSetValueChange(entry.value, $event)"
-            />
-            <span>{{ entry.label }} ({{ entry.count }})</span>
-            <button
-              type="button"
-              class="is-link"
-              @click="grid.features.headerFilters?.selectOnlyValue(headerFilterState.columnKey!, entry.value)"
-            >
-              Only
-            </button>
-          </label>
-        </div>
-      </template>
-
-      <template v-else-if="headerFilterState.type === 'number'">
-        <label>
-          <span>Min</span>
-          <input v-model="headerNumberMin" type="number" />
-        </label>
-        <label>
-          <span>Max</span>
-          <input v-model="headerNumberMax" type="number" />
-        </label>
-      </template>
-
-      <template v-else-if="headerFilterState.type === 'date'">
-        <label>
-          <span>From</span>
-          <input v-model="headerDateFrom" type="date" />
-        </label>
-        <label>
-          <span>To</span>
-          <input v-model="headerDateTo" type="date" />
-        </label>
-      </template>
-
-      <template v-else>
-        <label>
-          <span>Contains</span>
-          <input v-model="headerTextValue" type="text" placeholder="contains..." />
-        </label>
-      </template>
-
-      <div class="datagrid-sugar-filter-popover__actions">
-        <button type="button" class="is-primary" @click="applyOpenedHeaderFilter">Apply</button>
-        <button type="button" class="is-ghost" @click="clearOpenedHeaderFilter">Reset</button>
-        <button type="button" class="is-ghost" @click="grid.features.headerFilters?.close()">Close</button>
-      </div>
-    </section>
-  </Teleport>
 
   <section
     v-if="contextMenuOpen"

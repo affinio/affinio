@@ -13,6 +13,8 @@ This section is split into two audiences:
 
 - **When to use Core vs Sugar** → [/datagrid/core-vs-sugar](/datagrid/core-vs-sugar)
 - **Audience tracks (Core / Adapter / Sugar)** → [/datagrid/audience-tracks](/datagrid/audience-tracks)
+- **Runtime modes (main-thread / worker-owned / server-side)** → [/datagrid/runtime-modes](/datagrid/runtime-modes)
+- **Tree data and grouped rows** → [/datagrid/tree-data](/datagrid/tree-data)
 - **Core factory contracts (constructor reference)** → [/datagrid/core-factories-reference](/datagrid/core-factories-reference)
 - **Core advanced entrypoint reference** → [/datagrid/core-advanced-reference](/datagrid/core-advanced-reference)
 - **Full capability catalog** → [DataGrid Feature Catalog](https://github.com/affinio/affinio/blob/main/docs/datagrid-feature-catalog.md)
@@ -50,7 +52,7 @@ Operational rule:
 
 ## Functional coverage (platform overview)
 
-- Stable `DataGridApi` facade with namespace domains (`rows/columns/view/state/events/meta/policy/compute/diagnostics/plugins).
+- Stable `DataGridApi` facade with namespace domains (`lifecycle/rows/data/columns/view/pivot/selection/transaction/state/events/meta/policy/compute/diagnostics/plugins).
 - State + events: unified state export/import (`api.state`) and typed public event surface (`api.events`) for deterministic integrations.
 - Row model: sorting, filtering, grouping, pagination, viewport range, snapshots/revisions.
 - Pivot: rows/columns/values, generated pivot columns, subtotals, grand totals, layout export/import, drilldown.
@@ -95,18 +97,20 @@ How to interpret:
 6) **Grid API**: operation facade → [/datagrid/grid-api](/datagrid/grid-api)
 7) **GroupBy projection**: pipeline and groups → [/datagrid/groupby-projection](/datagrid/groupby-projection)
 8) **Row models**: client/server, refresh → [/datagrid/row-models](/datagrid/row-models)
-9) **Interaction Orchestration Engine**: selection/clipboard/fill/move → [/datagrid/orchestration](/datagrid/orchestration)
-10) **Data source protocol**: pull/push/abort‑first → [/datagrid/data-source-protocol](/datagrid/data-source-protocol)
-11) **Deterministic integration**: pinned/overlay/viewport → [/datagrid/deterministic-integration](/datagrid/deterministic-integration)
-12) **Runtime events**: diagnostics and hooks → [/datagrid/runtime-events](/datagrid/runtime-events)
-13) **State/events/compute/diagnostics**: stable integration surface → [/datagrid/state-events-compute-diagnostics](/datagrid/state-events-compute-diagnostics)
-14) **Custom renderer**: `useAffinoDataGridUi` → [/datagrid/custom-renderer](/datagrid/custom-renderer)
-15) **Range selection engine**: anchor/focus/range → [/datagrid/range-selection](/datagrid/range-selection)
-16) **Fill handle**: autofill and copy → [/datagrid/fill-handle](/datagrid/fill-handle)
-17) **Range move**: drag‑move ranges → [/datagrid/drag-move](/datagrid/drag-move)
-18) **Reordering**: row/column drag → [/datagrid/reordering](/datagrid/reordering)
-19) **Viewport & a11y**: snapshot integration → [/datagrid/viewport-a11y](/datagrid/viewport-a11y)
-20) **End‑to‑end**: full Core → Interaction Runtime → UI path → [/datagrid/end-to-end](/datagrid/end-to-end)
+9) **Runtime modes**: main-thread / worker-owned / server-side → [/datagrid/runtime-modes](/datagrid/runtime-modes)
+10) **Tree data and grouped rows**: tree contract for DataGrid → [/datagrid/tree-data](/datagrid/tree-data)
+11) **Interaction Orchestration Engine**: selection/clipboard/fill/move → [/datagrid/orchestration](/datagrid/orchestration)
+12) **Data source protocol**: pull/push/abort‑first → [/datagrid/data-source-protocol](/datagrid/data-source-protocol)
+13) **Deterministic integration**: pinned/overlay/viewport → [/datagrid/deterministic-integration](/datagrid/deterministic-integration)
+14) **Runtime events**: diagnostics and hooks → [/datagrid/runtime-events](/datagrid/runtime-events)
+15) **State/events/compute/diagnostics**: stable integration surface → [/datagrid/state-events-compute-diagnostics](/datagrid/state-events-compute-diagnostics)
+16) **Custom renderer**: `useAffinoDataGridUi` → [/datagrid/custom-renderer](/datagrid/custom-renderer)
+17) **Range selection engine**: anchor/focus/range → [/datagrid/range-selection](/datagrid/range-selection)
+18) **Fill handle**: autofill and copy → [/datagrid/fill-handle](/datagrid/fill-handle)
+19) **Range move**: drag‑move ranges → [/datagrid/drag-move](/datagrid/drag-move)
+20) **Reordering**: row/column drag → [/datagrid/reordering](/datagrid/reordering)
+21) **Viewport & a11y**: snapshot integration → [/datagrid/viewport-a11y](/datagrid/viewport-a11y)
+22) **End‑to‑end**: full Core → Interaction Runtime → UI path → [/datagrid/end-to-end](/datagrid/end-to-end)
 
 ## Sugar path (fast setup)
 

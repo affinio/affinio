@@ -154,6 +154,7 @@ onMounted(() => {
         <RouterLink to="/datagrid/must-have/column-state">Column state scenario</RouterLink>
         <RouterLink to="/datagrid/must-have/reorder">Reorder scenario</RouterLink>
         <RouterLink to="/datagrid/must-have/row-height">Row-height scenario</RouterLink>
+        <RouterLink to="/datagrid/must-have/tree-data">Tree data scenario</RouterLink>
         <RouterLink to="/datagrid/sugar">Sugar DataGrid</RouterLink>
       </div>
     </header>

@@ -23,6 +23,13 @@ api.state.set(state, {
 })
 ```
 
+```ts
+const migrated = api.state.migrate(externalState, { strict: true })
+if (migrated) {
+  api.state.set(migrated)
+}
+```
+
 `api.state` is the canonical boundary for:
 
 - workspace save/restore
@@ -43,6 +50,12 @@ Important:
 - `policy` and `compute mode` are not part of V1 state payload.
 - `transaction` restore is intentionally unsupported in `set(...)` right now.
 
+### Snapshot isolation contract
+
+- Public read operations are revision-consistent inside one synchronous call stack.
+- If reads are performed without intervening mutations, they observe one logical revision.
+- Revision changes occur only at mutation/recompute boundaries.
+
 ## Typed public events (`api.events`)
 
 Subscribe via `api.events.on(event, listener)`.
@@ -56,7 +69,10 @@ Stable event set:
 - `pivot:changed`
 - `transaction:changed`
 - `viewport:changed`
+- `state:import:begin`
+- `state:import:end`
 - `state:imported`
+- `error`
 
 ### Ordering guarantees (actual runtime contract)
 
@@ -68,12 +84,24 @@ Stable event set:
 - `columns:changed` is emitted from column-model subscription ticks.
 - `selection:changed` is emitted by selection facade methods (`setSnapshot/clear`) and during `state.set(...)` when selection is applied.
 - `transaction:changed` is emitted by transaction facade methods (`begin/commit/rollback/apply/undo/redo`).
-- `state:imported` is emitted at the end of successful `api.state.set(...)` processing.
+- `api.state.set(...)` emits explicit restore boundaries:
+  1. `state:import:begin`
+  2. row/column/selection events while restore is applied
+  3. `state:imported` on successful apply
+  4. `state:import:end`
+- reentrant event emissions are queued FIFO inside one runtime tick.
 
 ### Non-guarantees
 
-- `api.state.set(...)` is not an atomic single-event operation; it may trigger multiple row/column events during application.
+- `api.state.set(...)` is a logical begin/end boundary, not a single-event atomic payload.
+- row/column events may be emitted inside that boundary while restore is being applied.
 - No cross-service total-order guarantee is declared beyond the sequencing above.
+
+### Error handling philosophy
+
+- Recoverable runtime conflicts are emitted through `error` events.
+- Guarded operations also throw/reject to keep control-flow explicit.
+- Aborted guarded mutations are represented by `aborted` code and `AbortError`.
 
 ## Compute control (`api.compute`)
 
@@ -93,6 +121,22 @@ Switch semantics:
 - It does not coordinate active transaction batches automatically; caller should switch mode at safe lifecycle points.
 - Use explicit recompute (`api.view.reapply()` / refresh path) if mode switch must be followed by projection update.
 
+Abort semantics:
+
+- `api.rows.patch(...)` and `api.rows.applyEdits(...)` accept `options.signal`.
+- `api.transaction.apply(...)` accepts `options.signal`.
+- Aborted operations fail with `AbortError`.
+
+## Lifecycle concurrency model
+
+- `runExclusive(...)` serializes guarded high-impact operations.
+- `whenIdle()` resolves after guarded queue drain.
+- `isBusy()` reflects active or queued guarded work.
+
+Non-guarantee:
+
+- Non-guarded row/query mutations are not automatically wrapped by lifecycle exclusivity.
+
 ## Aggregated diagnostics (`api.diagnostics`)
 
 ```ts
@@ -111,6 +155,21 @@ Cost/behavior contract:
 - `getAll()` is read-only and does not trigger recompute.
 - Snapshot allocations are bounded to diagnostics payload shape.
 - Safe for event-driven diagnostics panels; avoid unnecessary polling in tight loops.
+
+### Backpressure and memory guarantees (current stable surface)
+
+Guaranteed:
+
+- Backpressure metrics are exposed through diagnostics when supported.
+- Diagnostics reads are observational and non-mutating.
+- Abort-first mutation semantics are available for guarded mutation entrypoints.
+- Public backpressure controls are available for supported models via `api.data.pause()/resume()/flush()`.
+- `api.rows.batch(...)` coalesces facade event emission into a single deterministic event-cycle.
+
+Not yet guaranteed at facade level:
+
+- Global hard memory ceiling guarantees for every model implementation.
+- Global “never duplicate inflight pull” guarantee.
 
 ## Policy layer (`api.policy`)
 
@@ -147,4 +206,5 @@ This event-driven loop is preferred over hot-path polling.
 
 - plugins can receive stable public events through `onEvent(event, payload)`.
 - plugin lifecycle hooks: `onRegister`, `onDispose`.
+- plugin handler failures are isolated from core event delivery.
 - plugins currently do not participate in unified state serialization/deserialization.

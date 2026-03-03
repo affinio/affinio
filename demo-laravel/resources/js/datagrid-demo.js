@@ -1,17 +1,24 @@
-import { evaluateDataGridAdvancedFilterExpression } from "@affino/datagrid-laravel";
 import {
     buildDataGridColumnLayers,
     createDataGridRuntime,
     resolveDataGridLayerTrackTemplate,
     useDataGridColumnLayoutOrchestration,
     useDataGridManagedWheelScroll,
-    resolveDataGridHeaderLayerViewportGeometry,
     resolveDataGridHeaderScrollSyncLeft,
 } from "@affino/datagrid-laravel";
+import {
+    countCellsInRange,
+    createInteractionHistoryStore,
+    isCellInRange,
+    normalizeSelectionRange,
+    rangeEquals,
+    resolveSelectionTransition,
+} from "../../../demo-shared/datagridInteractionEngine.js";
 
 const ROW_HEIGHT = 36;
 const OVERSCAN_ROWS = 8;
 const DEFAULT_SIZE = 3600;
+const MAX_HISTORY_DEPTH = 200;
 const MENU_ACTION_IDS = ["copy", "cut", "paste", "clear"];
 const FILL_AUTOSCROLL_EDGE_PX = 44;
 const FILL_AUTOSCROLL_MAX_STEP_PX = 26;
@@ -248,7 +255,6 @@ function mountDatagridDemo(root) {
 
     const initialSize = readPositiveNumber(root.dataset.datagridInitialRows, DEFAULT_SIZE);
     let sourceRows = buildRows(initialSize, 1);
-    let activeRows = sourceRows;
     let query = "";
     let sortMode = "latency-desc";
     let groupMode = "none";
@@ -268,10 +274,10 @@ function mountDatagridDemo(root) {
     let fillPreviewRange = null;
     let fillPointerClient = null;
     let fillAutoScrollFrame = null;
-    let lastPointerDownAt = 0;
 
-    const undoStack = [];
-    const redoStack = [];
+    const historyStore = createInteractionHistoryStore({
+        maxDepth: MAX_HISTORY_DEPTH,
+    });
 
     const menuState = {
         open: false,
@@ -282,7 +288,7 @@ function mountDatagridDemo(root) {
     advancedFilterMode = String(advancedFilterSelect?.value || advancedFilterMode);
 
     const runtime = createDataGridRuntime({
-        rows: activeRows,
+        rows: sourceRows,
         columns: [
             { key: "service", label: "Service", width: 240, pin: "left" },
             { key: "owner", label: "Owner", width: 160 },
@@ -298,7 +304,7 @@ function mountDatagridDemo(root) {
             { key: "status", label: "Status", width: 130 },
         ],
     });
-    const { api, rowModel, core } = runtime;
+    const { api, core } = runtime;
     void api.start();
     if (autoReapplyToggle instanceof HTMLInputElement) {
         autoReapplyToggle.checked = api.rows.getAutoReapply();
@@ -308,10 +314,142 @@ function mountDatagridDemo(root) {
     let suppressedScrollEvents = 0;
     let lastScrollTop = viewport.scrollTop;
     let lastScrollLeft = viewport.scrollLeft;
-    let projectionDiagnostics = rowModel.getSnapshot().projection ?? null;
-    const unsubscribeProjectionDiagnostics = rowModel.subscribe((snapshot) => {
+    let projectionDiagnostics = api.rows.getSnapshot().projection ?? null;
+    let headerRenderSignature = "";
+    let rowsRenderSignature = "";
+    let selectionSummaryCacheKey = "";
+    let selectionSummaryCache = {
+        latencySum: null,
+        latencyAvg: null,
+        ownerDistinct: 0,
+    };
+    let sourceRowsLookup = new Map();
+    let sourceRowsLookupDirty = true;
+    let projectedRowsCache = [];
+    let projectedLeafCountCache = 0;
+    let projectedLeafIndexByRowKey = new Map();
+    let projectedRowsCacheVersion = null;
+    let pointerLayoutCache = {
+        columns: [],
+        metrics: [],
+        leftWidth: 0,
+        scrollWidth: 0,
+        rightWidth: 0,
+    };
+    const unsubscribeProjectionDiagnostics = api.events.on("rows:changed", ({ snapshot }) => {
         projectionDiagnostics = snapshot.projection ?? null;
     });
+
+    const markSourceRowsLookupDirty = () => {
+        sourceRowsLookupDirty = true;
+    };
+
+    const ensureSourceRowsLookup = () => {
+        if (!sourceRowsLookupDirty) {
+            return;
+        }
+        sourceRowsLookup = new Map();
+        sourceRows.forEach((row) => {
+            sourceRowsLookup.set(String(row.rowId), row);
+        });
+        sourceRowsLookupDirty = false;
+    };
+
+    const replaceSourceRows = (nextRows) => {
+        sourceRows = nextRows;
+        markSourceRowsLookupDirty();
+    };
+
+    const resolveProjectedRowsCacheVersion = () => {
+        const snapshot = api.rows.getSnapshot();
+        if (Number.isFinite(snapshot?.revision)) {
+            return `r:${snapshot.revision}`;
+        }
+        if (Number.isFinite(snapshot?.projection?.cycleVersion)) {
+            return `c:${snapshot.projection.cycleVersion}`;
+        }
+        if (Number.isFinite(snapshot?.projection?.version)) {
+            return `p:${snapshot.projection.version}`;
+        }
+        return null;
+    };
+
+    const refreshProjectedRowsCache = () => {
+        const nextVersion = resolveProjectedRowsCacheVersion();
+        if (nextVersion !== null && nextVersion === projectedRowsCacheVersion) {
+            return;
+        }
+        const count = api.rows.getCount();
+        const rows = count > 0 ? api.rows.getRange({ start: 0, end: count - 1 }) : [];
+        const nextLeafIndex = new Map();
+        let leafCount = 0;
+        rows.forEach((rowNode, displayIndex) => {
+            if (!rowNode || rowNode.kind !== "leaf") {
+                return;
+            }
+            leafCount += 1;
+            nextLeafIndex.set(String(rowNode.rowId), displayIndex);
+        });
+        projectedRowsCache = rows;
+        projectedLeafCountCache = leafCount;
+        projectedLeafIndexByRowKey = nextLeafIndex;
+        projectedRowsCacheVersion = nextVersion;
+    };
+
+    const resolveProjectedRows = () => {
+        refreshProjectedRowsCache();
+        return projectedRowsCache;
+    };
+
+    const resolveProjectedLeafCount = () => {
+        refreshProjectedRowsCache();
+        return projectedLeafCountCache;
+    };
+
+    const hasProjectedLeafRowKey = (rowKey) => {
+        if (!rowKey) {
+            return false;
+        }
+        refreshProjectedRowsCache();
+        return projectedLeafIndexByRowKey.has(String(rowKey));
+    };
+
+    const resolveProjectedLeafRowIndexByKey = (rowKey) => {
+        if (!rowKey) {
+            return -1;
+        }
+        refreshProjectedRowsCache();
+        const index = projectedLeafIndexByRowKey.get(String(rowKey));
+        return Number.isFinite(index) ? index : -1;
+    };
+
+    const resolveLeafRowNodeAtDisplayIndex = (rowIndex, projectedRows = resolveProjectedRows()) => {
+        if (!Number.isFinite(rowIndex) || rowIndex < 0 || rowIndex >= projectedRows.length) {
+            return null;
+        }
+        const rowNode = projectedRows[rowIndex];
+        if (!rowNode || rowNode.kind !== "leaf") {
+            return null;
+        }
+        return rowNode;
+    };
+
+    const resolveSelectionRangeKey = (range) => {
+        if (!range) {
+            return "none";
+        }
+        return [
+            range.startRowIndex,
+            range.endRowIndex,
+            range.startColumnIndex,
+            range.endColumnIndex,
+        ].join(":");
+    };
+
+    const resolveSelectionSummaryCacheKey = (range, columns, rowRevision) => {
+        const columnsKey = columns.map((column) => String(column.key)).join("|");
+        return `${rowRevision}|${resolveSelectionRangeKey(range)}|${columnsKey}`;
+    };
 
     const debugAutoScroll =
         root.dataset.datagridDebugAutoscroll === "true" ||
@@ -431,17 +569,30 @@ function mountDatagridDemo(root) {
     };
 
     const clearHistory = () => {
-        undoStack.length = 0;
-        redoStack.length = 0;
+        historyStore.clear();
         updateActionButtons();
+    };
+
+    const clearSelectionState = () => {
+        selectedRowKey = null;
+        activeCell = null;
+        selectionAnchor = null;
+        selectionRange = null;
+        activeCellLabel = "None";
+    };
+
+    const resetInteractionState = () => {
+        clearSelectionState();
+        editingCell = null;
+        fillPreviewRange = null;
     };
 
     const updateActionButtons = () => {
         if (undoButton) {
-            undoButton.disabled = undoStack.length === 0;
+            undoButton.disabled = !historyStore.canUndo();
         }
         if (redoButton) {
-            redoButton.disabled = redoStack.length === 0;
+            redoButton.disabled = !historyStore.canRedo();
         }
     };
 
@@ -451,7 +602,8 @@ function mountDatagridDemo(root) {
         if (!rowKey) {
             return null;
         }
-        return sourceRows.find((row) => String(row.rowId) === String(rowKey)) ?? null;
+        ensureSourceRowsLookup();
+        return sourceRowsLookup.get(String(rowKey)) ?? null;
     };
 
     const getActiveRow = () => {
@@ -470,7 +622,7 @@ function mountDatagridDemo(root) {
     };
 
     const writeCellValue = (rowKey, columnKey, nextValue) => {
-        sourceRows = sourceRows.map((row) => {
+        replaceSourceRows(sourceRows.map((row) => {
             if (String(row.rowId) !== String(rowKey)) {
                 return row;
             }
@@ -478,7 +630,7 @@ function mountDatagridDemo(root) {
                 ...row,
                 [columnKey]: nextValue,
             };
-        });
+        }));
     };
 
     const coerceValue = (columnKey, value) => {
@@ -504,10 +656,7 @@ function mountDatagridDemo(root) {
     };
 
     const resolveActiveRowIndex = (rowKey) => {
-        if (!rowKey) {
-            return -1;
-        }
-        return activeRows.findIndex((row) => String(row.rowId) === String(rowKey));
+        return resolveProjectedLeafRowIndexByKey(rowKey);
     };
 
     const getColumnSnapshot = () => api.columns?.getSnapshot?.() ?? { visibleColumns: [], allColumns: [] };
@@ -536,12 +685,63 @@ function mountDatagridDemo(root) {
         return expression ?? null;
     };
 
-    const matchesAdvancedFilter = (row) => {
-        const expression = resolveAdvancedFilterExpression();
-        if (!expression) {
-            return true;
+    const resolveQuickFilterExpression = () => {
+        const normalizedQuery = String(query ?? "").trim().toLowerCase();
+        if (normalizedQuery.length === 0) {
+            return null;
         }
-        return evaluateDataGridAdvancedFilterExpression(expression, (condition) => row?.[condition.key]);
+        return {
+            kind: "group",
+            operator: "or",
+            children: [
+                { kind: "condition", key: "service", type: "text", operator: "contains", value: normalizedQuery },
+                { kind: "condition", key: "owner", type: "text", operator: "contains", value: normalizedQuery },
+                { kind: "condition", key: "region", type: "text", operator: "contains", value: normalizedQuery },
+                { kind: "condition", key: "environment", type: "text", operator: "contains", value: normalizedQuery },
+                { kind: "condition", key: "severity", type: "text", operator: "contains", value: normalizedQuery },
+                { kind: "condition", key: "status", type: "text", operator: "contains", value: normalizedQuery },
+            ],
+        };
+    };
+
+    const resolveFilterModel = () => {
+        const quickFilterExpression = resolveQuickFilterExpression();
+        const advancedExpression = resolveAdvancedFilterExpression();
+        if (!quickFilterExpression && !advancedExpression) {
+            return null;
+        }
+        if (quickFilterExpression && advancedExpression) {
+            return {
+                columnFilters: {},
+                advancedFilters: {},
+                advancedExpression: {
+                    kind: "group",
+                    operator: "and",
+                    children: [quickFilterExpression, advancedExpression],
+                },
+            };
+        }
+        return {
+            columnFilters: {},
+            advancedFilters: {},
+            advancedExpression: quickFilterExpression ?? advancedExpression ?? null,
+        };
+    };
+
+    const resolveSortModel = () => {
+        switch (sortMode) {
+            case "latency-asc":
+                return [{ key: "latencyMs", direction: "asc" }];
+            case "errors-desc":
+                return [{ key: "errorRate", direction: "desc" }];
+            case "service-asc":
+                return [{ key: "service", direction: "asc" }];
+            case "availability-desc":
+                return [{ key: "availabilityPct", direction: "desc" }];
+            case "latency-desc":
+            default:
+                return [{ key: "latencyMs", direction: "desc" }];
+        }
     };
 
     const formatGroupAggregateNumber = (value, fractionDigits = 0) => {
@@ -581,62 +781,20 @@ function mountDatagridDemo(root) {
     const resolveColumnIndex = (columnKey, columns = resolveVisibleColumns()) =>
         columns.findIndex((column) => column.key === String(columnKey));
 
-    const normalizeSelectionRange = (anchorPoint, activePoint) => {
-        if (!anchorPoint || !activePoint) {
-            return null;
-        }
-        const startRowIndex = Math.min(anchorPoint.rowIndex, activePoint.rowIndex);
-        const endRowIndex = Math.max(anchorPoint.rowIndex, activePoint.rowIndex);
-        const startColumnIndex = Math.min(anchorPoint.columnIndex, activePoint.columnIndex);
-        const endColumnIndex = Math.max(anchorPoint.columnIndex, activePoint.columnIndex);
-        return {
-            startRowIndex,
-            endRowIndex,
-            startColumnIndex,
-            endColumnIndex,
-        };
-    };
-
-    const rangesEqual = (left, right) => {
-        if (!left && !right) {
-            return true;
-        }
-        if (!left || !right) {
-            return false;
-        }
-        return (
-            left.startRowIndex === right.startRowIndex &&
-            left.endRowIndex === right.endRowIndex &&
-            left.startColumnIndex === right.startColumnIndex &&
-            left.endColumnIndex === right.endColumnIndex
-        );
-    };
-
     const setSelectionFromActive = (extendSelection = false) => {
-        if (!activeCell) {
-            selectionAnchor = null;
-            selectionRange = null;
-            return;
-        }
-        if (!extendSelection || !selectionAnchor) {
-            selectionAnchor = {
-                rowKey: activeCell.rowKey,
-                columnKey: activeCell.columnKey,
-                rowIndex: activeCell.rowIndex,
-                columnIndex: activeCell.columnIndex,
-            };
-        }
-        selectionRange = normalizeSelectionRange(selectionAnchor, activeCell);
+        const transition = resolveSelectionTransition({
+            activeCell,
+            selectionAnchor,
+            extendSelection,
+        });
+        selectionAnchor = transition.selectionAnchor;
+        selectionRange = transition.selectionRange;
     };
 
     const updateActiveCell = (rowKey, columnKey, explicitRowIndex = null, options = {}) => {
         const extendSelection = Boolean(options.extendSelection);
         if (!rowKey || !columnKey) {
-            activeCell = null;
-            activeCellLabel = "None";
-            selectedRowKey = null;
-            selectionAnchor = null;
-            selectionRange = null;
+            clearSelectionState();
             return;
         }
         const columns = resolveVisibleColumns();
@@ -740,24 +898,11 @@ function mountDatagridDemo(root) {
     };
 
     const isCellInSelectionRange = (rowIndex, columnIndex) => {
-        if (!selectionRange) {
-            return false;
-        }
-        return (
-            rowIndex >= selectionRange.startRowIndex &&
-            rowIndex <= selectionRange.endRowIndex &&
-            columnIndex >= selectionRange.startColumnIndex &&
-            columnIndex <= selectionRange.endColumnIndex
-        );
+        return isCellInRange(selectionRange, rowIndex, columnIndex);
     };
 
     const getSelectedCellCount = () => {
-        if (!selectionRange) {
-            return 0;
-        }
-        const rowsCount = selectionRange.endRowIndex - selectionRange.startRowIndex + 1;
-        const columnsCount = selectionRange.endColumnIndex - selectionRange.startColumnIndex + 1;
-        return Math.max(0, rowsCount * columnsCount);
+        return countCellsInRange(selectionRange);
     };
 
     const resolveEffectiveSelectionRange = () => {
@@ -775,25 +920,17 @@ function mountDatagridDemo(root) {
         };
     };
 
-    const countCellsInRange = (range) => {
-        if (!range) {
-            return 0;
-        }
-        const rowsCount = Math.max(0, range.endRowIndex - range.startRowIndex + 1);
-        const columnsCount = Math.max(0, range.endColumnIndex - range.startColumnIndex + 1);
-        return rowsCount * columnsCount;
-    };
-
     const resolveRangeCells = (range, columns = resolveVisibleColumns()) => {
         if (!range) {
             return [];
         }
-        if (!activeRows.length || !columns.length) {
+        const projectedRows = resolveProjectedRows();
+        if (!projectedRows.length || !columns.length) {
             return [];
         }
 
-        const startRowIndex = clamp(range.startRowIndex, 0, activeRows.length - 1);
-        const endRowIndex = clamp(range.endRowIndex, 0, activeRows.length - 1);
+        const startRowIndex = clamp(range.startRowIndex, 0, projectedRows.length - 1);
+        const endRowIndex = clamp(range.endRowIndex, 0, projectedRows.length - 1);
         const startColumnIndex = clamp(range.startColumnIndex, 0, columns.length - 1);
         const endColumnIndex = clamp(range.endColumnIndex, 0, columns.length - 1);
         if (endRowIndex < startRowIndex || endColumnIndex < startColumnIndex) {
@@ -802,11 +939,11 @@ function mountDatagridDemo(root) {
 
         const cells = [];
         for (let rowIndex = startRowIndex; rowIndex <= endRowIndex; rowIndex += 1) {
-            const row = activeRows[rowIndex];
-            if (!row) {
+            const rowNode = resolveLeafRowNodeAtDisplayIndex(rowIndex, projectedRows);
+            if (!rowNode) {
                 continue;
             }
-            const rowKey = String(row.rowId);
+            const rowKey = String(rowNode.rowId);
             for (let columnIndex = startColumnIndex; columnIndex <= endColumnIndex; columnIndex += 1) {
                 const column = columns[columnIndex];
                 if (!column) {
@@ -821,18 +958,6 @@ function mountDatagridDemo(root) {
             }
         }
         return cells;
-    };
-
-    const isCoordInsideRange = (range, rowIndex, columnIndex) => {
-        if (!range) {
-            return false;
-        }
-        return (
-            rowIndex >= range.startRowIndex &&
-            rowIndex <= range.endRowIndex &&
-            columnIndex >= range.startColumnIndex &&
-            columnIndex <= range.endColumnIndex
-        );
     };
 
     const positiveModulo = (value, size) => {
@@ -873,18 +998,19 @@ function mountDatagridDemo(root) {
     };
 
     const buildClipboardMatrixFromRange = (range, columns = resolveVisibleColumns()) => {
-        if (!range || !activeRows.length || !columns.length) {
+        const projectedRows = resolveProjectedRows();
+        if (!range || !projectedRows.length || !columns.length) {
             return [[""]];
         }
 
-        const startRowIndex = clamp(range.startRowIndex, 0, activeRows.length - 1);
-        const endRowIndex = clamp(range.endRowIndex, 0, activeRows.length - 1);
+        const startRowIndex = clamp(range.startRowIndex, 0, projectedRows.length - 1);
+        const endRowIndex = clamp(range.endRowIndex, 0, projectedRows.length - 1);
         const startColumnIndex = clamp(range.startColumnIndex, 0, columns.length - 1);
         const endColumnIndex = clamp(range.endColumnIndex, 0, columns.length - 1);
         const matrix = [];
         for (let rowIndex = startRowIndex; rowIndex <= endRowIndex; rowIndex += 1) {
-            const row = activeRows[rowIndex];
-            if (!row) {
+            const rowNode = resolveLeafRowNodeAtDisplayIndex(rowIndex, projectedRows);
+            if (!rowNode) {
                 continue;
             }
             const values = [];
@@ -893,7 +1019,7 @@ function mountDatagridDemo(root) {
                 if (!column) {
                     continue;
                 }
-                const value = readCellValue(row.rowId, column.key);
+                const value = readCellValue(rowNode.rowId, column.key);
                 values.push(value == null ? "" : String(value));
             }
             matrix.push(values);
@@ -980,12 +1106,11 @@ function mountDatagridDemo(root) {
         if (!operations.length) {
             return;
         }
-        undoStack.push({
+        historyStore.push({
             label,
             operations: operations.map((operation) => ({ ...operation })),
             activeCell: activeCell ? { ...activeCell } : null,
         });
-        redoStack.length = 0;
         updateActionButtons();
     };
 
@@ -1027,13 +1152,12 @@ function mountDatagridDemo(root) {
     };
 
     const undoHistory = () => {
-        if (!undoStack.length) {
+        const transaction = historyStore.undo();
+        if (!transaction) {
             setStatus("Undo stack is empty");
             return;
         }
-        const transaction = undoStack.pop();
         runOperations(transaction.operations, "undo");
-        redoStack.push(transaction);
         if (transaction.activeCell) {
             updateActiveCell(transaction.activeCell.rowKey, transaction.activeCell.columnKey, transaction.activeCell.rowIndex);
         }
@@ -1043,13 +1167,12 @@ function mountDatagridDemo(root) {
     };
 
     const redoHistory = () => {
-        if (!redoStack.length) {
+        const transaction = historyStore.redo();
+        if (!transaction) {
             setStatus("Redo stack is empty");
             return;
         }
-        const transaction = redoStack.pop();
         runOperations(transaction.operations, "redo");
-        undoStack.push(transaction);
         if (transaction.activeCell) {
             updateActiveCell(transaction.activeCell.rowKey, transaction.activeCell.columnKey, transaction.activeCell.rowIndex);
         }
@@ -1167,6 +1290,7 @@ function mountDatagridDemo(root) {
         const matrixHeight = Math.max(1, matrix.length);
         const matrixWidth = Math.max(1, matrix[0]?.length ?? 1);
         const columns = resolveVisibleColumns();
+        const projectedRows = resolveProjectedRows();
         const operations = [];
 
         const currentRange = resolveEffectiveSelectionRange();
@@ -1198,8 +1322,8 @@ function mountDatagridDemo(root) {
             const targetColumns = Math.max(1, currentRange.endColumnIndex - currentRange.startColumnIndex + 1);
             for (let rowOffset = 0; rowOffset < targetRows; rowOffset += 1) {
                 const rowIndex = currentRange.startRowIndex + rowOffset;
-                const row = activeRows[rowIndex];
-                if (!row) {
+                const rowNode = resolveLeafRowNodeAtDisplayIndex(rowIndex, projectedRows);
+                if (!rowNode) {
                     continue;
                 }
                 for (let columnOffset = 0; columnOffset < targetColumns; columnOffset += 1) {
@@ -1209,13 +1333,13 @@ function mountDatagridDemo(root) {
                         continue;
                     }
                     const sourceValue = matrix[rowOffset % matrixHeight]?.[columnOffset % matrixWidth] ?? "";
-                    const before = readCellValue(row.rowId, column.key);
+                    const before = readCellValue(rowNode.rowId, column.key);
                     const after = coerceValue(column.key, sourceValue);
                     if (before === after) {
                         continue;
                     }
                     operations.push({
-                        rowKey: String(row.rowId),
+                        rowKey: String(rowNode.rowId),
                         columnKey: column.key,
                         before,
                         after,
@@ -1225,8 +1349,8 @@ function mountDatagridDemo(root) {
         } else {
             for (let rowOffset = 0; rowOffset < matrixHeight; rowOffset += 1) {
                 const rowIndex = activeCell.rowIndex + rowOffset;
-                const row = activeRows[rowIndex];
-                if (!row) {
+                const rowNode = resolveLeafRowNodeAtDisplayIndex(rowIndex, projectedRows);
+                if (!rowNode) {
                     continue;
                 }
                 for (let columnOffset = 0; columnOffset < matrixWidth; columnOffset += 1) {
@@ -1236,13 +1360,13 @@ function mountDatagridDemo(root) {
                         continue;
                     }
                     const sourceValue = matrix[rowOffset]?.[columnOffset] ?? "";
-                    const before = readCellValue(row.rowId, column.key);
+                    const before = readCellValue(rowNode.rowId, column.key);
                     const after = coerceValue(column.key, sourceValue);
                     if (before === after) {
                         continue;
                     }
                     operations.push({
-                        rowKey: String(row.rowId),
+                        rowKey: String(rowNode.rowId),
                         columnKey: column.key,
                         before,
                         after,
@@ -1310,29 +1434,19 @@ function mountDatagridDemo(root) {
             return null;
         }
 
-        if (!activeRows.length) {
+        const projectedRowCount = api.rows.getCount();
+        if (projectedRowCount <= 0) {
             return null;
         }
 
         const rowIndex = clamp(
             Math.floor((viewport.scrollTop + localY) / ROW_HEIGHT),
             0,
-            Math.max(0, activeRows.length - 1),
+            Math.max(0, projectedRowCount - 1),
         );
 
-        const visibleColumns = resolveVisibleColumns();
-        const layout = useDataGridColumnLayoutOrchestration({
-            columns: visibleColumns,
-            resolveColumnWidth,
-            virtualWindow: buildColumnVirtualWindow({
-                rowStart: 0,
-                rowEnd: Math.max(0, api.rows.getCount() - 1),
-                rowTotal: api.rows.getCount(),
-                colTotal: visibleColumns.length,
-            }),
-        });
-        const columns = layout.orderedColumns ?? [];
-        const metrics = layout.orderedColumnMetrics ?? [];
+        const columns = pointerLayoutCache.columns;
+        const metrics = pointerLayoutCache.metrics;
         if (!columns.length || !metrics.length) {
             return {
                 rowIndex,
@@ -1340,20 +1454,9 @@ function mountDatagridDemo(root) {
             };
         }
 
-        let leftWidth = 0;
-        let scrollWidth = 0;
-        let rightWidth = 0;
-        columns.forEach((column) => {
-            const width = resolveColumnWidth(column);
-            const pin = resolveColumnPin(column);
-            if (pin === "left") {
-                leftWidth += width;
-            } else if (pin === "right") {
-                rightWidth += width;
-            } else {
-                scrollWidth += width;
-            }
-        });
+        const leftWidth = pointerLayoutCache.leftWidth;
+        const scrollWidth = pointerLayoutCache.scrollWidth;
+        const rightWidth = pointerLayoutCache.rightWidth;
 
         let columnIndex = -1;
         for (let index = 0; index < columns.length; index += 1) {
@@ -1432,7 +1535,7 @@ function mountDatagridDemo(root) {
             startColumnIndex: Math.min(originRange.startColumnIndex, coord.columnIndex),
             endColumnIndex: Math.max(originRange.endColumnIndex, coord.columnIndex),
         };
-        if (rangesEqual(candidate, originRange)) {
+        if (rangeEquals(candidate, originRange)) {
             return null;
         }
         return candidate;
@@ -1445,7 +1548,8 @@ function mountDatagridDemo(root) {
         const originRange = fillDragSession.originRange;
         const previewRange = fillPreviewRange;
         const columns = resolveVisibleColumns();
-        if (!columns.length || !activeRows.length) {
+        const projectedRows = resolveProjectedRows();
+        if (!columns.length || !projectedRows.length) {
             return false;
         }
 
@@ -1453,24 +1557,24 @@ function mountDatagridDemo(root) {
         const sourceColumnCount = Math.max(1, originRange.endColumnIndex - originRange.startColumnIndex + 1);
 
         const sourceMatrix = Array.from({ length: sourceRowCount }, (_, rowOffset) => {
-            const sourceRow = activeRows[originRange.startRowIndex + rowOffset];
+            const sourceRowNode = resolveLeafRowNodeAtDisplayIndex(originRange.startRowIndex + rowOffset, projectedRows);
             return Array.from({ length: sourceColumnCount }, (_, columnOffset) => {
                 const sourceColumn = columns[originRange.startColumnIndex + columnOffset];
-                if (!sourceRow || !sourceColumn) {
+                if (!sourceRowNode || !sourceColumn) {
                     return "";
                 }
-                return readCellValue(sourceRow.rowId, sourceColumn.key);
+                return readCellValue(sourceRowNode.rowId, sourceColumn.key);
             });
         });
 
         const operations = [];
         for (let rowIndex = previewRange.startRowIndex; rowIndex <= previewRange.endRowIndex; rowIndex += 1) {
-            const row = activeRows[rowIndex];
-            if (!row) {
+            const rowNode = resolveLeafRowNodeAtDisplayIndex(rowIndex, projectedRows);
+            if (!rowNode) {
                 continue;
             }
             for (let columnIndex = previewRange.startColumnIndex; columnIndex <= previewRange.endColumnIndex; columnIndex += 1) {
-                if (isCoordInsideRange(originRange, rowIndex, columnIndex)) {
+                if (isCellInRange(originRange, rowIndex, columnIndex)) {
                     continue;
                 }
                 const column = columns[columnIndex];
@@ -1482,13 +1586,13 @@ function mountDatagridDemo(root) {
                 const sourceColumnOffset = positiveModulo(columnIndex - originRange.startColumnIndex, sourceColumnCount);
                 const sourceValue = sourceMatrix[sourceRowOffset]?.[sourceColumnOffset] ?? "";
 
-                const before = readCellValue(row.rowId, column.key);
+                const before = readCellValue(rowNode.rowId, column.key);
                 const after = coerceValue(column.key, sourceValue);
                 if (before === after) {
                     continue;
                 }
                 operations.push({
-                    rowKey: String(row.rowId),
+                    rowKey: String(rowNode.rowId),
                     columnKey: column.key,
                     before,
                     after,
@@ -1514,12 +1618,6 @@ function mountDatagridDemo(root) {
         window.removeEventListener("pointermove", onFillDragPointerMove, true);
         window.removeEventListener("pointerup", onFillDragPointerUp, true);
         window.removeEventListener("pointercancel", onFillDragPointerCancel, true);
-        window.removeEventListener("mousemove", onFillDragMouseMove, true);
-        window.removeEventListener("mouseup", onFillDragMouseUp, true);
-        window.removeEventListener("mouseleave", onFillDragMouseCancel, true);
-        window.removeEventListener("dragover", onFillDragDragOver, true);
-        window.removeEventListener("drop", onFillDragDrop, true);
-        window.removeEventListener("dragend", onFillDragDragEnd, true);
         if (fillAutoScrollFrame !== null) {
             window.cancelAnimationFrame(fillAutoScrollFrame);
             fillAutoScrollFrame = null;
@@ -1527,6 +1625,24 @@ function mountDatagridDemo(root) {
         fillPointerClient = null;
 
         root.classList.remove("is-fill-dragging");
+
+        const capturedHandle = fillDragSession.handleElement;
+        if (
+            capturedHandle instanceof HTMLElement &&
+            typeof capturedHandle.releasePointerCapture === "function" &&
+            Number.isInteger(fillDragSession.pointerId)
+        ) {
+            try {
+                if (
+                    typeof capturedHandle.hasPointerCapture !== "function" ||
+                    capturedHandle.hasPointerCapture(fillDragSession.pointerId)
+                ) {
+                    capturedHandle.releasePointerCapture(fillDragSession.pointerId);
+                }
+            } catch {
+                // ignore pointer capture release errors
+            }
+        }
 
         if (apply) {
             commitFillPreview();
@@ -1538,7 +1654,7 @@ function mountDatagridDemo(root) {
     };
 
     const onFillDragPointerMove = (event) => {
-        if (!fillDragSession || fillDragSession.inputType !== "pointer") {
+        if (!fillDragSession || event.pointerId !== fillDragSession.pointerId) {
             return;
         }
         fillPointerClient = {
@@ -1547,26 +1663,7 @@ function mountDatagridDemo(root) {
         };
         const coord = resolvePointerCellCoord(event.clientX, event.clientY);
         const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
-        if (!rangesEqual(nextPreview, fillPreviewRange)) {
-            fillPreviewRange = nextPreview;
-            requestRender();
-        }
-        if (fillAutoScrollFrame === null) {
-            fillAutoScrollFrame = window.requestAnimationFrame(runFillAutoScrollStep);
-        }
-    };
-
-    const onFillDragMouseMove = (event) => {
-        if (!fillDragSession || fillDragSession.inputType !== "mouse") {
-            return;
-        }
-        fillPointerClient = {
-            x: event.clientX,
-            y: event.clientY,
-        };
-        const coord = resolvePointerCellCoord(event.clientX, event.clientY);
-        const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
-        if (!rangesEqual(nextPreview, fillPreviewRange)) {
+        if (!rangeEquals(nextPreview, fillPreviewRange)) {
             fillPreviewRange = nextPreview;
             requestRender();
         }
@@ -1576,86 +1673,26 @@ function mountDatagridDemo(root) {
     };
 
     const onFillDragPointerUp = (event) => {
-        if (!fillDragSession || fillDragSession.inputType !== "pointer") {
+        if (!fillDragSession || event.pointerId !== fillDragSession.pointerId) {
             return;
         }
         const coord = resolvePointerCellCoord(event.clientX, event.clientY);
         const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
-        if (!rangesEqual(nextPreview, fillPreviewRange)) {
+        if (!rangeEquals(nextPreview, fillPreviewRange)) {
             fillPreviewRange = nextPreview;
         }
         event.preventDefault();
         stopFillDrag(true);
     };
 
-    const onFillDragMouseUp = (event) => {
-        if (!fillDragSession || fillDragSession.inputType !== "mouse") {
-            return;
-        }
-        const coord = resolvePointerCellCoord(event.clientX, event.clientY);
-        const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
-        if (!rangesEqual(nextPreview, fillPreviewRange)) {
-            fillPreviewRange = nextPreview;
-        }
-        event.preventDefault();
-        stopFillDrag(true);
-    };
-
-    const onFillDragPointerCancel = () => {
-        if (!fillDragSession || fillDragSession.inputType !== "pointer") {
+    const onFillDragPointerCancel = (event) => {
+        if (!fillDragSession || event.pointerId !== fillDragSession.pointerId) {
             return;
         }
         stopFillDrag(false);
     };
 
-    const onFillDragMouseCancel = () => {
-        if (!fillDragSession || fillDragSession.inputType !== "mouse") {
-            return;
-        }
-        stopFillDrag(false);
-    };
-
-    const onFillDragDragOver = (event) => {
-        if (!fillDragSession) {
-            return;
-        }
-        fillPointerClient = {
-            x: event.clientX,
-            y: event.clientY,
-        };
-        const coord = resolvePointerCellCoord(event.clientX, event.clientY);
-        const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
-        if (!rangesEqual(nextPreview, fillPreviewRange)) {
-            fillPreviewRange = nextPreview;
-            requestRender();
-        }
-        if (fillAutoScrollFrame === null) {
-            fillAutoScrollFrame = window.requestAnimationFrame(runFillAutoScrollStep);
-        }
-        event.preventDefault();
-    };
-
-    const onFillDragDrop = (event) => {
-        if (!fillDragSession) {
-            return;
-        }
-        const coord = resolvePointerCellCoord(event.clientX, event.clientY);
-        const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
-        if (!rangesEqual(nextPreview, fillPreviewRange)) {
-            fillPreviewRange = nextPreview;
-        }
-        event.preventDefault();
-        stopFillDrag(true);
-    };
-
-    const onFillDragDragEnd = () => {
-        if (!fillDragSession) {
-            return;
-        }
-        stopFillDrag(false);
-    };
-
-    const startFillDragFromClientPoint = (clientX, clientY, inputType) => {
+    const startFillDragFromClientPoint = (clientX, clientY, pointerId, handleElement) => {
         if (fillDragSession) {
             return false;
         }
@@ -1665,7 +1702,8 @@ function mountDatagridDemo(root) {
         }
         fillDragSession = {
             originRange: { ...originRange },
-            inputType,
+            pointerId,
+            handleElement: handleElement instanceof HTMLElement ? handleElement : null,
         };
         fillPreviewRange = null;
         fillPointerClient = {
@@ -1678,12 +1716,6 @@ function mountDatagridDemo(root) {
         window.addEventListener("pointermove", onFillDragPointerMove, true);
         window.addEventListener("pointerup", onFillDragPointerUp, true);
         window.addEventListener("pointercancel", onFillDragPointerCancel, true);
-        window.addEventListener("mousemove", onFillDragMouseMove, true);
-        window.addEventListener("mouseup", onFillDragMouseUp, true);
-        window.addEventListener("mouseleave", onFillDragMouseCancel, true);
-        window.addEventListener("dragover", onFillDragDragOver, true);
-        window.addEventListener("drop", onFillDragDrop, true);
-        window.addEventListener("dragend", onFillDragDragEnd, true);
         if (fillAutoScrollFrame === null) {
             fillAutoScrollFrame = window.requestAnimationFrame(runFillAutoScrollStep);
         }
@@ -1695,64 +1727,36 @@ function mountDatagridDemo(root) {
         if (fillDragSession) {
             return;
         }
-        const inputType =
-            event.type === "pointerdown"
-                ? event.pointerType === "mouse"
-                    ? "mouse"
-                    : "pointer"
-                : "mouse";
+        if (event.type !== "pointerdown") {
+            return;
+        }
         if (typeof event.button === "number" && event.button !== 0) {
             return;
         }
-        const started = startFillDragFromClientPoint(event.clientX, event.clientY, inputType);
+        const handleElement =
+            event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+        const started = startFillDragFromClientPoint(
+            event.clientX,
+            event.clientY,
+            event.pointerId,
+            handleElement,
+        );
         if (!started) {
             return;
         }
-        event.preventDefault();
-        event.stopPropagation();
-    };
-
-    const startFillDragFromDragEvent = (event) => {
-        const started = startFillDragFromClientPoint(event.clientX, event.clientY, "mouse");
-        if (event.dataTransfer) {
+        if (
+            handleElement &&
+            typeof handleElement.setPointerCapture === "function" &&
+            Number.isInteger(event.pointerId)
+        ) {
             try {
-                event.dataTransfer.setData("text/plain", "fill");
-                event.dataTransfer.effectAllowed = "copy";
+                handleElement.setPointerCapture(event.pointerId);
             } catch {
-                // ignore drag data failures
+                // ignore pointer capture errors
             }
         }
-        if (started) {
-            event.stopPropagation();
-        }
-    };
-
-    const maybeStartFillDragFromMove = (event) => {
-        if (fillDragSession) {
-            return;
-        }
-        const now = typeof performance !== "undefined" ? performance.now() : Date.now();
-        const recentPointerDown = now - lastPointerDownAt < 500;
-        if (event.buttons !== 1 && !recentPointerDown) {
-            return;
-        }
-        if (!(event.target instanceof Element)) {
-            return;
-        }
-        if (!event.target.closest("[data-datagrid-fill-handle]")) {
-            return;
-        }
-        const inputType =
-            event.type === "pointermove"
-                ? event.pointerType === "mouse"
-                    ? "mouse"
-                    : "pointer"
-                : "mouse";
-        const started = startFillDragFromClientPoint(event.clientX, event.clientY, inputType);
-        if (started) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
+        event.preventDefault();
+        event.stopPropagation();
     };
 
     const runFillAutoScrollStep = () => {
@@ -1775,7 +1779,7 @@ function mountDatagridDemo(root) {
         if (changed) {
             const coord = resolvePointerCellCoord(fillPointerClient.x, fillPointerClient.y);
             const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
-            if (!rangesEqual(nextPreview, fillPreviewRange)) {
+            if (!rangeEquals(nextPreview, fillPreviewRange)) {
                 fillPreviewRange = nextPreview;
             }
             requestRender();
@@ -1883,25 +1887,27 @@ function mountDatagridDemo(root) {
 
     const moveActiveCell = (rowDelta, columnDelta, extendSelection = false) => {
         const columns = resolveVisibleColumns();
-        if (!columns.length || !activeRows.length) {
+        const projectedRows = resolveProjectedRows();
+        if (!columns.length || !projectedRows.length) {
             return;
         }
         if (!activeCell) {
-            const firstRow = activeRows[0];
-            if (!firstRow) {
+            const firstLeafRowIndex = projectedRows.findIndex((rowNode) => rowNode?.kind === "leaf");
+            const firstLeafRow = firstLeafRowIndex >= 0 ? resolveLeafRowNodeAtDisplayIndex(firstLeafRowIndex, projectedRows) : null;
+            if (!firstLeafRow) {
                 return;
             }
-            updateActiveCell(firstRow.rowId, columns[0].key, 0, { extendSelection });
+            updateActiveCell(firstLeafRow.rowId, columns[0].key, firstLeafRowIndex, { extendSelection });
             requestRender();
             return;
         }
         const currentRowIndex = resolveActiveRowIndex(activeCell.rowKey);
         const currentColumnIndex = columns.findIndex((column) => column.key === activeCell.columnKey);
 
-        const nextRowIndex = clamp(currentRowIndex + rowDelta, 0, activeRows.length - 1);
+        const nextRowIndex = clamp(currentRowIndex + rowDelta, 0, projectedRows.length - 1);
         const nextColumnIndex = clamp(currentColumnIndex + columnDelta, 0, columns.length - 1);
 
-        const nextRow = activeRows[nextRowIndex];
+        const nextRow = resolveLeafRowNodeAtDisplayIndex(nextRowIndex, projectedRows);
         const nextColumn = columns[nextColumnIndex];
         if (!nextRow || !nextColumn) {
             return;
@@ -2033,7 +2039,6 @@ function mountDatagridDemo(root) {
     };
 
     const onGlobalPointerDown = (event) => {
-        lastPointerDownAt = typeof performance !== "undefined" ? performance.now() : Date.now();
         if (fillDragSession) {
             return;
         }
@@ -2066,7 +2071,7 @@ function mountDatagridDemo(root) {
         if (fillDragSession && fillPointerClient) {
             const coord = resolvePointerCellCoord(fillPointerClient.x, fillPointerClient.y);
             const nextPreview = resolveFillPreviewRange(fillDragSession.originRange, coord);
-            if (!rangesEqual(nextPreview, fillPreviewRange)) {
+            if (!rangeEquals(nextPreview, fillPreviewRange)) {
                 fillPreviewRange = nextPreview;
             }
         }
@@ -2115,12 +2120,9 @@ function mountDatagridDemo(root) {
     const onSize = () => {
         const size = readPositiveNumber(sizeSelect?.value, DEFAULT_SIZE);
         generation += 1;
-        sourceRows = buildRows(size, generation);
-        selectedRowKey = null;
-        activeCell = null;
-        selectionAnchor = null;
-        selectionRange = null;
-        activeCellLabel = "None";
+        replaceSourceRows(buildRows(size, generation));
+        stopFillDrag(false);
+        resetInteractionState();
         clearHistory();
         setStatus(`Dataset resized: ${size} rows`);
         applyProjection({ resetScroll: true });
@@ -2152,7 +2154,7 @@ function mountDatagridDemo(root) {
 
     const onShift = () => {
         generation += 1;
-        sourceRows = sourceRows.map((row, index) => {
+        replaceSourceRows(sourceRows.map((row, index) => {
             const latencyShift = ((index + generation) % 7) * 5 - 12;
             const nextLatency = Math.max(20, row.latencyMs + latencyShift);
             const nextErrors = Math.max(0, row.errorRate + ((index + generation) % 4) - 1);
@@ -2169,7 +2171,7 @@ function mountDatagridDemo(root) {
                 status: resolveStatus(nextLatency, nextErrors),
                 updatedAt: resolveTimestamp(index + generation),
             };
-        });
+        }));
         clearHistory();
         setStatus("Runtime shift applied");
         applyProjection({ resetScroll: false });
@@ -2189,17 +2191,14 @@ function mountDatagridDemo(root) {
     const onReset = () => {
         generation = 1;
         const size = readPositiveNumber(sizeSelect?.value, initialSize);
-        sourceRows = buildRows(size, generation);
+        replaceSourceRows(buildRows(size, generation));
         query = "";
         sortMode = "latency-desc";
         groupMode = "none";
         visibilityMode = "all";
         advancedFilterMode = "none";
-        selectedRowKey = null;
-        activeCell = null;
-        selectionAnchor = null;
-        selectionRange = null;
-        activeCellLabel = "None";
+        stopFillDrag(false);
+        resetInteractionState();
         clearHistory();
         if (searchInput) {
             searchInput.value = "";
@@ -2255,100 +2254,96 @@ function mountDatagridDemo(root) {
 
     root.addEventListener("keydown", onRootKeydown);
     root.addEventListener("pointerdown", onGlobalPointerDown, true);
-    root.addEventListener("pointermove", maybeStartFillDragFromMove, true);
-    root.addEventListener("mousemove", maybeStartFillDragFromMove, true);
 
     function applyProjection(options = {}) {
-        const advancedExpression = resolveAdvancedFilterExpression();
-        const filtered = sourceRows.filter((row) => {
-            if (!matchesQuery(row, query)) {
-                return false;
+        const applyProjectedRowsAndModels = () => {
+            api.rows.batch(() => {
+                api.rows.setData(sourceRows);
+                api.rows.setFilterModel(resolveFilterModel());
+                api.rows.setSortModel(resolveSortModel());
+
+                if (groupMode === "none") {
+                    api.rows.setAggregationModel(null);
+                    api.rows.setGroupBy(null);
+                } else {
+                    api.rows.setAggregationModel({
+                        basis: GROUP_AGGREGATION_MODEL.basis,
+                        columns: GROUP_AGGREGATION_MODEL.columns.map((column) => ({ ...column })),
+                    });
+                    api.rows.setGroupBy({
+                        fields: [groupMode],
+                        expandedByDefault: true,
+                    });
+                }
+            });
+        };
+
+        const normalizeInteractionStateAfterProjection = (visibleColumns) => {
+            if (selectedRowKey && !hasProjectedLeafRowKey(selectedRowKey)) {
+                selectedRowKey = null;
             }
-            return matchesAdvancedFilter(row);
-        });
-        activeRows = sortRows(filtered, sortMode);
-        rowModel.setFilterModel({
-            columnFilters: {},
-            advancedFilters: {},
-            advancedExpression,
-        });
-        rowModel.setRows(activeRows);
-
-        if (groupMode === "none") {
-            api.rows.setAggregationModel(null);
-            api.rows.setGroupBy(null);
-        } else {
-            api.rows.setAggregationModel({
-                basis: GROUP_AGGREGATION_MODEL.basis,
-                columns: GROUP_AGGREGATION_MODEL.columns.map((column) => ({ ...column })),
-            });
-            api.rows.setGroupBy({
-                fields: [groupMode],
-                expandedByDefault: true,
-            });
-        }
-
-        if (selectedRowKey && !activeRows.some((row) => String(row.rowId) === selectedRowKey)) {
-            selectedRowKey = null;
-        }
-        if (activeCell && !activeRows.some((row) => String(row.rowId) === activeCell.rowKey)) {
-            activeCell = null;
-            activeCellLabel = "None";
-        } else if (activeCell) {
-            const normalizedIndex = resolveActiveRowIndex(activeCell.rowKey);
-            activeCell.rowIndex = normalizedIndex >= 0 ? normalizedIndex : 0;
-            const normalizedColumnIndex = resolveColumnIndex(activeCell.columnKey);
-            activeCell.columnIndex = normalizedColumnIndex >= 0 ? normalizedColumnIndex : 0;
-            activeCellLabel = `R${activeCell.rowIndex + 1} · ${activeCell.columnKey}`;
-        }
-        if (!activeCell) {
-            selectionAnchor = null;
-        }
-        if (selectionAnchor && !activeRows.some((row) => String(row.rowId) === selectionAnchor.rowKey)) {
-            selectionAnchor = null;
-        }
-        if (selectionAnchor) {
-            const normalizedAnchorRowIndex = resolveActiveRowIndex(selectionAnchor.rowKey);
-            const normalizedAnchorColumnIndex = resolveColumnIndex(selectionAnchor.columnKey);
-            selectionAnchor.rowIndex = normalizedAnchorRowIndex >= 0 ? normalizedAnchorRowIndex : 0;
-            selectionAnchor.columnIndex = normalizedAnchorColumnIndex >= 0 ? normalizedAnchorColumnIndex : 0;
-        }
-        if (activeCell && !selectionAnchor) {
-            selectionAnchor = {
-                rowKey: activeCell.rowKey,
-                columnKey: activeCell.columnKey,
-                rowIndex: activeCell.rowIndex,
-                columnIndex: activeCell.columnIndex,
-            };
-        }
-
-        const visibleColumns = resolveVisibleColumns();
-        if (activeCell && !visibleColumns.some((column) => column.key === activeCell.columnKey)) {
-            const fallbackColumn = visibleColumns[0];
-            if (fallbackColumn) {
-                activeCell.columnKey = fallbackColumn.key;
-                activeCell.columnIndex = resolveColumnIndex(fallbackColumn.key, visibleColumns);
-                activeCellLabel = `R${activeCell.rowIndex + 1} · ${activeCell.columnKey}`;
-            } else {
+            if (activeCell && !hasProjectedLeafRowKey(activeCell.rowKey)) {
                 activeCell = null;
                 activeCellLabel = "None";
+            } else if (activeCell) {
+                const normalizedIndex = resolveActiveRowIndex(activeCell.rowKey);
+                activeCell.rowIndex = normalizedIndex >= 0 ? normalizedIndex : 0;
+                const normalizedColumnIndex = resolveColumnIndex(activeCell.columnKey);
+                activeCell.columnIndex = normalizedColumnIndex >= 0 ? normalizedColumnIndex : 0;
+                activeCellLabel = `R${activeCell.rowIndex + 1} · ${activeCell.columnKey}`;
             }
-        }
-        if (selectionAnchor && !visibleColumns.some((column) => column.key === selectionAnchor.columnKey)) {
-            selectionAnchor = activeCell
-                ? {
+            if (!activeCell) {
+                selectionAnchor = null;
+            }
+            if (selectionAnchor && !hasProjectedLeafRowKey(selectionAnchor.rowKey)) {
+                selectionAnchor = null;
+            }
+            if (selectionAnchor) {
+                const normalizedAnchorRowIndex = resolveActiveRowIndex(selectionAnchor.rowKey);
+                const normalizedAnchorColumnIndex = resolveColumnIndex(selectionAnchor.columnKey);
+                selectionAnchor.rowIndex = normalizedAnchorRowIndex >= 0 ? normalizedAnchorRowIndex : 0;
+                selectionAnchor.columnIndex = normalizedAnchorColumnIndex >= 0 ? normalizedAnchorColumnIndex : 0;
+            }
+            if (activeCell && !selectionAnchor) {
+                selectionAnchor = {
                     rowKey: activeCell.rowKey,
                     columnKey: activeCell.columnKey,
                     rowIndex: activeCell.rowIndex,
                     columnIndex: activeCell.columnIndex,
-                }
-                : null;
-        }
+                };
+            }
 
-        selectionRange = normalizeSelectionRange(selectionAnchor, activeCell);
-        if (editingCell && !activeRows.some((row) => String(row.rowId) === editingCell.rowKey)) {
-            editingCell = null;
-        }
+            if (activeCell && !visibleColumns.some((column) => column.key === activeCell.columnKey)) {
+                const fallbackColumn = visibleColumns[0];
+                if (fallbackColumn) {
+                    activeCell.columnKey = fallbackColumn.key;
+                    activeCell.columnIndex = resolveColumnIndex(fallbackColumn.key, visibleColumns);
+                    activeCellLabel = `R${activeCell.rowIndex + 1} · ${activeCell.columnKey}`;
+                } else {
+                    activeCell = null;
+                    activeCellLabel = "None";
+                }
+            }
+            if (selectionAnchor && !visibleColumns.some((column) => column.key === selectionAnchor.columnKey)) {
+                selectionAnchor = activeCell
+                    ? {
+                        rowKey: activeCell.rowKey,
+                        columnKey: activeCell.columnKey,
+                        rowIndex: activeCell.rowIndex,
+                        columnIndex: activeCell.columnIndex,
+                    }
+                    : null;
+            }
+
+            selectionRange = normalizeSelectionRange(selectionAnchor, activeCell);
+            if (editingCell && !hasProjectedLeafRowKey(editingCell.rowKey)) {
+                editingCell = null;
+            }
+        };
+
+        applyProjectedRowsAndModels();
+        normalizeInteractionStateAfterProjection(resolveVisibleColumns());
+        selectionSummaryCacheKey = "";
 
         if (options.resetScroll !== false) {
             setViewportScroll(0, viewport.scrollLeft, "projection-reset");
@@ -2381,7 +2376,11 @@ function mountDatagridDemo(root) {
         header.appendChild(fragment);
     }
 
-    function renderRows(columns, layers, layerTrackTemplate, start, end) {
+    function renderRows(columns, layers, layerTrackTemplate, start, end, renderSignature) {
+        if (renderSignature === rowsRenderSignature) {
+            return;
+        }
+        rowsRenderSignature = renderSignature;
         rowsHost.innerHTML = "";
         const handleRange = resolveEffectiveSelectionRange();
         const rows = start <= end ? api.rows.getRange({ start, end }) : [];
@@ -2569,11 +2568,8 @@ function mountDatagridDemo(root) {
                             const handle = document.createElement("span");
                             handle.className = "affino-datagrid-demo__fill-handle";
                             handle.dataset.datagridFillHandle = "true";
-                            handle.draggable = true;
+                            handle.draggable = false;
                             handle.addEventListener("pointerdown", startFillDrag);
-                            handle.addEventListener("mousedown", startFillDrag);
-                            handle.addEventListener("dragstart", startFillDragFromDragEvent);
-                            handle.addEventListener("dragend", onFillDragDragEnd);
                             cell.appendChild(handle);
                         }
                     }
@@ -2588,8 +2584,8 @@ function mountDatagridDemo(root) {
         rowsHost.appendChild(fragment);
     }
 
-    function resolveSelectionSummary(columns) {
-        const range = resolveEffectiveSelectionRange();
+    function resolveSelectionSummary(columns, rangeOverride = null) {
+        const range = rangeOverride ?? resolveEffectiveSelectionRange();
         if (!range) {
             return {
                 latencySum: null,
@@ -2641,11 +2637,83 @@ function mountDatagridDemo(root) {
         };
     }
 
+    function resolveSelectionSummaryCached(columns, rowRevision) {
+        const range = resolveEffectiveSelectionRange();
+        const key = resolveSelectionSummaryCacheKey(range, columns, rowRevision);
+        if (key === selectionSummaryCacheKey) {
+            return selectionSummaryCache;
+        }
+        selectionSummaryCache = resolveSelectionSummary(columns, range);
+        selectionSummaryCacheKey = key;
+        return selectionSummaryCache;
+    }
+
+    function resolveHeaderRenderSignature(columnLayers, layerTrackTemplate) {
+        const layersKey = columnLayers.map((layer) => {
+            const columnsKey = layer.columns
+                .map((column) => `${column.key}:${resolveColumnWidth(column)}:${resolveColumnPin(column) || "none"}`)
+                .join(",");
+            return `${layer.mode}:${columnsKey}`;
+        }).join("|");
+        return `${layerTrackTemplate}|${layersKey}`;
+    }
+
+    function updatePointerLayoutCache(columns, metrics) {
+        let leftWidth = 0;
+        let scrollWidth = 0;
+        let rightWidth = 0;
+        columns.forEach((column) => {
+            const width = resolveColumnWidth(column);
+            const pin = resolveColumnPin(column);
+            if (pin === "left") {
+                leftWidth += width;
+            } else if (pin === "right") {
+                rightWidth += width;
+            } else {
+                scrollWidth += width;
+            }
+        });
+        pointerLayoutCache = {
+            columns,
+            metrics,
+            leftWidth,
+            scrollWidth,
+            rightWidth,
+        };
+    }
+
+    function resolveRowsRenderSignature({
+        start,
+        end,
+        rowRevision,
+        headerSignature,
+    }) {
+        const activeCellKey = activeCell
+            ? `${activeCell.rowKey}:${activeCell.columnKey}:${activeCell.rowIndex}:${activeCell.columnIndex}`
+            : "none";
+        const editingKey = editingCell
+            ? `${editingCell.rowKey}:${editingCell.columnKey}`
+            : "none";
+        const fillState = fillDragSession ? "fill:1" : "fill:0";
+        return [
+            start,
+            end,
+            rowRevision,
+            headerSignature,
+            selectedRowKey ?? "none",
+            resolveSelectionRangeKey(selectionRange),
+            activeCellKey,
+            editingKey,
+            fillState,
+        ].join("|");
+    }
+
     function buildOverlaySegmentsForRange(range, columns, metrics) {
-        if (!range || !columns.length || activeRows.length === 0) {
+        const projectedRowCount = api.rows.getCount();
+        if (!range || !columns.length || projectedRowCount === 0) {
             return [];
         }
-        const maxRowIndex = Math.max(0, activeRows.length - 1);
+        const maxRowIndex = Math.max(0, projectedRowCount - 1);
         const rowStart = clamp(range.startRowIndex, 0, maxRowIndex);
         const rowEnd = clamp(range.endRowIndex, 0, maxRowIndex);
         const columnStart = clamp(range.startColumnIndex, 0, columns.length - 1);
@@ -2785,7 +2853,8 @@ function mountDatagridDemo(root) {
         };
 
         if (totalNode) totalNode.textContent = String(sourceRows.length);
-        if (filteredNode) filteredNode.textContent = String(activeRows.length);
+        const projectedLeafCount = resolveProjectedLeafCount();
+        if (filteredNode) filteredNode.textContent = String(projectedLeafCount);
         if (windowNode) {
             windowNode.textContent = rowCount > 0 && end >= start
                 ? `${start + 1}-${end + 1}`
@@ -2847,13 +2916,15 @@ function mountDatagridDemo(root) {
             } else {
                 const quickFilterPart = query ? `"${query}"` : "all rows";
                 const advancedPart = advancedFilterMode === "none" ? "" : ` · advanced: ${advancedFilterMode}`;
-                filterIndicatorNode.textContent = `Quick filter: ${quickFilterPart}${advancedPart} · ${activeRows.length}/${sourceRows.length}`;
+                filterIndicatorNode.textContent = `Quick filter: ${quickFilterPart}${advancedPart} · ${projectedLeafCount}/${sourceRows.length}`;
             }
         }
         updateActionButtons();
     }
 
     function render() {
+        const rowSnapshot = api.rows.getSnapshot();
+        const rowRevision = Number.isFinite(rowSnapshot?.revision) ? rowSnapshot.revision : 0;
         const renderScrollTop = viewport.scrollTop;
         const renderScrollLeft = viewport.scrollLeft;
         const rowCount = api.rows.getCount();
@@ -2880,11 +2951,22 @@ function mountDatagridDemo(root) {
         const columnLayers = buildDataGridColumnLayers(columnLayout);
         const layerTrackTemplate = resolveDataGridLayerTrackTemplate(columnLayers);
         const visibleColumnsWindow = columnLayout.visibleColumnsWindow;
-        const selectionSummary = resolveSelectionSummary(orderedColumns);
+        const selectionSummary = resolveSelectionSummaryCached(orderedColumns, rowRevision);
         const tableWidth = orderedColumns.reduce((total, column) => total + resolveColumnWidth(column), 0);
+        updatePointerLayoutCache(orderedColumns, columnMetrics);
 
-        renderHeader(columnLayers, layerTrackTemplate);
-        renderRows(orderedColumns, columnLayers, layerTrackTemplate, start, end);
+        const nextHeaderSignature = resolveHeaderRenderSignature(columnLayers, layerTrackTemplate);
+        if (nextHeaderSignature !== headerRenderSignature) {
+            renderHeader(columnLayers, layerTrackTemplate);
+            headerRenderSignature = nextHeaderSignature;
+        }
+        const nextRowsSignature = resolveRowsRenderSignature({
+            start,
+            end,
+            rowRevision,
+            headerSignature: nextHeaderSignature,
+        });
+        renderRows(orderedColumns, columnLayers, layerTrackTemplate, start, end, nextRowsSignature);
         renderSelectionOverlay(orderedColumns, columnMetrics);
         renderFillOverlay(orderedColumns, columnMetrics);
 
@@ -2893,9 +2975,6 @@ function mountDatagridDemo(root) {
         rowsHost.style.width = tableWidthCss;
         spacerTop.style.width = tableWidthCss;
         spacerBottom.style.width = tableWidthCss;
-        if (headerViewport instanceof HTMLElement) {
-            headerViewport.scrollLeft = renderScrollLeft;
-        }
         if (overlayLayer instanceof HTMLElement) {
             overlayLayer.style.top = "0px";
             overlayLayer.style.left = "0px";
@@ -2909,7 +2988,6 @@ function mountDatagridDemo(root) {
         if (viewport.scrollTop !== renderScrollTop || viewport.scrollLeft !== renderScrollLeft) {
             setViewportScroll(renderScrollTop, renderScrollLeft, "render-stabilize");
         }
-        syncHeaderScroll();
 
         renderMeta(rowCount, start, end, {
             visibleColumnsWindow,
@@ -2950,8 +3028,6 @@ function mountDatagridDemo(root) {
         contextMenu?.removeEventListener("keydown", onContextMenuKeydown);
         root.removeEventListener("keydown", onRootKeydown);
         root.removeEventListener("pointerdown", onGlobalPointerDown, true);
-        root.removeEventListener("pointermove", maybeStartFillDragFromMove, true);
-        root.removeEventListener("mousemove", maybeStartFillDragFromMove, true);
 
         if (frameHandle !== null) {
             window.cancelAnimationFrame(frameHandle);
@@ -3023,37 +3099,6 @@ function resolveStatus(latencyMs, errorRate) {
         return "watch";
     }
     return "stable";
-}
-
-function matchesQuery(row, query) {
-    if (!query) {
-        return true;
-    }
-    return (
-        row.service.toLowerCase().includes(query) ||
-        row.owner.toLowerCase().includes(query) ||
-        row.region.toLowerCase().includes(query) ||
-        row.environment.toLowerCase().includes(query) ||
-        row.severity.toLowerCase().includes(query) ||
-        row.status.toLowerCase().includes(query)
-    );
-}
-
-function sortRows(rows, mode) {
-    const next = [...rows];
-    switch (mode) {
-        case "latency-asc":
-            return next.sort((a, b) => a.latencyMs - b.latencyMs);
-        case "errors-desc":
-            return next.sort((a, b) => b.errorRate - a.errorRate);
-        case "service-asc":
-            return next.sort((a, b) => a.service.localeCompare(b.service));
-        case "availability-desc":
-            return next.sort((a, b) => b.availabilityPct - a.availabilityPct);
-        case "latency-desc":
-        default:
-            return next.sort((a, b) => b.latencyMs - a.latencyMs);
-    }
 }
 
 function orderColumns(columns) {
