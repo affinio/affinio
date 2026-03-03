@@ -29,7 +29,7 @@
     "@vitest/coverage-v8": "^4.0.15",
     "@vue/test-utils": "^2.4.6",
     "jsdom": "^27.3.0",
-    "vitest": "^4.0.15",
+    "vitest": "^4.0.18",
     "vue": "^3.4.0"
   },
   "scripts": {
