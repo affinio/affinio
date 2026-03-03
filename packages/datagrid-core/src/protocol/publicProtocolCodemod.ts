@@ -88,6 +88,43 @@ const ADVANCED_SYMBOLS = new Set([
   "DataGridDataSourceRowEntry",
 ])
 
+const PRO_SYMBOLS = new Set([
+  "createDataSourceBackedRowModel",
+  "createServerBackedRowModel",
+  "createServerRowModel",
+  "createDataGridServerPivotRowId",
+  "normalizePivotSpec",
+  "clonePivotSpec",
+  "isSamePivotSpec",
+  "CreateDataSourceBackedRowModelOptions",
+  "DataSourceBackedRowModel",
+  "CreateServerBackedRowModelOptions",
+  "ServerBackedRowModel",
+  "DataGridDataSource",
+  "DataGridDataSourceBackpressureDiagnostics",
+  "DataGridDataSourceInvalidation",
+  "DataGridDataSourcePaginationPullContext",
+  "DataGridDataSourcePullPriority",
+  "DataGridDataSourcePivotPullContext",
+  "DataGridDataSourcePullReason",
+  "DataGridDataSourcePullRequest",
+  "DataGridDataSourcePullResult",
+  "DataGridDataSourceTreePullContext",
+  "DataGridDataSourceTreePullOperation",
+  "DataGridDataSourceTreePullScope",
+  "DataGridDataSourcePushEvent",
+  "DataGridDataSourcePushInvalidateEvent",
+  "DataGridDataSourcePushListener",
+  "DataGridDataSourcePushRemoveEvent",
+  "DataGridDataSourcePushUpsertEvent",
+  "DataGridDataSourceRowEntry",
+  "DataGridServerPivotRowIdInput",
+  "DataGridServerPivotRowRole",
+  "ServerRowModel",
+  "ServerRowModelOptions",
+  "ServerRowModelFetchResult",
+])
+
 const THEME_SYMBOLS = new Set([
   "applyGridTheme",
   "mergeThemeTokens",
@@ -300,6 +337,7 @@ function rewriteCoreImportStatement(statement: string, appliedTransforms: string
   const rawSpecifiers = trimmed.slice(specifierOpen + 1, specifierClose)
   const specifiers = normalizeSpecifiers(rawSpecifiers)
   const stableSpecifiers: string[] = []
+  const proSpecifiers: string[] = []
   const advancedSpecifiers: string[] = []
   const themeSpecifiers: string[] = []
   const pluginSpecifiers: string[] = []
@@ -310,6 +348,8 @@ function rewriteCoreImportStatement(statement: string, appliedTransforms: string
       themeSpecifiers.push(specifier)
     } else if (importedName && PLUGIN_SYMBOLS.has(importedName)) {
       pluginSpecifiers.push(specifier)
+    } else if (importedName && PRO_SYMBOLS.has(importedName)) {
+      proSpecifiers.push(specifier)
     } else if (importedName && ADVANCED_SYMBOLS.has(importedName)) {
       advancedSpecifiers.push(specifier)
     } else {
@@ -317,13 +357,19 @@ function rewriteCoreImportStatement(statement: string, appliedTransforms: string
     }
   }
 
-  if (advancedSpecifiers.length === 0 && themeSpecifiers.length === 0 && pluginSpecifiers.length === 0) {
+  if (
+    proSpecifiers.length === 0
+    && advancedSpecifiers.length === 0
+    && themeSpecifiers.length === 0
+    && pluginSpecifiers.length === 0
+  ) {
     return null
   }
 
   appliedTransforms.push("root-import-tier-split")
   const lines = [
     buildImportLine(stableSpecifiers, "@affino/datagrid-core"),
+    buildImportLine(proSpecifiers, "@affino/datagrid-core/pro"),
     buildImportLine(advancedSpecifiers, "@affino/datagrid-core/advanced"),
     buildImportLine(themeSpecifiers, "@affino/datagrid-theme"),
     buildImportLine(pluginSpecifiers, "@affino/datagrid-plugins"),

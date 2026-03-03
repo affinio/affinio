@@ -83,33 +83,6 @@ export {
 } from "./viewport/dataGridViewportController.js"
 
 export {
-  createDataSourceBackedRowModel,
-  type CreateDataSourceBackedRowModelOptions,
-  type DataSourceBackedRowModel,
-  type DataGridDataSource,
-  type DataGridDataSourceBackpressureDiagnostics,
-  type DataGridDataSourceInvalidation,
-  type DataGridDataSourcePaginationPullContext,
-  type DataGridDataSourcePullPriority,
-  type DataGridDataSourcePivotPullContext,
-  type DataGridDataSourcePullReason,
-  type DataGridDataSourcePullRequest,
-  type DataGridDataSourcePullResult,
-  type DataGridServerPivotRowIdInput,
-  type DataGridServerPivotRowRole,
-  type DataGridDataSourceTreePullContext,
-  type DataGridDataSourceTreePullOperation,
-  type DataGridDataSourceTreePullScope,
-  type DataGridDataSourcePushEvent,
-  type DataGridDataSourcePushInvalidateEvent,
-  type DataGridDataSourcePushListener,
-  type DataGridDataSourcePushRemoveEvent,
-  type DataGridDataSourcePushUpsertEvent,
-  type DataGridDataSourceRowEntry,
-  createDataGridServerPivotRowId,
-} from "./models/index.js"
-
-export {
   applyGroupSelectionPolicy,
   clampGridSelectionPoint,
   clampSelectionArea,

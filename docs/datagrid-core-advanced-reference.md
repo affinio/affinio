@@ -14,7 +14,6 @@ Use it only when stable root APIs are not enough.
 | `createDataGridTransactionService(options)` | `DataGridTransactionService` | Undo/redo + rollback-safe command execution. |
 | `createDataGridA11yStateMachine(options)` | `DataGridA11yStateMachine` | Headless focus/keyboard/ARIA state machine. |
 | `createDataGridViewportController(options)` | `DataGridViewportController` | Virtual window, pinned geometry, integration snapshots. |
-| `createDataSourceBackedRowModel(options)` | `DataSourceBackedRowModel<T>` | Protocol-driven row model with invalidation/backpressure. |
 
 ## Advanced utility groups
 
@@ -31,7 +30,9 @@ Prefer `@affino/datagrid-core` if you only need:
 - row/column models
 - `DataGridApi` facade
 - standard sort/filter/group/pivot/selection/editing flows
-- default client/server/data-source integrations
+- default client integrations
+
+For server/data-source constructors use `@affino/datagrid-core/pro`.
 
 Switch to `advanced` only for explicit runtime/transport/layout internals.
 

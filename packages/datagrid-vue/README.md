@@ -5,6 +5,9 @@ Vue adapter surface for `@affino/datagrid-core`.
 For normal Vue usage, install and import only `@affino/datagrid-vue`.
 `@affino/datagrid-core` and `@affino/datagrid-orchestration` are internal dependencies of this adapter.
 
+Pro-only adapter primitives are exported from `@affino/datagrid-vue/pro`
+(worker protocol helpers, server/data-source row-model factories, pivot-heavy helper exports).
+
 ## Canonical Feature Catalog
 
 Single source of truth for platform capabilities:
@@ -27,16 +30,19 @@ Practical default:
 
 ## Feature overview (adapter surface)
 
-Out of the box (through this package):
+Stable entrypoint (`@affino/datagrid-vue`):
 
 - Client row model: sorting, filtering, grouping, pagination, viewport range.
-- Pivot: row/column/value axes, generated pivot columns, subtotals and grand totals, layout export/import, drilldown.
 - Selection/range engine: anchor/focus/range, fill handle, drag-move, clipboard workflows.
 - Editing flow: patch-based updates, Excel-like freeze/reapply control (`applyEdits`, `reapplyView`, `autoReapply`).
 - Context menu and keyboard orchestration primitives.
 - Runtime snapshots/revisions for deterministic integration and tests.
-- Worker-owned row model support for off-main-thread compute path.
-- Server/data-source row model contracts for backend pull/push flows.
+
+Pro subpath (`@affino/datagrid-vue/pro`) adds:
+
+- Worker-owned row model protocol helpers and transport factories.
+- Server/data-source row model factories and protocol types.
+- Pivot-heavy helper exports and server pivot ID helpers.
 
 ## Performance snapshot (how to read it)
 

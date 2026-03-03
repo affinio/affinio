@@ -47,6 +47,38 @@ This file is the canonical commercial contract for:
 - rollout governance and release channels
 - optional white-label and solution engineering
 
+## Commercial website and backend baseline
+
+### Public site surface (MVP)
+
+- landing page (value proposition + quick start)
+- pricing page (`Community / Pro / Enterprise`)
+- feature comparison page
+- docs portal (VitePress) with `Community` / `Pro` badges
+- demos page (community and pro scenarios)
+- legal pages (terms/privacy/license agreement)
+
+### Account and billing surface
+
+- sign-in and organization profile
+- subscriptions, invoices, seat count
+- license keys and activation history
+
+### Billing provider
+
+- Stripe Checkout + Stripe Billing as default payment rail
+- webhook-driven subscription state sync (`checkout.session.completed`, `invoice.paid`, `customer.subscription.updated`, `customer.subscription.deleted`)
+- idempotent webhook processing and signed webhook verification are mandatory
+
+### Backend API minimum
+
+- `POST /billing/checkout-session`
+- `POST /billing/webhook/stripe`
+- `GET /licenses`
+- `POST /licenses`
+- `POST /licenses/rotate`
+- `GET /subscriptions/current`
+
 ## Pro feature boundary (authoritative)
 
 All items below are Pro:
@@ -79,6 +111,15 @@ All items below are Pro:
 
 - `packages/datagrid` (`@affino/datagrid`): community facade and license-aware API/runtime wrappers.
 - `packages/datagrid-pro` (`@affino/datagrid-pro`): pro activation package (`enableProFeatures`).
+- `packages/datagrid-vue`:
+  - `@affino/datagrid-vue` (community-safe stable entrypoint)
+  - `@affino/datagrid-vue/pro` (adapter-level pro surface: worker/server/data-source/pivot-heavy exports)
+- `packages/datagrid-core`:
+  - `@affino/datagrid-core` (community-safe stable core contracts)
+  - `@affino/datagrid-core/pro` (server/data-source/pivot-heavy factories and contracts)
+- `packages/datagrid-laravel`:
+  - `@affino/datagrid-laravel` (community-safe Laravel facade)
+  - `@affino/datagrid-laravel/pro` (Laravel pro surface)
 
 ### Runtime license activation contract
 
@@ -98,11 +139,26 @@ Current (`v1`, implemented):
 
 Target (`v2`, planned hardening):
 
-- signed license token verification (public-key verification in SDK)
+- signed license token verification flow (implemented in SDK as `AFFINO-PRO-V1.<payload>.<signature>` integrity check)
 - optional online refresh endpoint + local cache
-- offline grace window (recommended: 7 days)
-- explicit license error codes (`expired`, `invalid-signature`, `quota-exceeded`, `grace-expired`)
+- offline grace window (implemented default: 7 days, configurable via token claims)
+- explicit license error codes (`DG_LICENSE_INVALID_FORMAT`, `DG_LICENSE_INVALID_PAYLOAD`, `DG_LICENSE_INVALID_SIGNATURE`, `DG_LICENSE_NOT_YET_ACTIVE`, `DG_LICENSE_EXPIRED`)
 - non-crashing fallback to community capabilities for UI continuity
+
+### Commercial telemetry (opt-in)
+
+`@affino/datagrid` exposes opt-in hooks:
+
+- `registerDataGridCommercialTelemetry({ onEvent, sampleRate })`
+- `clearDataGridCommercialTelemetry()`
+
+Event types:
+
+- `license.activated`
+- `license.validation-failed`
+- `feature.blocked`
+
+Telemetry is best-effort and must never affect runtime control flow.
 
 ### Gated facade behavior (community)
 
@@ -124,21 +180,39 @@ Blocked with explicit `DataGridProFeatureRequiredError`:
 - [x] Add license activation helpers (`enableProFeatures`, `disableProFeatures`, `assertProFeaturesEnabled`).
 - [x] Add community-tier gated API facade with explicit pro-required errors.
 - [x] Support frictionless inline activation via `licenseKey` option.
+- [x] Split Vue adapter pro exports into `@affino/datagrid-vue/pro` and add boundary check coverage.
+- [x] Split core pro exports into `@affino/datagrid-core/pro` and remove server/data-source factories from root stable entrypoint.
+- [x] Split Laravel facade pro exports into `@affino/datagrid-laravel/pro`.
 
 ## Phase 2 (next)
 
-- [ ] Add contract tests for community gating behavior and pro activation flows.
-- [ ] Add docs-site pages for commercial tiers and activation examples (EN/RU).
-- [ ] Add benchmark/docs examples with Community vs Pro pathways.
-- [ ] Add CI checks that protect accidental pro-surface leaks in `@affino/datagrid`.
-- [ ] Add adapter-level contract tests (Vue/Laravel) that assert pro-only feature guards.
+- [x] Add contract tests for community gating behavior and pro activation flows.
+- [x] Add docs-site pages for commercial tiers and activation examples (EN/RU).
+- [x] Add benchmark/docs examples with Community vs Pro pathways.
+- [x] Add CI checks that protect accidental pro-surface leaks in `@affino/datagrid`.
+- [x] Add adapter-level contract tests (Vue/Laravel) that assert pro-only feature guards.
 
 ## Phase 3 (commercial hardening)
 
-- [ ] Move license verification from local format checks to signed token verification flow.
-- [ ] Add offline grace-period policy and explicit license error taxonomy.
-- [ ] Introduce usage telemetry hooks (opt-in) for enterprise support diagnostics.
-- [ ] Define release channel policy (`community`, `pro`, `enterprise-hotfix`).
+- [x] Move license verification from local format checks to signed token verification flow.
+- [x] Add offline grace-period policy and explicit license error taxonomy.
+- [x] Introduce usage telemetry hooks (opt-in) for enterprise support diagnostics.
+- [x] Define release channel policy (`latest`, `next`, `enterprise-hotfix`) with CI enforcement.
+
+## Release channel policy (enforced)
+
+- `latest`:
+  - stable semver only (no prerelease suffix).
+  - published from `commercial-release.yml` only.
+- `next`:
+  - prerelease semver required.
+  - published from `commercial-release.yml` only.
+- `enterprise-hotfix`:
+  - hotfix-marked version required.
+  - published only from dedicated tag workflow `enterprise-hotfix-release.yml`.
+  - required tag pattern: `refs/tags/enterprise-hotfix/*`.
+
+Operational checklist: `docs/datagrid-commercial-go-live-checklist.md`.
 
 ## Pricing baseline (recommended launch)
 
@@ -172,6 +246,13 @@ Pricing review cadence:
   - `@affino/datagrid-worker`
   - `@affino/datagrid-orchestration`
 - If those remain published, mark docs as "advanced/internal surface, no commercial SKU guarantee".
+
+### Legacy package policy (`@affino/datagrid-core` already on npm)
+
+- Existing published versions remain valid for existing consumers.
+- New commercial onboarding must point to `@affino/datagrid` / `@affino/datagrid-pro` only.
+- `@affino/datagrid-core` and `@affino/datagrid-vue` should be treated as advanced/internal integration surfaces in docs.
+- Feature monetization must be enforced at commercial entrypoints (`@affino/datagrid`, `@affino/datagrid-pro`) and CI boundary checks.
 
 ## Product roadmap by layer
 

@@ -13,6 +13,10 @@
       "types": "./dist/stable.d.ts",
       "import": "./dist/stable.js"
     },
+    "./pro": {
+      "types": "./dist/pro.d.ts",
+      "import": "./dist/pro.js"
+    },
     "./advanced": {
       "types": "./dist/advanced.d.ts",
       "import": "./dist/advanced.js"

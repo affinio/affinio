@@ -5,11 +5,13 @@ import {
   useAffinoDataGrid,
   type DataGridAggOp,
   type DataGridColumnDef,
-  type DataGridPivotLayoutSnapshot,
-  type DataGridPivotSpec,
   type DataGridRowNode,
   type UseAffinoDataGridResult,
 } from "@affino/datagrid-vue"
+import type {
+  DataGridPivotLayoutSnapshot,
+  DataGridPivotSpec,
+} from "@affino/datagrid-vue/pro"
 import DataGridSugarStage from "@/components/DataGridSugarStage.vue"
 
 interface PivotDemoRow {

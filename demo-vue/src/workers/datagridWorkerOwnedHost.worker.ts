@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import { createDataGridWorkerOwnedRowModelHost } from "@affino/datagrid-vue"
+import { createDataGridWorkerOwnedRowModelHost } from "@affino/datagrid-vue/pro"
 
 const workerScope = self as unknown as DedicatedWorkerGlobalScope
 

@@ -31,7 +31,13 @@ export const DATAGRID_PUBLIC_PACKAGE_VERSION: DataGridSemver = "0.1.0"
 
 export const DATAGRID_STABLE_ENTRYPOINTS = [
   "@affino/datagrid-core",
+  "@affino/datagrid-core/pro",
   "@affino/datagrid-vue",
+  "@affino/datagrid-vue/pro",
+  "@affino/datagrid-laravel",
+  "@affino/datagrid-laravel/pro",
+  "@affino/datagrid",
+  "@affino/datagrid-pro",
 ] as const
 
 export const DATAGRID_ADVANCED_ENTRYPOINTS = [
@@ -49,7 +55,8 @@ export const DATAGRID_FORBIDDEN_DEEP_IMPORT_PATTERNS = [
 ] as const
 
 export const DATAGRID_SEMVER_RULES = [
-  "Only package root entrypoints are semver-safe for consumers.",
+  "Only documented stable entrypoints are semver-safe for consumers.",
+  "Pro stable subpaths are semver-safe but may be license-gated by commercial facades.",
   "Advanced entrypoints are supported for power users and may evolve with tighter deprecation periods.",
   "Internal entrypoints are explicitly unsafe and are not covered by semver guarantees.",
   "Deep imports under /src and internal feature folders are unsupported for public integrations.",

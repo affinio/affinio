@@ -37,7 +37,7 @@ Implementations:
 
 - `createClientRowModel` (in-memory)
 - `createServerBackedRowModel` (adapter over `ServerRowModel`)
-- `createDataSourceBackedRowModel` (pull+push `DataGridDataSource` protocol with abort-first cancellation/backpressure diagnostics, advanced entrypoint)
+- `createDataSourceBackedRowModel` (pull+push `DataGridDataSource` protocol with abort-first cancellation/backpressure diagnostics, pro stable entrypoint `@affino/datagrid-core/pro`)
 
 Identity resolver contract:
 

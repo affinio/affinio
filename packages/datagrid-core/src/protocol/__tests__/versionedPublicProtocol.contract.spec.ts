@@ -41,7 +41,13 @@ describe("versionedPublicProtocol contract", () => {
   it("returns semver-safe protocol snapshot with deprecation statuses", () => {
     const protocol = getDataGridVersionedPublicProtocol("0.3.0")
     expect(protocol.stableEntrypoints).toContain("@affino/datagrid-core")
+    expect(protocol.stableEntrypoints).toContain("@affino/datagrid-core/pro")
     expect(protocol.stableEntrypoints).toContain("@affino/datagrid-vue")
+    expect(protocol.stableEntrypoints).toContain("@affino/datagrid-vue/pro")
+    expect(protocol.stableEntrypoints).toContain("@affino/datagrid-laravel")
+    expect(protocol.stableEntrypoints).toContain("@affino/datagrid-laravel/pro")
+    expect(protocol.stableEntrypoints).toContain("@affino/datagrid")
+    expect(protocol.stableEntrypoints).toContain("@affino/datagrid-pro")
     expect(protocol.advancedEntrypoints).toContain("@affino/datagrid-core/advanced")
     expect(protocol.internalEntrypoints).toContain("@affino/datagrid-core/internal")
     expect(protocol.forbiddenDeepImportPatterns).toContain("@affino/datagrid-core/src/*")

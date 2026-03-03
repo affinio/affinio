@@ -30,8 +30,20 @@ import {
   createDataGridApi,
   createDataGridCore,
   createClientRowModel,
-  createServerBackedRowModel,
 } from "@affino/datagrid-core"
+```
+
+### Tier 1b: Pro Stable (`@affino/datagrid-core/pro`)
+
+Server/data-source and pivot-heavy factories live behind explicit pro subpath:
+
+```ts
+import {
+  createServerBackedRowModel,
+  createDataSourceBackedRowModel,
+  createServerRowModel,
+  createDataGridServerPivotRowId,
+} from "@affino/datagrid-core/pro"
 ```
 
 ### Tier 2: Advanced (`@affino/datagrid-core/advanced`)

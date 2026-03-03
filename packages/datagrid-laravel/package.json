@@ -11,13 +11,19 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./pro": {
+      "types": "./dist/pro.d.ts",
+      "import": "./dist/pro.js",
+      "require": "./dist/pro.cjs"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup resources/js/index.ts --format esm,cjs --dts --clean"
+    "build": "tsup resources/js/index.ts resources/js/pro.ts --format esm,cjs --dts --clean",
+    "test:unit": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@affino/datagrid-core": "workspace:*",

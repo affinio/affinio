@@ -96,7 +96,12 @@ Use it as a single decision sheet to understand whether the platform fits your p
 
 | Package | Intended consumer | Typical use |
 | --- | --- | --- |
-| `@affino/datagrid-core` | Headless/platform engineers | Build framework-agnostic integrations and direct model/runtime control. |
-| `@affino/datagrid-vue` | Vue teams | Build production grid UX without importing core/orchestration directly. |
-| `@affino/datagrid-laravel` | Laravel/Livewire teams | Use Laravel-facing facade with datagrid capabilities and contracts. |
+| `@affino/datagrid` | App teams (community tier) | Commercial community facade with license-aware gating. |
+| `@affino/datagrid-pro` | App teams (pro tier) | Pro activation package (`enableProFeatures`) for unlocked runtime capabilities. |
+| `@affino/datagrid-core` | Headless/platform engineers | Stable community-safe core contracts and client row-model primitives. |
+| `@affino/datagrid-core/pro` | Headless/platform engineers (pro) | Server/data-source/pivot-heavy core factories and contracts. |
+| `@affino/datagrid-vue` | Vue teams | Community-safe Vue adapter surface. |
+| `@affino/datagrid-vue/pro` | Vue teams (pro) | Worker/server/data-source/pivot-heavy Vue adapter surface. |
+| `@affino/datagrid-laravel` | Laravel/Livewire teams | Community-safe Laravel facade. |
+| `@affino/datagrid-laravel/pro` | Laravel/Livewire teams (pro) | Pro Laravel facade with server/data-source/pivot contracts. |
 | `@affino/datagrid-vue/advanced` | Power users | Low-level interaction/layout primitives for custom renderer wiring. |

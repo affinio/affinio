@@ -1,0 +1,100 @@
+name: Enterprise Hotfix Release
+
+on:
+  push:
+    tags:
+      - "enterprise-hotfix/*"
+
+concurrency:
+  group: enterprise-hotfix-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify enterprise hotfix release readiness
+        run: pnpm run release:commercial:verify
+        env:
+          NPM_DIST_TAG: enterprise-hotfix
+          DATAGRID_RELEASE_POLICY_MODE: enterprise-hotfix
+
+      - name: Pack and verify commercial tarballs
+        run: pnpm run release:commercial:pack:gate
+
+      - name: Upload enterprise hotfix artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: datagrid-enterprise-hotfix-readiness
+          path: |
+            artifacts/quality/datagrid-commercial-boundaries-report.json
+            artifacts/quality/datagrid-commercial-release-channel-report.json
+            artifacts/quality/datagrid-commercial-release-readiness-report.json
+            artifacts/quality/datagrid-commercial-tarball-boundaries-report.json
+            artifacts/release
+          if-no-files-found: ignore
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: readiness
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build release packages
+        run: pnpm run release:commercial:build
+
+      - name: Verify npm token is configured
+        run: |
+          test -n "${NODE_AUTH_TOKEN}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @affino/datagrid (enterprise-hotfix)
+        run: pnpm --dir packages/datagrid publish --access public --no-git-checks --tag enterprise-hotfix
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @affino/datagrid-pro (enterprise-hotfix)
+        run: pnpm --dir packages/datagrid-pro publish --access public --no-git-checks --tag enterprise-hotfix
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

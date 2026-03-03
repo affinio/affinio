@@ -10,16 +10,30 @@ import {
 } from "@affino/datagrid-vue"
 import {
   createCommunityApiFacade,
+  DATAGRID_PRO_FEATURE_REQUIRED_CODE,
   DataGridProFeatureRequiredError,
   DATAGRID_COMMUNITY_BLOCKED_FEATURES,
 } from "./communityApiFacade"
 import {
+  clearDataGridCommercialTelemetry,
+  getDataGridCommercialTelemetryHooks,
+  registerDataGridCommercialTelemetry,
+  type DataGridCommercialTelemetryEvent,
+  type DataGridCommercialTelemetryHooks,
+} from "./commercialTelemetry"
+import {
   clearProLicense,
+  DataGridProLicenseValidationError,
   getProLicenseState,
   hasProLicense,
   normalizeDataGridLicenseKey,
   registerProLicense,
+  validateDataGridLicenseKey,
+  type DataGridProLicenseFormat,
   type DataGridProLicenseState,
+  type DataGridProLicenseStatus,
+  type DataGridProLicenseValidationCode,
+  type DataGridProLicenseValidationResult,
 } from "./license"
 
 export {
@@ -47,15 +61,12 @@ export type {
   DataGridSelectionSummarySnapshot,
   DataGridSortState,
   DataGridFilterSnapshot,
-  DataGridGroupBySpec,
-  DataGridPivotSpec,
   DataGridClientRowPatch,
 } from "@affino/datagrid-core"
 
 export type DataGridCommercialTier = "community" | "pro"
 
-export interface CreateDataGridApiCommercialOptions<TRow = unknown>
-  extends CreateDataGridApiOptions<TRow> {
+export type CreateDataGridApiCommercialOptions<TRow = unknown> = CreateDataGridApiOptions<TRow> & {
   licenseKey?: string | null
 }
 
@@ -66,6 +77,13 @@ export interface CreateDataGridRuntimeOptions<TRow = unknown>
 
 export interface DataGridRuntime<TRow = unknown> extends DataGridVueRuntime<TRow> {}
 
+function resolveCoreApiOptions<TRow = unknown>(
+  options: CreateDataGridApiCommercialOptions<TRow>,
+): CreateDataGridApiOptions<TRow> {
+  const { licenseKey: _licenseKey, ...coreOptions } = options
+  return coreOptions as CreateDataGridApiOptions<TRow>
+}
+
 export function resolveDataGridTier(
   input: {
     licenseKey?: string | null
@@ -75,20 +93,22 @@ export function resolveDataGridTier(
 }
 
 function resolveLicenseInput(licenseKey: string | null | undefined): string | null {
-  const normalized = normalizeDataGridLicenseKey(licenseKey ?? null)
-  if (!normalized) {
+  if (typeof licenseKey !== "string") {
     return null
   }
-  registerProLicense(normalized, "inline")
-  return normalized
+  const normalized = licenseKey.trim()
+  if (normalized.length === 0) {
+    return null
+  }
+  return registerProLicense(normalized, "inline").licenseKey
 }
 
 export function createDataGridApi<TRow = unknown>(
   options: CreateDataGridApiCommercialOptions<TRow>,
 ): DataGridApi<TRow> {
-  const { licenseKey, ...coreOptions } = options
-  const inlineLicense = resolveLicenseInput(licenseKey ?? null)
-  const api = createCoreDataGridApi(coreOptions)
+  const inlineLicense = resolveLicenseInput(options.licenseKey ?? null)
+  const coreOptions = resolveCoreApiOptions(options)
+  const api = createCoreDataGridApi<TRow>(coreOptions)
   if (inlineLicense || resolveDataGridTier() === "pro") {
     return api
   }
@@ -109,14 +129,27 @@ export function createDataGridRuntime<TRow = unknown>(
 }
 
 export {
+  DATAGRID_PRO_FEATURE_REQUIRED_CODE,
   DataGridProFeatureRequiredError,
+  DataGridProLicenseValidationError,
   DATAGRID_COMMUNITY_BLOCKED_FEATURES,
+  normalizeDataGridLicenseKey,
+  validateDataGridLicenseKey,
   registerProLicense,
   clearProLicense,
   hasProLicense,
   getProLicenseState,
+  registerDataGridCommercialTelemetry,
+  clearDataGridCommercialTelemetry,
+  getDataGridCommercialTelemetryHooks,
 }
 
 export type {
+  DataGridCommercialTelemetryEvent,
+  DataGridCommercialTelemetryHooks,
+  DataGridProLicenseFormat,
   DataGridProLicenseState,
+  DataGridProLicenseStatus,
+  DataGridProLicenseValidationCode,
+  DataGridProLicenseValidationResult,
 }

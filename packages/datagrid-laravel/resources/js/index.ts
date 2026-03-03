@@ -1,29 +1,19 @@
 /**
- * Stable public facade for Affino DataGrid in Laravel/Livewire integrations.
- * Consumers should prefer this package instead of importing datagrid-core and
- * datagrid-orchestration directly.
+ * Community-stable public facade for Affino DataGrid Laravel integrations.
+ * Pro-only primitives are exported from "@affino/datagrid-laravel/pro".
  */
 
 export {
   createClientRowModel,
-  createDataSourceBackedRowModel,
-  createServerBackedRowModel,
-  createServerRowModel,
-  createDataGridServerPivotRowId,
   createDataGridColumnModel,
   createDataGridSelectionSummary,
   createInMemoryDataGridSettingsAdapter,
   buildDataGridAdvancedFilterExpressionFromLegacyFilters,
   cloneDataGridFilterSnapshot,
   evaluateDataGridAdvancedFilterExpression,
-  normalizeDataGridAdvancedFilterExpression,
-  normalizePivotSpec,
-  clonePivotSpec,
-  isSamePivotSpec,
 } from "@affino/datagrid-core"
 
 export type {
-  DataGridAggregationModel,
   DataGridAdvancedFilterExpression,
   DataGridAdvancedFilterCondition,
   DataGridColumnDef,
@@ -33,30 +23,6 @@ export type {
   DataGridClientRowPatchOptions,
   DataGridClientRowReorderInput,
   DataGridFilterSnapshot,
-  DataGridGroupBySpec,
-  DataGridGroupExpansionSnapshot,
-  DataGridPivotSpec,
-  DataGridPivotValueSpec,
-  DataGridPivotColumn,
-  DataGridPivotColumnPathSegment,
-  DataGridPivotCellDrilldownInput,
-  DataGridPivotCellDrilldown,
-  DataGridPivotLayoutColumnState,
-  DataGridPivotLayoutSnapshot,
-  DataGridPivotLayoutImportOptions,
-  DataGridPivotInteropSnapshot,
-  DataGridDataSource,
-  DataGridDataSourcePullRequest,
-  DataGridDataSourcePullResult,
-  DataGridDataSourcePushEvent,
-  DataGridDataSourcePushListener,
-  DataGridDataSourcePivotPullContext,
-  DataGridDataSourceRowEntry,
-  DataGridServerPivotRowIdInput,
-  DataGridServerPivotRowRole,
-  ServerRowModel,
-  ServerRowModelOptions,
-  ServerRowModelFetchResult,
   DataGridPaginationSnapshot,
   DataGridProjectionDiagnostics,
   DataGridRowNode,

@@ -8,10 +8,7 @@
     "emitDeclarationOnly": false,
     "moduleResolution": "bundler",
     "baseUrl": ".",
-    "paths": {
-      "@affino/datagrid": ["../datagrid/src/index.ts"],
-      "@affino/datagrid/*": ["../datagrid/src/*"]
-    }
+    "paths": {}
   },
   "include": [
     "src/**/*.ts"

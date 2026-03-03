@@ -14,9 +14,12 @@ Single source of truth for platform capabilities:
 It re-exports a curated set of:
 
 - core row/column/filter helpers
+- orchestration runtime/layout/wheel primitives
+
+Pro-only Laravel features are exposed via `@affino/datagrid-laravel/pro`:
+
 - pivot helpers (`setPivotModel`, drilldown, layout export/import, interop export)
 - server/data-source row model contracts (including server-side pivot pull context)
-- orchestration runtime/layout/wheel primitives
 
 ## Runtime mode decision (Main thread vs Worker vs Server-side)
 
@@ -35,11 +38,13 @@ Practical default:
 ## Feature overview
 
 - Sorting, filtering, grouping, pagination, viewport control.
-- Pivot model with generated columns, subtotals/grand totals, layout export/import, drilldown.
 - Range selection, clipboard, fill, move and keyboard orchestration.
 - Patch/edit lifecycle with freeze/reapply control semantics.
-- Worker-owned row model support for off-main-thread compute.
-- Data-source/server row model contracts for backend-driven data flows.
+
+`@affino/datagrid-laravel/pro` additionally provides:
+
+- Pivot model with generated columns, subtotals/grand totals, layout export/import, drilldown.
+- Worker-owned/server/data-source row model contracts for backend-driven data flows.
 
 ## Performance snapshot (user-facing)
 
@@ -72,4 +77,15 @@ import {
   resolveDataGridHeaderLayerViewportGeometry,
   resolveDataGridHeaderScrollSyncLeft,
 } from "@affino/datagrid-laravel"
+```
+
+## Pro example
+
+```ts
+import {
+  createServerBackedRowModel,
+  createDataSourceBackedRowModel,
+  createServerRowModel,
+  createDataGridServerPivotRowId,
+} from "@affino/datagrid-laravel/pro"
 ```

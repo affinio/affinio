@@ -34,3 +34,42 @@ You can unlock pro either:
 - by activating `@affino/datagrid-pro` via `enableProFeatures(...)`
 - or by passing `licenseKey` directly to `createDataGridApi(...)` / `createDataGridRuntime(...)`
 
+## License format and enforcement
+
+`licenseKey` accepts:
+
+- signed token v1: `AFFINO-PRO-V1.<payload>.<signature>`
+
+Signed tokens are validated for:
+
+- payload integrity (plan + expiry claims)
+- signature match
+- `exp`/`nbf` time window
+- offline grace window (`graceSec` / `graceDays`, default 7 days)
+
+Community gating errors expose stable codes for programmatic handling:
+
+- `DG_PRO_FEATURE_REQUIRED` (feature blocked in community tier)
+- `DG_LICENSE_INVALID_FORMAT`
+- `DG_LICENSE_INVALID_PAYLOAD`
+- `DG_LICENSE_INVALID_SIGNATURE`
+- `DG_LICENSE_NOT_YET_ACTIVE`
+- `DG_LICENSE_EXPIRED`
+
+## Telemetry hooks (opt-in)
+
+You can register runtime commercial telemetry for support/debug pipelines:
+
+```ts
+import { registerDataGridCommercialTelemetry } from "@affino/datagrid"
+
+registerDataGridCommercialTelemetry({
+  sampleRate: 1,
+  onEvent(event) {
+    // license.activated / license.validation-failed / feature.blocked
+    console.log(event)
+  },
+})
+```
+
+Use `clearDataGridCommercialTelemetry()` to disable hooks.

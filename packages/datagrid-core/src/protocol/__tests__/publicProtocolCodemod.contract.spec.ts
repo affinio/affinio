@@ -35,6 +35,21 @@ import { createDataGridApi, createDataGridViewportController, type DataGridHostE
     )
   })
 
+  it("routes server/data-source helpers to pro entrypoint", () => {
+    const input = `
+import { createDataGridApi, createDataSourceBackedRowModel, type DataGridDataSourcePullRequest } from "@affino/datagrid-core"
+`.trim()
+
+    const result = transformDataGridPublicProtocolSource(input)
+
+    expect(result.changed).toBe(true)
+    expect(result.appliedTransforms).toContain("root-import-tier-split")
+    expect(result.code).toContain('import { createDataGridApi } from "@affino/datagrid-core"')
+    expect(result.code).toContain(
+      'import { createDataSourceBackedRowModel, type DataGridDataSourcePullRequest } from "@affino/datagrid-core/pro"',
+    )
+  })
+
   it("renames legacy viewport factory and marks serverIntegration path", () => {
     const input = `
 const controller = createDataGridViewportController({

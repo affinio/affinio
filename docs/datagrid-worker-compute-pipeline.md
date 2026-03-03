@@ -73,7 +73,8 @@ So worker-mode can be enabled at app runtime construction without custom row-mod
 Example:
 
 ```ts
-import { createDataGridWorkerPostMessageTransport, useDataGridRuntime } from "@affino/datagrid-vue"
+import { useDataGridRuntime } from "@affino/datagrid-vue"
+import { createDataGridWorkerPostMessageTransport } from "@affino/datagrid-vue/pro"
 
 const transport = createDataGridWorkerPostMessageTransport({
   target: worker,
@@ -108,11 +109,11 @@ const runtime = useDataGridRuntime({
 Minimal wiring pattern:
 
 ```ts
+import { createDataGridVueRuntime } from "@affino/datagrid-vue"
 import {
   createDataGridWorkerOwnedRowModel,
   createDataGridWorkerOwnedRowModelHost,
-  createDataGridVueRuntime,
-} from "@affino/datagrid-vue"
+} from "@affino/datagrid-vue/pro"
 
 // inside worker bootstrap:
 createDataGridWorkerOwnedRowModelHost({

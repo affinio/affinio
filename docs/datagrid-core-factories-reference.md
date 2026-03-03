@@ -13,10 +13,16 @@ This is the constructor-level reference for `@affino/datagrid-core` stable entry
 | `createClientRowModel(options?)` | `ClientRowModel<T>` | In-memory projection (filter/sort/group/pivot/aggregate/paginate). |
 | `createDataGridColumnModel(options?)` | `DataGridColumnModel` | Column definitions/order/visibility/width/pin state. |
 | `createDataGridEditModel(options?)` | `DataGridEditModel` | Headless edit patches and revision tracking. |
+| `createDataGridSelectionSummary(options)` | `DataGridSelectionSummarySnapshot` | Deterministic summary over selected scope. |
+
+## Pro constructors (`@affino/datagrid-core/pro`)
+
+| Factory | Returns | Typical use |
+| --- | --- | --- |
 | `createServerRowModel(options, config?)` | `ServerRowModel<T>` | Block cache + lazy-loading model. |
 | `createServerBackedRowModel(options)` | `ServerBackedRowModel<T>` | Adapter from server row model to `DataGridRowModel`. |
 | `createDataSourceBackedRowModel(options)` | `DataSourceBackedRowModel<T>` | Pull/push/invalidation/backpressure protocol model. |
-| `createDataGridSelectionSummary(options)` | `DataGridSelectionSummarySnapshot` | Deterministic summary over selected scope. |
+| `createDataGridServerPivotRowId(input)` | `string` | Stable row-id generation for server-side pivot rows. |
 
 ## Canonical API assembly
 

@@ -8,12 +8,7 @@
     "emitDeclarationOnly": false,
     "moduleResolution": "bundler",
     "baseUrl": ".",
-    "paths": {
-      "@affino/datagrid-core": ["../datagrid-core/src/index.ts"],
-      "@affino/datagrid-core/*": ["../datagrid-core/src/*"],
-      "@affino/datagrid-vue": ["../datagrid-vue/src/index.ts"],
-      "@affino/datagrid-vue/*": ["../datagrid-vue/src/*"]
-    }
+    "paths": {}
   },
   "include": [
     "src/**/*.ts"

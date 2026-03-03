@@ -8,6 +8,7 @@ import type {
   DataGridPivotSpec,
   DataGridRowModelKind,
 } from "@affino/datagrid-core"
+import { emitDataGridCommercialTelemetryEvent } from "./commercialTelemetry"
 
 export type DataGridCommunityBlockedFeature =
   | "grouping"
@@ -28,8 +29,12 @@ export const DATAGRID_COMMUNITY_BLOCKED_FEATURES: readonly DataGridCommunityBloc
   "backpressure-control",
 ])
 
+export const DATAGRID_PRO_FEATURE_REQUIRED_CODE = "DG_PRO_FEATURE_REQUIRED" as const
+
 export class DataGridProFeatureRequiredError extends Error {
   readonly feature: DataGridCommunityBlockedFeature
+  readonly code = DATAGRID_PRO_FEATURE_REQUIRED_CODE
+  readonly tier = "community" as const
 
   constructor(feature: DataGridCommunityBlockedFeature) {
     super(`[DataGrid] Feature "${feature}" requires @affino/datagrid-pro license.`)
@@ -39,6 +44,12 @@ export class DataGridProFeatureRequiredError extends Error {
 }
 
 function failFeature(feature: DataGridCommunityBlockedFeature): never {
+  emitDataGridCommercialTelemetryEvent({
+    type: "feature.blocked",
+    timestamp: new Date().toISOString(),
+    tier: "community",
+    feature,
+  })
   throw new DataGridProFeatureRequiredError(feature)
 }
 
