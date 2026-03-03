@@ -9,15 +9,21 @@ title: DataGrid Core — Overview
 - **Core**: детерминированный headless‑grid для сложных интеграций.
 - **Sugar**: быстрый запуск без прямого доступа к Core.
 
+Для документации по другим примитивам (не DataGrid) используйте отдельный портал:
+[/primitives/](/primitives/).
+
 ## Guidance
 
 - **When to use Core vs Sugar** → [/datagrid-ru/core-vs-sugar](/datagrid-ru/core-vs-sugar)
 - **Треки пользователей (Core / Adapter / Sugar)** → [/datagrid-ru/audience-tracks](/datagrid-ru/audience-tracks)
 - **Режимы рантайма (main-thread / worker-owned / server-side)** → [/datagrid-ru/runtime-modes](/datagrid-ru/runtime-modes)
+- **Коммерческие уровни (Community / Pro)** → [/datagrid-ru/commercial-tiers](/datagrid-ru/commercial-tiers)
+- **Сценарии Community vs Pro** → [/datagrid-ru/community-vs-pro-pathways](/datagrid-ru/community-vs-pro-pathways)
 - **Tree data и grouped rows** → [/datagrid-ru/tree-data](/datagrid-ru/tree-data)
 - **Контракты фабрик Core (constructor reference)** → [/datagrid-ru/core-factories-reference](/datagrid-ru/core-factories-reference)
 - **Справочник Core advanced entrypoint** → [/datagrid-ru/core-advanced-reference](/datagrid-ru/core-advanced-reference)
 - **Полный каталог возможностей** → [DataGrid Feature Catalog](https://github.com/affinio/affinio/blob/main/docs/datagrid-feature-catalog.md)
+- **Коммерческая упаковка и лицензирование** → [DataGrid Commercial Packaging Plan](https://github.com/affinio/affinio/blob/main/docs/datagrid-commercial-packaging-plan.md)
 
 ## Что входит в пакетный набор
 

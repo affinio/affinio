@@ -9,15 +9,21 @@ This section is split into two audiences:
 - **Core**: deterministic headless grid for advanced integrations.
 - **Sugar**: fast setup without direct access to Core.
 
+Need non-DataGrid primitives and adapter docs?
+Go to the dedicated primitives portal: [/primitives/](/primitives/).
+
 ## Guidance
 
 - **When to use Core vs Sugar** → [/datagrid/core-vs-sugar](/datagrid/core-vs-sugar)
 - **Audience tracks (Core / Adapter / Sugar)** → [/datagrid/audience-tracks](/datagrid/audience-tracks)
 - **Runtime modes (main-thread / worker-owned / server-side)** → [/datagrid/runtime-modes](/datagrid/runtime-modes)
+- **Commercial tiers (Community / Pro)** → [/datagrid/commercial-tiers](/datagrid/commercial-tiers)
+- **Community vs Pro pathways** → [/datagrid/community-vs-pro-pathways](/datagrid/community-vs-pro-pathways)
 - **Tree data and grouped rows** → [/datagrid/tree-data](/datagrid/tree-data)
 - **Core factory contracts (constructor reference)** → [/datagrid/core-factories-reference](/datagrid/core-factories-reference)
 - **Core advanced entrypoint reference** → [/datagrid/core-advanced-reference](/datagrid/core-advanced-reference)
 - **Full capability catalog** → [DataGrid Feature Catalog](https://github.com/affinio/affinio/blob/main/docs/datagrid-feature-catalog.md)
+- **Commercial packaging and licensing** → [DataGrid Commercial Packaging Plan](https://github.com/affinio/affinio/blob/main/docs/datagrid-commercial-packaging-plan.md)
 
 ## Package set
 
