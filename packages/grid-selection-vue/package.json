@@ -28,7 +28,7 @@
     "@affino/grid-selection-core": "workspace:^"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.15",
+    "@vitest/coverage-v8": "^4.0.18",
     "vue": "^3.4.0",
     "vitest": "^4.0.15"
   },
