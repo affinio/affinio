@@ -70,13 +70,11 @@ coverage/
 packages/*/dist/
 packages/*/*.tsbuildinfo
 
-# Guardrails: accidental TypeScript emit into source trees
-packages/datagrid-core/src/**/*.js
-packages/datagrid-core/src/**/*.d.ts
-packages/datagrid-core/src/**/*.d.ts.map
-packages/datagrid-orchestration/src/**/*.js
-packages/datagrid-orchestration/src/**/*.d.ts
-packages/datagrid-orchestration/src/**/*.d.ts.map
+# Guardrails: accidental TypeScript emit into package source trees
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
 
 # -----------------------
 # Optional: ignores for build tools

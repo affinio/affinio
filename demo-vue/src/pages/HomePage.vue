@@ -70,6 +70,12 @@ const advancedFlows = [
     label: "Pivot route",
   },
   {
+    title: "DataGrid Worker",
+    description: "Main-thread vs worker-owned row-model runtime (A/B patch benchmark).",
+    to: "/datagrid/worker",
+    label: "Worker runtime",
+  },
+  {
     title: "Livewire adapters",
     description: "Laravel demo mirrors this layout.",
     href: "http://127.0.0.1:4180",

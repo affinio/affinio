@@ -132,6 +132,7 @@ const pinnedOffsets = computed(() => {
 const rowModelRevision = ref(0)
 const viewportRef = ref<HTMLElement | null>(null)
 const viewportMetrics = ref<{ scrollTop: number; height: number }>({ scrollTop: 0, height: 0 })
+let unsubscribeRowModel: (() => void) | null = null
 
 const updateViewportMetrics = (): void => {
   const viewport = viewportRef.value
@@ -177,15 +178,20 @@ const handleViewportScroll = (): void => {
 }
 
 const baseRowHeight = computed(() => grid.value.features.rowHeight.base.value)
+const BOOTSTRAP_VIEWPORT_ROWS = 160
 
 const renderRange = computed(() => {
+  // Row model APIs are imperative; pin computed reevaluation to model revision updates.
+  void rowModelRevision.value
   const total = grid.value.rowModel.getRowCount()
   if (total <= 0) {
     return { start: 0, end: 0, total: 0 }
   }
   const height = viewportMetrics.value.height
   if (height <= 0) {
-    return { start: 0, end: Math.max(0, total - 1), total }
+    // During first paint (especially worker-owned mode), viewport height can be 0.
+    // Request a bounded window instead of the full dataset to avoid oversized bootstrap pulls.
+    return { start: 0, end: Math.min(total - 1, BOOTSTRAP_VIEWPORT_ROWS - 1), total }
   }
   const rowHeight = Math.max(1, baseRowHeight.value)
   const overscan = 6
@@ -206,6 +212,14 @@ const bottomSpacerHeight = computed(() => {
   return Math.max(0, (total - end - 1) * baseRowHeight.value)
 })
 
+watch(
+  () => [grid.value.rowModel, renderRange.value.start, renderRange.value.end] as const,
+  ([, start, end]) => {
+    grid.value.api.view.setViewportRange({ start, end })
+  },
+  { immediate: true },
+)
+
 const renderedRows = computed(() => {
   void rowModelRevision.value
   const range = renderRange.value
@@ -215,10 +229,64 @@ const renderedRows = computed(() => {
   return grid.value.rowModel.getRowsInRange({ start: range.start, end: range.end }) as readonly DataGridRowNode<RowLike>[]
 })
 
+const hasActiveFilters = computed(() => {
+  const filteringFeature = grid.value.features.filtering
+  const model = filteringFeature?.model?.value
+  if (!model) {
+    return false
+  }
+  if (model.advancedExpression != null) {
+    return true
+  }
+  const columnFilters = model.columnFilters ?? {}
+  for (const entry of Object.values(columnFilters)) {
+    if (!entry || typeof entry !== "object") {
+      continue
+    }
+    const candidate = entry as { kind?: unknown; tokens?: unknown[] }
+    if (candidate.kind === "valueSet") {
+      if (Array.isArray(candidate.tokens) && candidate.tokens.length > 0) {
+        return true
+      }
+      continue
+    }
+    return true
+  }
+  return false
+})
+
+const emptyStateMessage = computed(() => {
+  // Keep loading/empty state in sync with worker-driven snapshot changes.
+  void rowModelRevision.value
+  const snapshot = grid.value.rowModel.getSnapshot()
+  if (snapshot.loading) {
+    return "Loading rows..."
+  }
+  if ((snapshot.rowCount ?? 0) <= 0) {
+    return hasActiveFilters.value
+      ? "No rows matched current filters."
+      : "No rows available."
+  }
+  return hasActiveFilters.value
+    ? "No rows matched current filters."
+    : "No rows in current viewport yet."
+})
+
 onMounted(() => {
-  const unsubscribe = grid.value.rowModel.subscribe(snapshot => {
-    rowModelRevision.value = snapshot.revision ?? 0
-  })
+  watch(
+    () => grid.value.rowModel,
+    rowModel => {
+      unsubscribeRowModel?.()
+      unsubscribeRowModel = rowModel.subscribe(() => {
+        // Worker-owned snapshots may not always advance a numeric revision.
+        // Bump local revision counter on every snapshot event so viewport requests
+        // and empty/loading state stay reactive on initial sync.
+        rowModelRevision.value += 1
+      })
+      rowModelRevision.value += 1
+    },
+    { immediate: true },
+  )
   updateViewportMetrics()
   viewportRef.value?.addEventListener("scroll", handleViewportScroll, { passive: true })
   window.addEventListener("pointerdown", handleContextMenuOutsidePointer, true)
@@ -231,7 +299,8 @@ onMounted(() => {
     resizeObserver.observe(viewportRef.value)
   }
   onBeforeUnmount(() => {
-    unsubscribe()
+    unsubscribeRowModel?.()
+    unsubscribeRowModel = null
     viewportRef.value?.removeEventListener("scroll", handleViewportScroll)
     window.removeEventListener("pointerdown", handleContextMenuOutsidePointer, true)
     resizeObserver?.disconnect()
@@ -1170,7 +1239,7 @@ onBeforeUnmount(() => {
         ></div>
 
       <div v-if="renderedRows.length === 0" class="datagrid-sugar-stage__empty">
-        No rows matched current filters.
+        {{ emptyStateMessage }}
       </div>
     </div>
 

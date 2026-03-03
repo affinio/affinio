@@ -420,6 +420,7 @@ const collapsePivotRows = (): void => {
         <RouterLink to="/datagrid">Main DataGrid</RouterLink>
         <RouterLink to="/datagrid/sugar">DataGrid Sugar</RouterLink>
         <RouterLink to="/datagrid/must-have/tree-data">TreeData must-have</RouterLink>
+        <RouterLink to="/datagrid/worker">Worker runtime</RouterLink>
       </div>
     </header>
 

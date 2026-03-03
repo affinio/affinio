@@ -87,6 +87,12 @@ const router = createRouter({
       meta: { layoutWidth: "full", lockMainScroll: true, fitViewport: true },
     },
     {
+      path: "/datagrid/worker",
+      name: "datagrid-worker-demo",
+      component: () => import("@/pages/datagrid/DataGridWorkerPage.vue"),
+      meta: { layoutWidth: "full", lockMainScroll: true, fitViewport: true },
+    },
+    {
       path: "/dialogs",
       name: "dialog-demo",
       component: () => import("@/pages/DialogPage.vue"),
