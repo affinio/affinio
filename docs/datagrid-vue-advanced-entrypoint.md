@@ -1,6 +1,6 @@
 # DataGrid Vue Advanced Entrypoint
 
-Updated: `2026-02-09`
+Updated: `2026-03-03`
 
 This document defines the explicit advanced namespace for power-user hooks in `@affino/datagrid-vue`.
 
@@ -22,6 +22,7 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 - `useDataGridViewportBridge`
 - `useDataGridHeaderOrchestration`
 - `createDataGridHeaderBindings`
+- `createDataGridViewportController`
 - `useDataGridCellPointerDownRouter`
 - `useDataGridCellPointerHoverRouter`
 - `useDataGridDragSelectionLifecycle`
@@ -49,6 +50,7 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 - `useDataGridInlineEditorTargetNavigation`
 - `useDataGridInlineEditorKeyRouter`
 - `useDataGridHeaderContextActions`
+- `useDataGridHeaderLayerOrchestration`
 - `useDataGridCopyRangeHelpers`
 - `useDataGridHeaderSortOrchestration`
 - `useDataGridHeaderResizeOrchestration`
@@ -72,6 +74,13 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 - `useDataGridViewportContextMenuRouter`
 - `useDataGridViewportBlurHandler`
 - `useDataGridViewportScrollLifecycle`
+- `useDataGridLinkedPaneScrollSync`
+- `useDataGridResizeClickGuard`
+- `useDataGridInitialViewportRecovery`
+- `useDataGridManagedWheelScroll`
+- `useDataGridManagedTouchScroll`
+- `useDataGridScrollIdleGate`
+- `useDataGridScrollPerfTelemetry`
 - `useDataGridClearSelectionLifecycle`
 - `useDataGridGlobalPointerLifecycle`
 - `useDataGridPointerAutoScroll`
@@ -84,6 +93,7 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 - `useDataGridQuickFilterActions`
 - `useDataGridCellCoordNormalizer`
 - `useDataGridSelectionComparators`
+- `useDataGridRowSelectionModel`
 - `useDataGridPointerModifierPolicy`
 - `useDataGridHistoryActionRunner`
 - `useDataGridInlineEditorFocus`
@@ -92,6 +102,7 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 - `useDataGridClipboardBridge`
 - `useDataGridClipboardMutations`
 - `useDataGridIntentHistory`
+- `setsEqual`
 
 ## Boundary Rule
 
@@ -109,5 +120,9 @@ This document defines the explicit advanced namespace for power-user hooks in `@
 
 ## Contract Guards
 
-- `/Users/anton/Projects/affinio/packages/datagrid-vue/src/__tests__/advancedApi.contract.spec.ts`
-- `/Users/anton/Projects/affinio/packages/datagrid-vue/src/__tests__/publicApi.contract.spec.ts`
+- Advanced/composable contract coverage lives in:
+  - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/__tests__/*.contract.spec.ts`
+- Component contract coverage lives in:
+  - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/components/__tests__/*.contract.spec.ts`
+- Run package contract suite:
+  - `pnpm --filter @affino/datagrid-vue run test:contracts`

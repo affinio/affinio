@@ -9,11 +9,22 @@ Goal: assemble the Core → Interaction Runtime → UI pipeline with minimal wir
 ## 1) Core
 
 ```ts
-import { createClientRowModel, createDataGridColumnModel, createDataGridApi } from "@affino/datagrid-core"
+import {
+  createClientRowModel,
+  createDataGridApi,
+  createDataGridColumnModel,
+  createDataGridCore,
+} from "@affino/datagrid-core"
 
 const rowModel = createClientRowModel({ rows })
 const columnModel = createDataGridColumnModel({ columns })
-const api = createDataGridApi({ rowModel, columnModel })
+const core = createDataGridCore({
+  services: {
+    rowModel: { name: "rowModel", model: rowModel },
+    columnModel: { name: "columnModel", model: columnModel },
+  },
+})
+const api = createDataGridApi({ core })
 await api.start()
 ```
 
@@ -46,6 +57,5 @@ const grid = useAffinoDataGridUi({
 
 ## 5) Synchronization
 
-- On data updates: `api.refreshRows("manual")`
-- On column updates: `api.refreshColumns("manual")`
-
+- On data updates: `api.view.reapply()`
+- On column updates: `api.columns.setAll(nextColumns)`

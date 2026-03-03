@@ -2419,7 +2419,6 @@ const cellNavigation = useDataGridCellNavigation<CellCoord>({
 })
 
 const {
-  rowModel,
   api,
   core,
   columnSnapshot,
@@ -2439,9 +2438,17 @@ const unsubscribeCellsRefresh = api.view.onCellsRefresh(batch => {
   const reason = batch.reason ? ` · reason: ${batch.reason}` : ""
   lastAction.value = `Cell refresh batch: ${batch.cells.length} cells${reason}`
 })
-const runtimeProjection = ref<DataGridProjectionDiagnostics | null>(rowModel.getSnapshot().projection ?? null)
-const unsubscribeRuntimeProjection = rowModel.subscribe(snapshot => {
-  runtimeProjection.value = snapshot.projection ?? null
+const runtimeProjection = ref<DataGridProjectionDiagnostics | null>(
+  api.diagnostics.getAll().rowModel.projection ?? null,
+)
+const syncRuntimeProjectionDiagnostics = (): void => {
+  runtimeProjection.value = api.diagnostics.getAll().rowModel.projection ?? null
+}
+const unsubscribeRuntimeProjectionRowsChanged = api.events.on("rows:changed", () => {
+  syncRuntimeProjectionDiagnostics()
+})
+const unsubscribeRuntimeProjectionRecomputed = api.events.on("projection:recomputed", () => {
+  syncRuntimeProjectionDiagnostics()
 })
 const paginationSnapshot = ref<DataGridPaginationSnapshot | null>(null)
 const runtimeStaleStagesSummary = computed(() => {
@@ -2456,10 +2463,6 @@ const runtimeCycleVersion = computed(() => (
 const runtimeRecomputeVersion = computed(() => (
   runtimeProjection.value?.recomputeVersion ?? 0
 ))
-
-function syncRuntimeProjectionDiagnostics(): void {
-  runtimeProjection.value = rowModel.getSnapshot().projection ?? null
-}
 
 function runReapplyView(): void {
   freezeProjectionView.value = false
@@ -3050,7 +3053,7 @@ function onRowResizeHandleMouseDown(row: DataGridRowNode<IncidentRow>, event: Mo
   }
 }
 
-resolveDisplayRowCount = () => Math.max(0, rowModel.getRowCount())
+resolveDisplayRowCount = () => Math.max(0, api.rows.getCount())
 resolveDisplayNodeAtIndex = (rowIndex: number) => {
   if (!Number.isFinite(rowIndex)) {
     return undefined
@@ -3060,7 +3063,7 @@ resolveDisplayNodeAtIndex = (rowIndex: number) => {
   if (normalized < 0 || normalized >= count) {
     return undefined
   }
-  return rowModel.getRow(normalized) as DataGridRowNode<IncidentRow> | undefined
+  return api.rows.get(normalized) as DataGridRowNode<IncidentRow> | undefined
 }
 resolveDisplayLeafRowAtIndex = (rowIndex: number) => {
   const node = resolveDisplayNodeAtIndex(rowIndex)
@@ -3074,7 +3077,7 @@ materializeDisplayRows = () => {
   if (count <= 0) {
     return []
   }
-  return rowModel.getRowsInRange({
+  return api.rows.getRange({
     start: 0,
     end: count - 1,
   }) as readonly DataGridRowNode<IncidentRow>[]
@@ -4498,7 +4501,8 @@ onBeforeUnmount(() => {
   scrollPerfTelemetry.dispose()
   disposeViewportMeasureScheduler()
   unsubscribeCellsRefresh()
-  unsubscribeRuntimeProjection()
+  unsubscribeRuntimeProjectionRowsChanged()
+  unsubscribeRuntimeProjectionRecomputed()
   window.removeEventListener("resize", scheduleViewportMeasure)
   window.removeEventListener("mousedown", onGlobalMouseDown)
   window.removeEventListener("mouseup", onGlobalMouseUp, true)

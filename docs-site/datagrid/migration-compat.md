@@ -13,8 +13,8 @@ This section helps you move between versions, keep contracts stable, and avoid r
 
 ## 2) Data updates
 
-- When replacing data, use `api.refreshRows("manual")`.
-- When changing columns, use `api.refreshColumns("manual")`.
+- When replacing data, use `api.view.reapply()`.
+- When changing columns, use `api.columns.setAll(nextColumns)`.
 
 ## 3) Sort/filter stability
 
@@ -31,7 +31,6 @@ If you change the UI adapter:
 
 ## 5) When things diverge
 
-- Capture `api.getRowSnapshot()` before/after the change.
+- Capture `api.rows.getSnapshot()` before/after the change.
 - Compare `sort/filter/group` models.
 - Use runtime events for diagnostics.
-

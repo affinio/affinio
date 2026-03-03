@@ -17,7 +17,7 @@ title: Column/Row reordering
 const next = [...columns.value]
 // swap/move columns
 columns.value = next
-api.refreshColumns("manual")
+api.columns.setAll(next)
 ```
 
 ## 2) Строки
@@ -25,17 +25,16 @@ api.refreshColumns("manual")
 Для row‑reorder:
 
 - Перемещайте данные в `rows`.
-- Вызывайте `api.refreshRows("manual")`.
+- Вызывайте `api.view.reapply()`.
 
 ```ts
 const nextRows = [...rows.value]
 // reorder rows
 rows.value = nextRows
-api.refreshRows("manual")
+api.view.reapply()
 ```
 
 ## 3) Валидация
 
 - Проверяйте `rowId` стабильность.
 - Убедитесь, что selection/focus не теряются при reorder.
-

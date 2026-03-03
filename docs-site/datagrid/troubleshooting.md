@@ -11,7 +11,7 @@ title: Troubleshooting / FAQ
 
 ## 2) UI does not update after data change
 
-- Call `api.refreshRows("manual")`.
+- Call `api.view.reapply()`.
 - Do not mutate `rows` in place without changing the reference.
 
 ## 3) Sort/filter “does not work”

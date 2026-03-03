@@ -9,12 +9,12 @@ This section outlines testing strategy and minimal QA gates.
 ## 1) Unit tests
 
 - Validate row/column models in isolation.
-- Snapshot via `api.getRowSnapshot()`.
+- Snapshot via `api.rows.getSnapshot()`.
 
 ## 2) Integration tests
 
 - Validate sort/filter/grouping.
-- Check refresh cycles `api.refreshRows("manual")`.
+- Check refresh cycles `api.view.reapply()`.
 
 ## 3) Minimal E2E set
 

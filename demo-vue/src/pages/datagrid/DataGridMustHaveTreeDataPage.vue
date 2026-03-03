@@ -164,17 +164,17 @@ const quickQuery = ref("")
 const status = ref("Tree mode ready")
 const sortPreset = ref("latency-desc")
 
-const rowModelRevision = ref(0)
-const unsubscribeRowModel = grid.rowModel.subscribe(snapshot => {
-  rowModelRevision.value = snapshot.revision ?? rowModelRevision.value + 1
+const rowModelRevision = ref(grid.api.rows.getSnapshot().revision ?? 0)
+const unsubscribeRowsChanged = grid.api.events.on("rows:changed", payload => {
+  rowModelRevision.value = payload.snapshot.revision ?? rowModelRevision.value + 1
 })
 onBeforeUnmount(() => {
-  unsubscribeRowModel()
+  unsubscribeRowsChanged()
 })
 
 const visibleRows = computed(() => {
   void rowModelRevision.value
-  return grid.rowModel.getRowCount()
+  return grid.api.rows.getCount()
 })
 const groupRows = computed(() => {
   void rowModelRevision.value

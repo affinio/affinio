@@ -123,8 +123,14 @@ const grid = useAffinoDataGrid<PivotDemoRow>({
 })
 
 const gridStage = computed(() => grid as unknown as UseAffinoDataGridResult<RowLike>)
-const rowModelRevision = ref(0)
-const pivotColumns = ref<readonly { id: string; label: string }[]>([])
+const initialPivotSnapshot = grid.api.rows.getSnapshot()
+const rowModelRevision = ref(initialPivotSnapshot.revision ?? 0)
+const pivotColumns = ref<readonly { id: string; label: string }[]>(
+  (initialPivotSnapshot.pivotColumns ?? []).map(column => ({
+    id: column.id,
+    label: column.label,
+  })),
+)
 const savedLayout = ref<DataGridPivotLayoutSnapshot<PivotDemoRow> | null>(null)
 const drilldown = ref<{
   rowId: string | number
@@ -139,7 +145,8 @@ const drilldown = ref<{
 } | null>(null)
 const applyingImportedLayout = ref(false)
 
-const unsubscribeRowModel = grid.rowModel.subscribe(snapshot => {
+const unsubscribeRowsChanged = grid.api.events.on("rows:changed", payload => {
+  const snapshot = payload.snapshot
   rowModelRevision.value = snapshot.revision ?? (rowModelRevision.value + 1)
   pivotColumns.value = (snapshot.pivotColumns ?? []).map(column => ({
     id: column.id,
@@ -148,12 +155,12 @@ const unsubscribeRowModel = grid.rowModel.subscribe(snapshot => {
 })
 
 onBeforeUnmount(() => {
-  unsubscribeRowModel()
+  unsubscribeRowsChanged()
 })
 
 const visibleRows = computed(() => {
   void rowModelRevision.value
-  return grid.rowModel.getRowCount()
+  return grid.api.rows.getCount()
 })
 
 const previewPivotColumns = computed(() => pivotColumns.value.slice(0, 8))

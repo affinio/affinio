@@ -31,28 +31,74 @@ const columnModel = createDataGridColumnModel({ columns })
 ## 2) GridApi (сервер‑безопасный фасад)
 
 ```ts
-import { createDataGridApi } from "@affino/datagrid-core"
+import { createDataGridApi, createDataGridCore } from "@affino/datagrid-core"
 
-const api = createDataGridApi({ rowModel, columnModel })
+const core = createDataGridCore({
+  services: {
+    rowModel: { name: "rowModel", model: rowModel },
+    columnModel: { name: "columnModel", model: columnModel },
+  },
+})
+
+const api = createDataGridApi({ core })
 await api.start()
 ```
 
 Типовые операции:
 
 ```ts
-api.setSortModel([{ key: "service", direction: "asc" }])
-api.setFilterModel({ columnFilters: { owner: ["NOC"] } })
-api.setGroupBy({ key: "owner" })
-api.refreshRows("manual")
+api.rows.setSortModel([{ key: "service", direction: "asc" }])
+api.rows.setFilterModel({ columnFilters: { owner: ["NOC"] } })
+api.rows.setGroupBy({ fields: ["owner"] })
+api.view.reapply()
 ```
 
 ## 3) Снимки и доступ к строкам
 
 ```ts
-const snapshot = api.getRowSnapshot()
-const first = api.getRow(0)
+const snapshot = api.rows.getSnapshot()
+const first = api.rows.get(0)
+const page = api.rows.getPagination()
+```
+
+Операции с колонками и pivot:
+
+```ts
+api.columns.setVisibility("owner", true)
+api.columns.setWidth("service", 260)
+
+api.pivot.setModel({
+  rows: ["owner"],
+  columns: ["service"],
+  values: [{ field: "service", agg: "count" }],
+})
+```
+
+Selection и transaction (с проверкой capability):
+
+```ts
+if (api.selection.hasSupport()) {
+  const selection = api.selection.getSnapshot()
+  const summary = api.selection.summarize()
+}
+
+if (api.transaction.hasSupport()) {
+  const batchId = api.transaction.beginBatch("bulk-edit")
+  await api.transaction.commitBatch(batchId)
+}
 ```
 
 ## 4) Когда нужен advanced‑entrypoint
 
 Если нужен прямой контроль viewport, интеграции overlay или runtime‑events — используйте `@affino/datagrid-core/advanced`.
+
+Отдельный справочник advanced-слоя:
+
+- [/datagrid-ru/core-advanced-reference](/datagrid-ru/core-advanced-reference)
+
+## 5) Полный справочник методов
+
+Полная reference-страница по namespace API с примерами:
+
+- [/datagrid-ru/grid-api](/datagrid-ru/grid-api)
+- [/datagrid-ru/core-factories-reference](/datagrid-ru/core-factories-reference)

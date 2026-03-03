@@ -17,8 +17,8 @@ Viewport‑слой отвечает за виртуализацию, расчё
 Core предоставляет явные точки синхронизации:
 
 ```ts
-api.refreshRows("manual")
-api.refreshColumns("manual")
+api.view.reapply()
+api.columns.setAll(nextColumns)
 ```
 
 Используйте их при:
@@ -39,4 +39,3 @@ api.refreshColumns("manual")
 - Рендер «лишних» строк без синхронизации с проекцией.
 - Прерывание измерений при частых resize.
 - Потеря фокуса при обновлении выборки.
-

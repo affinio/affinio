@@ -431,7 +431,7 @@ Hotkeys users expect:
 1. Group auto-expand after collapse: check for double toggle handlers (`mousedown` + `click`).
 2. Sticky headers overlap issues: keep pinned header z-index above pinned cell content.
 3. Selection drift after layout jumps: keep controls area height stable; avoid reflow pushing viewport while dragging.
-4. If runtime state seems stale, call `grid.api.refreshRows("manual")`.
+4. If runtime state seems stale, call `grid.api.view.reapply()`.
 
 ## 11) References
 

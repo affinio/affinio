@@ -4,34 +4,73 @@ title: Runtime events
 
 # Runtime events
 
-Runtime events are typed events emitted by Core during computations (refresh, sorting, filtering, model transitions).
+Stable `DataGridApi` exposes a typed public event surface via `api.events.on(...)`.
 
-## 1) When to use
+## 1) Public event map
 
-- observe which updates the grid performs,
-- collect diagnostics and metrics,
-- integrate custom effects in the UI adapter.
+| Event | Payload highlights |
+| --- | --- |
+| `rows:changed` | `{ snapshot }` row-model snapshot after mutation/refresh. |
+| `columns:changed` | `{ snapshot }` column-model snapshot after column changes. |
+| `projection:recomputed` | `{ snapshot, previousVersion, nextVersion, staleStages }`. |
+| `selection:changed` | `{ snapshot }` selection snapshot or `null`. |
+| `pivot:changed` | `{ pivotModel, pivotColumns }`. |
+| `transaction:changed` | `{ snapshot }` transaction snapshot or `null`. |
+| `viewport:changed` | `{ range, snapshot }` viewport range + row snapshot. |
+| `state:imported` | `{ state }` unified state payload passed to `api.state.set(...)`. |
 
-## 2) Wiring
+## 2) Subscription
 
 ```ts
-import { createDataGridApi } from "@affino/datagrid-core"
+const offRows = api.events.on("rows:changed", payload => {
+  // payload.snapshot.revision, payload.snapshot.rowCount, ...
+})
 
-const api = createDataGridApi({ rowModel, columnModel })
-await api.start()
+const offProjection = api.events.on("projection:recomputed", payload => {
+  // payload.staleStages, payload.previousVersion -> payload.nextVersion
+})
 
-const unsubscribe = api.onRuntimeEvent(event => {
-  if (event.kind === "rows-refresh") {
-    // diagnostics
-  }
+const offStateImported = api.events.on("state:imported", payload => {
+  // payload.state
 })
 
 // later
-unsubscribe()
+offRows()
+offProjection()
+offStateImported()
 ```
 
-## 3) Recommendations
+## 3) Ordering and semantics
 
-- Do not block the handler; keep it fast.
-- Keep diagnostics/logging in a separate layer.
+Guaranteed sequencing:
 
+- For each row-model subscription tick:
+  1. `rows:changed`
+  2. `projection:recomputed` (if projection recompute version changed)
+  3. `pivot:changed` (if pivot model/columns signature changed)
+  4. `viewport:changed` (if viewport range changed)
+- `columns:changed` is emitted from column-model ticks.
+- `selection:changed` is emitted by selection facade operations.
+- `transaction:changed` is emitted by transaction facade operations.
+- `state:imported` is emitted at the end of successful `api.state.set(...)`.
+
+Non-guarantees:
+
+- `api.state.set(...)` may emit multiple row/column events during apply; it is not an atomic single-event boundary.
+- No cross-thread/distributed ordering guarantee is provided (surface is in-process only).
+
+Guidance:
+
+- Use event payloads as source of truth for reactive diagnostics panels.
+- Prefer event-driven updates over polling `api.rows.getSnapshot()` in hot paths.
+
+## 4) When to use advanced runtime events
+
+Use stable `api.events` for product code.
+Use advanced runtime/plugin buses only when you need custom host-plugin orchestration.
+
+See also:
+
+- `/datagrid/grid-api`
+- `/datagrid/performance-diagnostics`
+- `/datagrid/state-events-compute-diagnostics`

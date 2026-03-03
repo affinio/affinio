@@ -9,12 +9,12 @@ title: Testing и QA gates
 ## 1) Unit тесты
 
 - Проверяйте row/column модели изолированно.
-- Фиксируйте снапшоты `api.getRowSnapshot()`.
+- Фиксируйте снапшоты `api.rows.getSnapshot()`.
 
 ## 2) Integration тесты
 
 - Валидация сортировки/фильтрации/группировок.
-- Проверка refresh‑циклов `api.refreshRows("manual")`.
+- Проверка refresh‑циклов `api.view.reapply()`.
 
 ## 3) E2E минимальный набор
 

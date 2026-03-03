@@ -17,8 +17,8 @@ The viewport layer handles virtualization, visible row calculation, and DOM focu
 Core provides explicit sync points:
 
 ```ts
-api.refreshRows("manual")
-api.refreshColumns("manual")
+api.view.reapply()
+api.columns.setAll(nextColumns)
 ```
 
 Use them when:
@@ -39,4 +39,3 @@ Recommended minimum in the adapter:
 - Rendering extra rows without projection sync.
 - Interrupted measurements during frequent resize.
 - Focus loss on selection updates.
-

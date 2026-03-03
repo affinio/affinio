@@ -49,4 +49,4 @@ Status date: 2026-03-02
 - Current drilldown implementation is synchronous and scans source rows intentionally for correctness-first delivery.
 - Incremental pivot runtime now applies value-only row patches against cached per-cell aggregate states and falls back to full rebuild when pivot axes/filter/sort semantics are affected.
 - High-cardinality incremental path no longer depends on per-row leaf-binding cache; touched keys are derived on-demand from row axes/column axes, so incremental patches remain available beyond 100k+ leaf identities.
-- Interop export is available via `DataGridApi.exportPivotInterop()` and includes layout snapshot, generated pivot columns and serialized projected rows for external pipelines.
+- Interop export is available via `DataGridApi.pivot.exportInterop()` and includes layout snapshot, generated pivot columns and serialized projected rows for external pipelines.

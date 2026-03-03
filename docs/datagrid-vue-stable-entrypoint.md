@@ -1,6 +1,6 @@
 # DataGrid Vue Stable Entrypoint (Common Usage)
 
-Updated: `2026-02-09`
+Updated: `2026-03-03`
 
 This document defines the stable, semver-safe entrypoints for common `@affino/datagrid-vue` integrations.
 
@@ -72,8 +72,14 @@ import { useAffinoDataGridUi } from "@affino/datagrid-vue"
 
 ## Contract Guard
 
-- Root/stable parity is validated by:
-  - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/__tests__/publicApi.contract.spec.ts`
+- Stable/runtime contract coverage lives in:
+  - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/__tests__/useDataGridRuntime.contract.spec.ts`
+  - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/__tests__/useAffinoDataGrid.contract.spec.ts`
+  - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/__tests__/useAffinoDataGridUi.contract.spec.ts`
+  - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/components/__tests__/DataGrid.contract.spec.ts`
+  - `/Users/anton/Projects/affinio/packages/datagrid-vue/src/components/__tests__/AffinoDataGridSimple.contract.spec.ts`
+- Run package contract suite:
+  - `pnpm --filter @affino/datagrid-vue run test:contracts`
 
 ## Removed Legacy Aliases
 

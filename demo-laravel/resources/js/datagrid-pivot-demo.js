@@ -205,7 +205,7 @@ function mountPivotDemo(root) {
     rows,
     columns: SOURCE_COLUMNS,
   })
-  const { api, rowModel } = runtime
+  const { api } = runtime
   void api.start()
 
   const syncStatus = (message) => {
@@ -240,7 +240,7 @@ function mountPivotDemo(root) {
   }
 
   const render = () => {
-    const snapshot = rowModel.getSnapshot()
+    const snapshot = api.rows.getSnapshot()
     const pivotModel = snapshot.pivotModel ?? null
     const pivotColumns = snapshot.pivotColumns ?? []
     const pivotColumnsById = new Map(pivotColumns.map(column => [column.id, column]))
@@ -432,7 +432,7 @@ function mountPivotDemo(root) {
     generation += 1
     rows = buildRows(nextCount, generation)
     activeDrilldown = null
-    rowModel.setRows(rows)
+    api.rows.setData(rows)
     applyPivotModel()
   }
 
@@ -445,7 +445,7 @@ function mountPivotDemo(root) {
       latencyMs: 20 + (((index + generation) * 15) % 360),
     }))
     activeDrilldown = null
-    rowModel.setRows(rows)
+    api.rows.setData(rows)
     syncStatus("Values randomized")
     render()
   }
@@ -509,14 +509,21 @@ function mountPivotDemo(root) {
   reapplyLayoutButton.addEventListener("click", onReapplyLayout)
   resetButton.addEventListener("click", onReset)
 
-  const unsubscribe = rowModel.subscribe(() => {
-    render()
-  })
+  const unsubscribeEvents = [
+    api.events.on("rows:changed", () => {
+      render()
+    }),
+    api.events.on("projection:recomputed", () => {
+      render()
+    }),
+  ]
 
   applyPivotModel()
 
   return () => {
-    unsubscribe()
+    for (const unsubscribe of unsubscribeEvents) {
+      unsubscribe()
+    }
     sizeSelect.removeEventListener("change", onSizeChange)
     enabledSelect.removeEventListener("change", onControlsChange)
     rowFieldPrimarySelect.removeEventListener("change", onControlsChange)

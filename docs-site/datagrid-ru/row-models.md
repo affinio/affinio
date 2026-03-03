@@ -31,11 +31,10 @@ const rowModel = createServerBackedRowModel({
 
 ## 3) Рекомендации по refresh
 
-- **Смена данных**: `api.refreshRows("manual")`
-- **Смена колонок**: `api.refreshColumns("manual")`
+- **Смена данных**: `api.view.reapply()`
+- **Смена колонок**: `api.columns.setAll(nextColumns)`
 - **Изменение измерений**: обновляйте viewport измерения в адаптере
 
 ## 4) Диагностика и контроль
 
-Для детерминированных обновлений используйте ручные refresh и тестируйте снапшоты через `api.getRowSnapshot()`.
-
+Для детерминированных обновлений используйте ручные refresh и тестируйте снапшоты через `api.rows.getSnapshot()`.

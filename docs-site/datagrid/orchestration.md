@@ -9,10 +9,16 @@ The Interaction Orchestration Engine (Interaction Runtime) connects Core to the 
 ## 1) Minimal setup
 
 ```ts
-import { createDataGridApi } from "@affino/datagrid-core"
+import { createDataGridApi, createDataGridCore } from "@affino/datagrid-core"
 import { createOrchestration } from "@affino/datagrid-orchestration"
 
-const api = createDataGridApi({ rowModel, columnModel })
+const core = createDataGridCore({
+  services: {
+    rowModel: { name: "rowModel", model: rowModel },
+    columnModel: { name: "columnModel", model: columnModel },
+  },
+})
+const api = createDataGridApi({ core })
 await api.start()
 
 const orchestration = createOrchestration({ api })
@@ -51,4 +57,3 @@ orchestration.fill.commit()
 ## 4) When to enable
 
 Enable the Interaction Orchestration Engine in the UI adapter. Core remains deterministic and testable without DOM.
-

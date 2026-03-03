@@ -9,10 +9,16 @@ Interaction Orchestration Engine (Interaction Runtime) — слой, котор�
 ## 1) Минимальная инициализация
 
 ```ts
-import { createDataGridApi } from "@affino/datagrid-core"
+import { createDataGridApi, createDataGridCore } from "@affino/datagrid-core"
 import { createOrchestration } from "@affino/datagrid-orchestration"
 
-const api = createDataGridApi({ rowModel, columnModel })
+const core = createDataGridCore({
+  services: {
+    rowModel: { name: "rowModel", model: rowModel },
+    columnModel: { name: "columnModel", model: columnModel },
+  },
+})
+const api = createDataGridApi({ core })
 await api.start()
 
 const orchestration = createOrchestration({ api })

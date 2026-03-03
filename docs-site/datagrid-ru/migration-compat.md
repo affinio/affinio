@@ -13,8 +13,8 @@ title: Migration и compatibility
 
 ## 2) Обновление данных
 
-- При замене данных используйте `api.refreshRows("manual")`.
-- При смене колонок — `api.refreshColumns("manual")`.
+- При замене данных используйте `api.view.reapply()`.
+- При смене колонок — `api.columns.setAll(nextColumns)`.
 
 ## 3) Стабильность сортировок/фильтров
 
@@ -31,7 +31,6 @@ title: Migration и compatibility
 
 ## 5) Что делать при расхождениях
 
-- Снимите `api.getRowSnapshot()` до/после изменения.
+- Снимите `api.rows.getSnapshot()` до/после изменения.
 - Сравните `sort/filter/group` модели.
 - Используйте runtime‑events для диагностики.
-

@@ -8,6 +8,10 @@ Package: `@affino/datagrid-vue`
 
 This page is a framework-facing API map for Vue teams that want to build and operate DataGrid without importing `@affino/datagrid-core` or `@affino/datagrid-orchestration` directly.
 
+Full platform capability inventory:
+
+- [DataGrid Feature Catalog](https://github.com/affinio/affinio/blob/main/docs/datagrid-feature-catalog.md)
+
 ## Install (Vue-only path)
 
 ```bash
@@ -65,6 +69,7 @@ Preferred domain entrypoints for new integrations:
 - `@affino/datagrid-vue/advanced/clipboard`
 - `@affino/datagrid-vue/advanced/filtering`
 - `@affino/datagrid-vue/advanced/history`
+- `@affino/datagrid-vue/advanced/facades`
 
 Typical uses:
 
@@ -75,6 +80,8 @@ Typical uses:
 - `useDataGridViewportScrollLifecycle`
 - `useDataGridLinkedPaneScrollSync`
 - `createDataGridViewportController` (re-export)
+- `useDataGridRowSelectionFacade`
+- `useDataGridFindReplaceFacade`
 
 Use this entrypoint when `useAffinoDataGrid` is not enough and you are building custom markup/runtime integration.
 

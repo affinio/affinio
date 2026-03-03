@@ -8,6 +8,10 @@ title: Vue API Reference (datagrid-vue)
 
 Это карта API для Vue-команд, которые хотят собирать и поддерживать DataGrid без прямых импортов `@affino/datagrid-core` и `@affino/datagrid-orchestration`.
 
+Полный перечень возможностей платформы:
+
+- [DataGrid Feature Catalog](https://github.com/affinio/affinio/blob/main/docs/datagrid-feature-catalog.md)
+
 ## Установка (Vue-only путь)
 
 ```bash
@@ -65,6 +69,7 @@ Compatibility barrel для legacy-wide import.
 - `@affino/datagrid-vue/advanced/clipboard`
 - `@affino/datagrid-vue/advanced/filtering`
 - `@affino/datagrid-vue/advanced/history`
+- `@affino/datagrid-vue/advanced/facades`
 
 Типичные случаи:
 
@@ -75,6 +80,8 @@ Compatibility barrel для legacy-wide import.
 - `useDataGridViewportScrollLifecycle`
 - `useDataGridLinkedPaneScrollSync`
 - `createDataGridViewportController` (re-export)
+- `useDataGridRowSelectionFacade`
+- `useDataGridFindReplaceFacade`
 
 Используйте этот entrypoint, когда `useAffinoDataGrid` уже недостаточно и вы собираете кастомный рендер/runtime integration.
 

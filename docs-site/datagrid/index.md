@@ -12,6 +12,10 @@ This section is split into two audiences:
 ## Guidance
 
 - **When to use Core vs Sugar** → [/datagrid/core-vs-sugar](/datagrid/core-vs-sugar)
+- **Audience tracks (Core / Adapter / Sugar)** → [/datagrid/audience-tracks](/datagrid/audience-tracks)
+- **Core factory contracts (constructor reference)** → [/datagrid/core-factories-reference](/datagrid/core-factories-reference)
+- **Core advanced entrypoint reference** → [/datagrid/core-advanced-reference](/datagrid/core-advanced-reference)
+- **Full capability catalog** → [DataGrid Feature Catalog](https://github.com/affinio/affinio/blob/main/docs/datagrid-feature-catalog.md)
 
 ## Package set
 
@@ -30,6 +34,50 @@ Affino DataGrid is:
 - contract-enforced
 - performance-budgeted
 
+## Runtime mode playbook
+
+| Workload profile | Recommended mode | Rationale |
+| --- | --- | --- |
+| Up to ~10k rows, low mutation pressure, straightforward table UX | `main-thread` | Lowest operational complexity |
+| 20k+ rows with frequent edits/patches + active sort/group/filter | `worker-owned` | Better UI responsiveness and lower synchronous dispatch cost |
+| Very large/remote datasets where backend owns query shape | `server-side row model` | Moves heavy compute + data shaping to backend |
+
+Operational rule:
+
+- Start with `main-thread`.
+- Promote to `worker-owned` when interaction pressure causes UI stalls.
+- Use `server-side` when dataset scale/query ownership is backend-first.
+
+## Functional coverage (platform overview)
+
+- Stable `DataGridApi` facade with namespace domains (`rows/columns/view/state/events/meta/policy/compute/diagnostics/plugins).
+- State + events: unified state export/import (`api.state`) and typed public event surface (`api.events`) for deterministic integrations.
+- Row model: sorting, filtering, grouping, pagination, viewport range, snapshots/revisions.
+- Pivot: rows/columns/values, generated pivot columns, subtotals, grand totals, layout export/import, drilldown.
+- Selection engine: anchor/focus/range, fill, drag-move, clipboard flows.
+- Editing lifecycle: patch-based updates, freeze/reapply policies (Excel-like flows).
+- Interaction orchestration: keyboard/pointer/context-menu primitives for adapters.
+- Compute + diagnostics: compute mode control and unified diagnostics snapshot (`api.diagnostics.getAll`).
+- Extensibility: stable plugin registration surface (`api.plugins`) + advanced runtime hooks.
+- Determinism and contracts: strict API/runtime invariants, parity checks and CI gates.
+- Runtime options: main-thread, worker-owned compute, server/data-source models.
+
+## Benchmark snapshot (plain language)
+
+Representative trend from worker pressure matrix (scaled patch profile):
+
+| Dataset size | Worker-owned vs main-thread (end-to-end pressure) |
+| --- | --- |
+| 20k rows | about `~5.4x` faster |
+| 100k rows | about `~1.6x` faster |
+| 200k rows (heavier patch size) | about `~1.34x` faster |
+
+How to interpret:
+
+- Worker mode helps most when synchronous patch dispatch becomes expensive.
+- Main-thread remains valid for smaller/simple workloads.
+- Server-side is the right next step when backend data shaping dominates.
+
 ## DataGrid Platform
 
 - Core Runtime
@@ -40,23 +88,25 @@ Affino DataGrid is:
 ## Core path (advanced)
 
 1) **Core quickstart**: models + `GridApi` → [/datagrid/core-quickstart](/datagrid/core-quickstart)
-2) **Architecture**: package boundaries → [/datagrid/architecture](/datagrid/architecture)
-3) **Data models**: row/column/row-node → [/datagrid/data-models](/datagrid/data-models)
-4) **Model contracts**: API invariants → [/datagrid/model-contracts](/datagrid/model-contracts)
-5) **Grid API**: operation facade → [/datagrid/grid-api](/datagrid/grid-api)
-6) **GroupBy projection**: pipeline and groups → [/datagrid/groupby-projection](/datagrid/groupby-projection)
-7) **Row models**: client/server, refresh → [/datagrid/row-models](/datagrid/row-models)
-8) **Interaction Orchestration Engine**: selection/clipboard/fill/move → [/datagrid/orchestration](/datagrid/orchestration)
-9) **Data source protocol**: pull/push/abort‑first → [/datagrid/data-source-protocol](/datagrid/data-source-protocol)
-10) **Deterministic integration**: pinned/overlay/viewport → [/datagrid/deterministic-integration](/datagrid/deterministic-integration)
-11) **Runtime events**: diagnostics and hooks → [/datagrid/runtime-events](/datagrid/runtime-events)
-12) **Custom renderer**: `useAffinoDataGridUi` → [/datagrid/custom-renderer](/datagrid/custom-renderer)
-13) **Range selection engine**: anchor/focus/range → [/datagrid/range-selection](/datagrid/range-selection)
-14) **Fill handle**: autofill and copy → [/datagrid/fill-handle](/datagrid/fill-handle)
-15) **Range move**: drag‑move ranges → [/datagrid/drag-move](/datagrid/drag-move)
-16) **Reordering**: row/column drag → [/datagrid/reordering](/datagrid/reordering)
-17) **Viewport & a11y**: snapshot integration → [/datagrid/viewport-a11y](/datagrid/viewport-a11y)
-18) **End‑to‑end**: full Core → Interaction Runtime → UI path → [/datagrid/end-to-end](/datagrid/end-to-end)
+2) **Core advanced entrypoint reference**: runtime/viewport/transaction/a11y APIs → [/datagrid/core-advanced-reference](/datagrid/core-advanced-reference)
+3) **Architecture**: package boundaries → [/datagrid/architecture](/datagrid/architecture)
+4) **Data models**: row/column/row-node → [/datagrid/data-models](/datagrid/data-models)
+5) **Model contracts**: API invariants → [/datagrid/model-contracts](/datagrid/model-contracts)
+6) **Grid API**: operation facade → [/datagrid/grid-api](/datagrid/grid-api)
+7) **GroupBy projection**: pipeline and groups → [/datagrid/groupby-projection](/datagrid/groupby-projection)
+8) **Row models**: client/server, refresh → [/datagrid/row-models](/datagrid/row-models)
+9) **Interaction Orchestration Engine**: selection/clipboard/fill/move → [/datagrid/orchestration](/datagrid/orchestration)
+10) **Data source protocol**: pull/push/abort‑first → [/datagrid/data-source-protocol](/datagrid/data-source-protocol)
+11) **Deterministic integration**: pinned/overlay/viewport → [/datagrid/deterministic-integration](/datagrid/deterministic-integration)
+12) **Runtime events**: diagnostics and hooks → [/datagrid/runtime-events](/datagrid/runtime-events)
+13) **State/events/compute/diagnostics**: stable integration surface → [/datagrid/state-events-compute-diagnostics](/datagrid/state-events-compute-diagnostics)
+14) **Custom renderer**: `useAffinoDataGridUi` → [/datagrid/custom-renderer](/datagrid/custom-renderer)
+15) **Range selection engine**: anchor/focus/range → [/datagrid/range-selection](/datagrid/range-selection)
+16) **Fill handle**: autofill and copy → [/datagrid/fill-handle](/datagrid/fill-handle)
+17) **Range move**: drag‑move ranges → [/datagrid/drag-move](/datagrid/drag-move)
+18) **Reordering**: row/column drag → [/datagrid/reordering](/datagrid/reordering)
+19) **Viewport & a11y**: snapshot integration → [/datagrid/viewport-a11y](/datagrid/viewport-a11y)
+20) **End‑to‑end**: full Core → Interaction Runtime → UI path → [/datagrid/end-to-end](/datagrid/end-to-end)
 
 ## Sugar path (fast setup)
 
@@ -88,18 +138,25 @@ If you are building a Vue app and do not need headless Core wiring, start with t
 - Deterministic integration: [/docs/datagrid-deterministic-integration-setup.md](https://github.com/affinio/affinio/blob/main/docs/datagrid-deterministic-integration-setup.md)
 - Typed runtime events: [/docs/datagrid-typed-runtime-events.md](https://github.com/affinio/affinio/blob/main/docs/datagrid-typed-runtime-events.md)
 
-## Core in 5 lines
+## Core in short
 
 ```ts
 import {
   createClientRowModel,
-  createDataGridColumnModel,
   createDataGridApi,
+  createDataGridColumnModel,
+  createDataGridCore,
 } from "@affino/datagrid-core"
 
 const rowModel = createClientRowModel({ rows })
 const columnModel = createDataGridColumnModel({ columns })
-const api = createDataGridApi({ rowModel, columnModel })
+const core = createDataGridCore({
+  services: {
+    rowModel: { name: "rowModel", model: rowModel },
+    columnModel: { name: "columnModel", model: columnModel },
+  },
+})
+const api = createDataGridApi({ core })
 ```
 
 Next steps:

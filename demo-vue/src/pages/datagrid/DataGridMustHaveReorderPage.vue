@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue"
 import { RouterLink } from "vue-router"
-import type { DataGridClientRowReorderInput, DataGridColumnDef, DataGridRowNode } from "@affino/datagrid-vue"
+import type {
+  DataGridApi,
+  DataGridClientRowReorderInput,
+  DataGridColumnDef,
+  DataGridRowNode,
+} from "@affino/datagrid-vue"
 import { AffinoDataGridSimple } from "@affino/datagrid-vue/components"
 
 interface IncidentRow {
@@ -13,12 +18,10 @@ interface IncidentRow {
 
 interface ClientRowModelLike {
   reorderRows: (input: DataGridClientRowReorderInput) => boolean
-  setPageSize: (pageSize: number | null) => void
-  setCurrentPage: (page: number) => void
-  getRowsInRange: (range: { start: number; end: number }) => readonly DataGridRowNode<IncidentRow>[]
 }
 
 interface GridRefShape {
+  api?: DataGridApi<IncidentRow>
   rowModel?: ClientRowModelLike
 }
 
@@ -44,11 +47,11 @@ const visibleHead = ref<string[]>([])
 const visibleHeadText = computed(() => visibleHead.value.join(", "))
 
 const syncVisibleHead = () => {
-  const rowModel = gridRef.value?.rowModel
-  if (!rowModel) {
+  const api = gridRef.value?.api
+  if (!api) {
     return
   }
-  const head = rowModel.getRowsInRange({ start: 0, end: 7 })
+  const head = api.rows.getRange({ start: 0, end: 7 }) as readonly DataGridRowNode<IncidentRow>[]
   visibleHead.value = head
     .filter(row => row.kind === "leaf")
     .map(row => String((row.row as IncidentRow).priority))
@@ -77,12 +80,13 @@ const moveBlock = () => {
 }
 
 const paginateAndReorder = () => {
+  const api = gridRef.value?.api
   const rowModel = gridRef.value?.rowModel
-  if (!rowModel) {
+  if (!rowModel || !api) {
     return
   }
-  rowModel.setPageSize(8)
-  rowModel.setCurrentPage(1)
+  api.rows.setPageSize(8)
+  api.rows.setCurrentPage(1)
   const moved = rowModel.reorderRows({ fromIndex: 10, toIndex: 1 })
   syncVisibleHead()
   status.value = moved
@@ -102,7 +106,10 @@ onMounted(() => {
     <header class="datagrid-musthave-reorder__header">
       <p class="datagrid-musthave-reorder__eyebrow">DataGrid Must-Have · Scenario 04</p>
       <h1>Client Row Reordering</h1>
-      <p>Deterministic reorder pipeline on client row model with stable projection after mutation.</p>
+      <p>
+        Deterministic reorder pipeline: facade API for projection/pagination reads, with low-level `rowModel.reorderRows`
+        mutation path where reorder remains row-model scoped.
+      </p>
       <div class="datagrid-musthave-reorder__links">
         <RouterLink to="/datagrid/must-have/pagination">Pagination</RouterLink>
         <RouterLink to="/datagrid/must-have/filtering">Filtering</RouterLink>

@@ -1,92 +1,99 @@
 # DataGrid Unified Grid API
 
-Updated: `2026-02-09`
+Updated: `2026-03-03`
 
-`GridApi` is the semver-safe facade for model/service operations in `@affino/datagrid-core`.
+`DataGridApi` is the semver-safe, namespace-based facade for model/service operations in `@affino/datagrid-core`.
 
-## Entry Point
+## Entry point
 
 Use only package public exports:
 
 - `createDataGridApi`
 - `DataGridApi`
 
-Deep-imports are not part of the public contract.
+Deep imports are outside the stable public contract.
 
-## Service Binding Contract
+## Namespaced surface
 
-`GridApi` binds to `GridCore` services:
+Stable domains:
 
-- `rowModel` (required): must expose `model: DataGridRowModel`
-- `columnModel` (required): must expose `model: DataGridColumnModel`
-- `selection` (optional capability): if implemented, must provide
-  - `getSelectionSnapshot`
-  - `setSelectionSnapshot`
-  - `clearSelection`
-- `transaction` (optional capability): if implemented, must provide
-  - `getTransactionSnapshot`
-  - `beginTransactionBatch`
-  - `commitTransactionBatch`
-  - `rollbackTransactionBatch`
-  - `applyTransaction`
-  - `canUndoTransaction` / `canRedoTransaction`
-  - `undoTransaction` / `redoTransaction`
-- `viewport` (optional capability): `setViewportRange` is called when present
+- `api.rows.*`
+- `api.columns.*`
+- `api.view.*`
+- `api.pivot.*`
+- `api.selection.*`
+- `api.transaction.*`
+- `api.compute.*`
+- `api.diagnostics.*`
+- `api.meta.*`
+- `api.policy.*`
+- `api.plugins.*`
+- `api.state.*`
+- `api.events.*`
 
-Creation is fail-fast for missing required services (`rowModel` / `columnModel`).
+Lifecycle:
 
-## Covered Operations
+- `api.init()`
+- `api.start()`
+- `api.stop()`
+- `api.dispose()`
 
-`GridApi` provides namespaced surfaces (preferred):
+Flat API methods are removed from `DataGridApi`.
 
-- `api.rows.*` (row model and projection controls)
-- `api.columns.*` (column model controls and histogram)
-- `api.view.*` (viewport range, refresh, cell refresh hooks)
-- `api.pivot.*` (pivot model, drilldown, layout/interop import-export)
-- `api.selection.*` (selection snapshot and summary)
-- `api.transaction.*` (transaction history and batch lifecycle)
-- `api.capabilities` (readonly capability flags for UI feature gating)
+## Capability contract
 
-`api.capabilities` fields:
+`api.capabilities` is runtime-resolved:
 
 - `patch`
+- `dataMutation`
+- `compute`
 - `selection`
 - `transaction`
 - `histogram`
 - `sortFilterBatch`
 
-Capability resolution in API is lazy-cached per API instance.
+Use it as guard before capability-dependent mutating calls.
 
-Flat API methods are removed from `DataGridApi`.
-Use namespaced APIs only.
+## Key semantics
 
-Semantics note:
+- `rows.applyEdits(...)` mutates data (optionally with reapply policy).
+- `view.reapply()` recomputes projection only.
+- `pivot` remains a separate analytical subsystem (intentionally not nested under `rows`).
+- `state.get/set` is the unified state boundary for export/import (V1 model-centric payload).
+- `events.on` is the typed public event surface with documented in-process ordering.
+- `compute.switchMode(...)` is synchronous and does not implicitly trigger recompute.
+- `diagnostics.getAll()` is read-only and does not trigger recompute.
+- `plugins` lifecycle is event-driven (`onRegister`/`onDispose`/`onEvent`).
 
-- `rows.applyEdits(...)` mutates row data (optionally with reapply policy).
-- `view.reapply()` recomputes projection only (no data mutation).
+## Service binding notes
 
-Pivot domain note:
+`createDataGridApi` binds to `GridCore` services:
 
-- pivot is exposed under `api.pivot.*` as a separate analytical subsystem.
-- it is intentionally not nested under `api.rows.*`.
+- required: `rowModel`, `columnModel`
+- optional capabilities: selection, transaction, viewport, histogram, compute mode switching, data mutation support
 
-Selection contract in `GridApi` is headless:
+Creation is fail-fast for missing required services.
 
-- `getSelectionSnapshot(): DataGridSelectionSnapshot | null`
-- `setSelectionSnapshot(snapshot: DataGridSelectionSnapshot): void`
-- `summarizeSelection(options?): DataGridSelectionSummarySnapshot | null`
+## Selection summary contract
 
-`summarizeSelection` computes aggregates over current selection scope from core services (`rowModel` + `columnModel` + `selection`) and supports per-column metric config (`count`, `countDistinct`, `sum`, `avg`, `min`, `max`).
+`api.selection.summarize(options?)` computes deterministic aggregates over selected scope:
 
-UI adapter mapping stays at adapter boundary (Vue): core snapshot (`GridSelectionSnapshot`) is converted to UI snapshot (`UiTableSelectionSnapshot`) inside `/Users/anton/Projects/affinio/packages/datagrid-vue/src/composables/useTableSelection.ts`.
+- `count`, `countDistinct`, `sum`, `avg`, `min`, `max`
 
-This API is the prerequisite boundary for future higher-level adapters and AG-style feature growth.
+Selection stays headless in core; adapter/UI mapping remains at adapter boundary.
 
-## Viewport Integration Boundary (Pinned/Overlay State)
+## Viewport integration boundary
 
-Pinned and overlay sync geometry is intentionally exposed via viewport controller snapshot API, not via `GridApi`:
+Pinned/overlay geometry sync remains in advanced viewport controller API:
 
-- `createDataGridViewportController(...).getIntegrationSnapshot()` from `@affino/datagrid-core/advanced`
-- `createDataGridViewportController(...).getViewportSyncState()` from `@affino/datagrid-core/advanced`
+- `createDataGridViewportController(...).getIntegrationSnapshot()`
+- `createDataGridViewportController(...).getViewportSyncState()`
 
-Use these methods for deterministic adapter integration (overlay transforms, pinned geometry, visible ranges) and avoid direct reads of internal signals/DOM transforms.
+Use these for deterministic adapter geometry integration instead of internal signal reads.
+
+## Related docs
+
+- `docs/datagrid-core-factories-reference.md`
+- `docs/datagrid-core-advanced-reference.md`
+- `docs/datagrid-state-events-compute-diagnostics.md`
+- `docs/datagrid-feature-catalog.md`

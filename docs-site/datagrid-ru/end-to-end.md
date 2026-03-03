@@ -9,11 +9,22 @@ title: End‑to‑end integration
 ## 1) Core
 
 ```ts
-import { createClientRowModel, createDataGridColumnModel, createDataGridApi } from "@affino/datagrid-core"
+import {
+  createClientRowModel,
+  createDataGridApi,
+  createDataGridColumnModel,
+  createDataGridCore,
+} from "@affino/datagrid-core"
 
 const rowModel = createClientRowModel({ rows })
 const columnModel = createDataGridColumnModel({ columns })
-const api = createDataGridApi({ rowModel, columnModel })
+const core = createDataGridCore({
+  services: {
+    rowModel: { name: "rowModel", model: rowModel },
+    columnModel: { name: "columnModel", model: columnModel },
+  },
+})
+const api = createDataGridApi({ core })
 await api.start()
 ```
 
@@ -46,6 +57,5 @@ const grid = useAffinoDataGridUi({
 
 ## 5) Синхронизация
 
-- При обновлении данных: `api.refreshRows("manual")`
-- При обновлении колонок: `api.refreshColumns("manual")`
-
+- При обновлении данных: `api.view.reapply()`
+- При обновлении колонок: `api.columns.setAll(nextColumns)`

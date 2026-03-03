@@ -42,13 +42,18 @@ const columnModel = createDataGridColumnModel({
 ## 3) GridApi — фасад для моделей
 
 ```ts
-import { createDataGridApi, createClientRowModel } from "@affino/datagrid-core"
+import { createClientRowModel, createDataGridApi, createDataGridCore } from "@affino/datagrid-core"
 
 const rowModel = createClientRowModel({ rows })
-const api = createDataGridApi({ rowModel, columnModel })
+const core = createDataGridCore({
+  services: {
+    rowModel: { name: "rowModel", model: rowModel },
+    columnModel: { name: "columnModel", model: columnModel },
+  },
+})
+const api = createDataGridApi({ core })
 await api.start()
 
-api.setSortModel([{ key: "service", direction: "asc" }])
-api.setFilterModel({ columnFilters: { owner: ["NOC"] } })
+api.rows.setSortModel([{ key: "service", direction: "asc" }])
+api.rows.setFilterModel({ columnFilters: { owner: ["NOC"] } })
 ```
-

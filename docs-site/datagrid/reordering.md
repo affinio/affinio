@@ -17,7 +17,7 @@ Recommended contract:
 const next = [...columns.value]
 // swap/move columns
 columns.value = next
-api.refreshColumns("manual")
+api.columns.setAll(next)
 ```
 
 ## 2) Rows
@@ -25,17 +25,16 @@ api.refreshColumns("manual")
 For row reordering:
 
 - Move data in `rows`.
-- Call `api.refreshRows("manual")`.
+- Call `api.view.reapply()`.
 
 ```ts
 const nextRows = [...rows.value]
 // reorder rows
 rows.value = nextRows
-api.refreshRows("manual")
+api.view.reapply()
 ```
 
 ## 3) Validation
 
 - Validate `rowId` stability.
 - Ensure selection/focus isn’t lost during reorder.
-

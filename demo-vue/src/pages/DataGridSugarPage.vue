@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import type {
+  DataGridApiDiagnosticsSnapshot,
   DataGridAdvancedFilterExpression,
   DataGridColumnDef,
   DataGridColumnPin,
+  DataGridUnifiedState,
 } from "@affino/datagrid-vue"
 import { applyGridTheme, resolveGridThemeTokens, sugarTheme } from "@affino/datagrid-theme"
 import {
@@ -261,6 +263,32 @@ const grid = useAffinoDataGrid<SugarGridRow>({
 const gridStage = computed(() => (
   grid as unknown as UseAffinoDataGridResult<RowLike>
 ))
+const diagnosticsSnapshot = ref<DataGridApiDiagnosticsSnapshot>(grid.api.diagnostics.getAll())
+const savedRuntimeState = ref<DataGridUnifiedState<SugarGridRow> | null>(null)
+const runtimeEvent = ref<"none" | "rows:changed" | "projection:recomputed" | "state:imported" | "state:saved">("none")
+const projectionStageLabel = computed(() => {
+  const projection = diagnosticsSnapshot.value.rowModel.projection
+  return projection ? `v${projection.version}` : "none"
+})
+
+const syncDiagnostics = (): void => {
+  diagnosticsSnapshot.value = grid.api.diagnostics.getAll()
+}
+
+const unsubscribeRuntimeEvents = [
+  grid.api.events.on("rows:changed", () => {
+    runtimeEvent.value = "rows:changed"
+    syncDiagnostics()
+  }),
+  grid.api.events.on("projection:recomputed", () => {
+    runtimeEvent.value = "projection:recomputed"
+    syncDiagnostics()
+  }),
+  grid.api.events.on("state:imported", () => {
+    runtimeEvent.value = "state:imported"
+    syncDiagnostics()
+  }),
+]
 
 const themeRootRef = ref<HTMLElement | null>(null)
 let themeObserver: MutationObserver | null = null
@@ -328,6 +356,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  for (const unsubscribe of unsubscribeRuntimeEvents) {
+    unsubscribe()
+  }
   themeObserver?.disconnect()
   themeObserver = null
   window.removeEventListener("pointerdown", handleDocumentPointerDown, true)
@@ -447,6 +478,24 @@ const removeSelectedLayout = (): void => {
     selectedLayoutId.value = ""
   }
   closePanels()
+}
+
+const saveRuntimeState = (): void => {
+  savedRuntimeState.value = grid.api.state.get()
+  runtimeEvent.value = "state:saved"
+  syncDiagnostics()
+}
+
+const restoreRuntimeState = (): void => {
+  if (!savedRuntimeState.value) {
+    return
+  }
+  grid.api.state.set(savedRuntimeState.value, {
+    applyColumns: true,
+    applySelection: true,
+    applyViewport: true,
+  })
+  syncDiagnostics()
 }
 
 const statusMetrics = computed(() => grid.statusBar?.metrics.value ?? null)
@@ -594,6 +643,12 @@ const setColumnPin = (columnKey: string, pin: DataGridColumnPin): void => {
               <button type="button" class="is-ghost" @click="applySelectedLayout">Apply</button>
               <button type="button" class="is-ghost" @click="removeSelectedLayout">Remove</button>
             </div>
+            <div class="datagrid-sugar-panel__actions">
+              <button type="button" class="is-ghost" @click="saveRuntimeState">Save runtime state</button>
+              <button type="button" class="is-ghost" :disabled="!savedRuntimeState" @click="restoreRuntimeState">
+                Restore runtime state
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -636,6 +691,22 @@ const setColumnPin = (columnKey: string, pin: DataGridColumnPin): void => {
             <div>
               <dt>Error max</dt>
               <dd>{{ statusMetrics?.getAggregate('errorRatePct', 'max') ?? '—' }}</dd>
+            </div>
+            <div>
+              <dt>Projection stage</dt>
+              <dd>{{ projectionStageLabel }}</dd>
+            </div>
+            <div>
+              <dt>Revision</dt>
+              <dd>{{ diagnosticsSnapshot.rowModel.revision ?? 0 }}</dd>
+            </div>
+            <div>
+              <dt>Compute mode</dt>
+              <dd>{{ diagnosticsSnapshot.compute?.effectiveMode ?? "unsupported" }}</dd>
+            </div>
+            <div>
+              <dt>Runtime event</dt>
+              <dd>{{ runtimeEvent }}</dd>
             </div>
             <div class="datagrid-sugar-metrics__status">
               <dt>Last action</dt>

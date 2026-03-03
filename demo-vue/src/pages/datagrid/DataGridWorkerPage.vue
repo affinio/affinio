@@ -4,7 +4,12 @@ import { RouterLink } from "vue-router"
 import {
   useAffinoDataGrid,
   type AffinoDataGridFeatures,
+  type DataGridApiDiagnosticsSnapshot,
+  type DataGridApiEventName,
+  type DataGridApiEventPayload,
+  type DataGridClientComputeMode,
   type DataGridClientRowPatch,
+  type DataGridUnifiedState,
   type UseAffinoDataGridResult,
 } from "@affino/datagrid-vue"
 import DataGridSugarStage from "@/components/DataGridSugarStage.vue"
@@ -21,6 +26,27 @@ interface BenchmarkMetric {
   dispatchMs: number
   appliedMs: number
   revision: number
+}
+
+interface WorkerEventLogEntry {
+  id: number
+  runtime: RuntimeMode
+  event: DataGridApiEventName<WorkerOwnedDemoRow>
+  revision: number | null
+}
+
+function resolveEventRevision(
+  payload: DataGridApiEventPayload<WorkerOwnedDemoRow>,
+): number | null {
+  if (!("snapshot" in payload)) {
+    return null
+  }
+  const snapshot = payload.snapshot
+  if (!snapshot || typeof snapshot !== "object" || !("revision" in snapshot)) {
+    return null
+  }
+  const revision = (snapshot as { revision?: unknown }).revision
+  return typeof revision === "number" ? revision : null
 }
 
 interface WorkerPressureScenarioInput {
@@ -145,25 +171,104 @@ const workerGrid = useAffinoDataGrid<WorkerOwnedDemoRow>({
 
 const mainRevision = ref(0)
 const workerRevision = ref(0)
-const mainRowCount = ref(mainGrid.rowModel.getRowCount())
-const workerRowCount = ref(workerGrid.rowModel.getRowCount())
+const mainRowCount = ref(mainGrid.api.rows.getCount())
+const workerRowCount = ref(workerGrid.api.rows.getCount())
 const mainMetric = ref<BenchmarkMetric | null>(null)
 const workerMetric = ref<BenchmarkMetric | null>(null)
 const lastPressureReport = ref<WorkerPressureScenarioReport | null>(null)
-
-const unsubscribeMain = mainGrid.rowModel.subscribe(snapshot => {
-  mainRevision.value = snapshot.revision ?? 0
-  mainRowCount.value = snapshot.rowCount
-})
-
-const unsubscribeWorker = workerGrid.rowModel.subscribe(snapshot => {
-  workerRevision.value = snapshot.revision ?? 0
-  workerRowCount.value = snapshot.rowCount
-})
+const mainComputeMode = ref<DataGridClientComputeMode | null>(mainGrid.api.compute.getMode())
+const workerComputeMode = ref<DataGridClientComputeMode | null>(workerGrid.api.compute.getMode())
+const mainStateSnapshot = ref<DataGridUnifiedState<WorkerOwnedDemoRow> | null>(null)
+const workerStateSnapshot = ref<DataGridUnifiedState<WorkerOwnedDemoRow> | null>(null)
+const eventLog = ref<WorkerEventLogEntry[]>([])
+let eventSequence = 0
 
 const activeGrid = computed(() =>
   runtimeMode.value === "worker-owned" ? workerGrid : mainGrid,
 )
+
+const diagnosticsSnapshot = ref<DataGridApiDiagnosticsSnapshot>(activeGrid.value.api.diagnostics.getAll())
+
+const updateCounters = (
+  runtime: RuntimeMode,
+  snapshot: { revision?: number; rowCount: number },
+): void => {
+  const revision = snapshot.revision ?? 0
+  if (runtime === "worker-owned") {
+    workerRevision.value = revision
+    workerRowCount.value = snapshot.rowCount
+    return
+  }
+  mainRevision.value = revision
+  mainRowCount.value = snapshot.rowCount
+}
+
+const pushEventLog = (
+  runtime: RuntimeMode,
+  event: DataGridApiEventName<WorkerOwnedDemoRow>,
+  payload: DataGridApiEventPayload<WorkerOwnedDemoRow>,
+): void => {
+  eventSequence += 1
+  const revision = resolveEventRevision(payload)
+  eventLog.value = [
+    {
+      id: eventSequence,
+      runtime,
+      event,
+      revision,
+    },
+    ...eventLog.value,
+  ].slice(0, 24)
+}
+
+const unsubscribeMainEvents = [
+  mainGrid.api.events.on("rows:changed", payload => {
+    updateCounters("main-thread", payload.snapshot)
+    if (runtimeMode.value === "main-thread") {
+      diagnosticsSnapshot.value = mainGrid.api.diagnostics.getAll()
+    }
+    pushEventLog("main-thread", "rows:changed", payload)
+  }),
+  mainGrid.api.events.on("projection:recomputed", payload => {
+    updateCounters("main-thread", payload.snapshot)
+    if (runtimeMode.value === "main-thread") {
+      diagnosticsSnapshot.value = mainGrid.api.diagnostics.getAll()
+    }
+    pushEventLog("main-thread", "projection:recomputed", payload)
+  }),
+  mainGrid.api.events.on("viewport:changed", payload => {
+    pushEventLog("main-thread", "viewport:changed", payload)
+  }),
+  mainGrid.api.events.on("state:imported", payload => {
+    pushEventLog("main-thread", "state:imported", payload)
+  }),
+]
+
+const unsubscribeWorkerEvents = [
+  workerGrid.api.events.on("rows:changed", payload => {
+    updateCounters("worker-owned", payload.snapshot)
+    if (runtimeMode.value === "worker-owned") {
+      diagnosticsSnapshot.value = workerGrid.api.diagnostics.getAll()
+    }
+    pushEventLog("worker-owned", "rows:changed", payload)
+  }),
+  workerGrid.api.events.on("projection:recomputed", payload => {
+    updateCounters("worker-owned", payload.snapshot)
+    if (runtimeMode.value === "worker-owned") {
+      diagnosticsSnapshot.value = workerGrid.api.diagnostics.getAll()
+    }
+    pushEventLog("worker-owned", "projection:recomputed", payload)
+  }),
+  workerGrid.api.events.on("viewport:changed", payload => {
+    pushEventLog("worker-owned", "viewport:changed", payload)
+  }),
+  workerGrid.api.events.on("state:imported", payload => {
+    pushEventLog("worker-owned", "state:imported", payload)
+  }),
+]
+
+updateCounters("main-thread", mainGrid.api.rows.getSnapshot())
+updateCounters("worker-owned", workerGrid.api.rows.getSnapshot())
 
 const activeGridStage = computed(() =>
   activeGrid.value as unknown as UseAffinoDataGridResult<RowLike>,
@@ -174,6 +279,33 @@ const activeVisibleRows = computed(() =>
     ? workerRowCount.value
     : mainRowCount.value,
 )
+const activeComputeSupported = computed(() => activeGrid.value.api.compute.hasSupport())
+const activeComputeMode = computed(() =>
+  runtimeMode.value === "worker-owned"
+    ? workerComputeMode.value
+    : mainComputeMode.value,
+)
+const activeProjectionStage = computed(() =>
+  diagnosticsSnapshot.value.rowModel.projection
+    ? `v${diagnosticsSnapshot.value.rowModel.projection.version}`
+    : "none",
+)
+const activeStaleStages = computed(() =>
+  diagnosticsSnapshot.value.rowModel.projection?.staleStages.join(", ") || "none",
+)
+const activeDerivedCacheSummary = computed(() => {
+  const diagnostics = diagnosticsSnapshot.value.derivedCache
+  if (!diagnostics) {
+    return "n/a"
+  }
+  const totalLookups = diagnostics.filterPredicateHits
+    + diagnostics.filterPredicateMisses
+    + diagnostics.sortValueHits
+    + diagnostics.sortValueMisses
+    + diagnostics.groupValueHits
+    + diagnostics.groupValueMisses
+  return `${totalLookups} lookups`
+})
 
 watch(rowCount, nextCount => {
   generation.value += 1
@@ -181,6 +313,10 @@ watch(rowCount, nextCount => {
   benchmarkStatus.value = `Dataset rebuilt (${rows.value.length} rows)`
   mainMetric.value = null
   workerMetric.value = null
+})
+
+watch(runtimeMode, mode => {
+  diagnosticsSnapshot.value = (mode === "worker-owned" ? workerGrid : mainGrid).api.diagnostics.getAll()
 })
 
 const formatMs = (value: number | null): string => {
@@ -208,7 +344,7 @@ const waitForRevisionIncrement = async (
   baselineRevision: number,
   startedAt: number,
 ): Promise<{ appliedMs: number; revision: number }> => {
-  const immediateRevision = grid.rowModel.getSnapshot().revision ?? 0
+  const immediateRevision = grid.api.rows.getSnapshot().revision ?? 0
   if (immediateRevision > baselineRevision) {
     return {
       appliedMs: performance.now() - startedAt,
@@ -221,12 +357,12 @@ const waitForRevisionIncrement = async (
       unsubscribe()
       resolve({
         appliedMs: performance.now() - startedAt,
-        revision: grid.rowModel.getSnapshot().revision ?? baselineRevision,
+        revision: grid.api.rows.getSnapshot().revision ?? baselineRevision,
       })
     }, 5000)
 
-    const unsubscribe = grid.rowModel.subscribe(snapshot => {
-      const revision = snapshot.revision ?? 0
+    const unsubscribe = grid.api.events.on("rows:changed", payload => {
+      const revision = payload.snapshot.revision ?? 0
       if (revision <= baselineRevision) {
         return
       }
@@ -262,7 +398,7 @@ const applyMutationAndWait = async (
   grid: UseAffinoDataGridResult<WorkerOwnedDemoRow>,
   mutate: () => void,
 ): Promise<number> => {
-  const baselineRevision = grid.rowModel.getSnapshot().revision ?? 0
+  const baselineRevision = grid.api.rows.getSnapshot().revision ?? 0
   const startedAt = performance.now()
   mutate()
   const applied = await waitForRevisionIncrement(grid, baselineRevision, startedAt)
@@ -278,7 +414,7 @@ const runMainThreadPressure = (
   if (viewportSampleSize <= 0) {
     return 0
   }
-  const visible = grid.rowModel.getRowsInRange({
+  const visible = grid.api.rows.getRange({
     start: 0,
     end: Math.max(0, viewportSampleSize - 1),
   })
@@ -412,7 +548,7 @@ const runPressureScenario = async (
 
     for (let iteration = 0; iteration < patchIterations; iteration += 1) {
       const updates = createStressUpdates(iteration + 1, Math.min(targetPatchSize, rows.value.length))
-      const baselineRevision = grid.rowModel.getSnapshot().revision ?? 0
+      const baselineRevision = grid.api.rows.getSnapshot().revision ?? 0
       const patchStartedAt = performance.now()
       grid.patchRows(updates, {
         recomputeSort: true,
@@ -476,7 +612,7 @@ const runPatchBenchmark = async (
   grid: UseAffinoDataGridResult<WorkerOwnedDemoRow>,
   updates: readonly DataGridClientRowPatch<WorkerOwnedDemoRow>[],
 ): Promise<BenchmarkMetric> => {
-  const baseline = grid.rowModel.getSnapshot().revision ?? 0
+  const baseline = grid.api.rows.getSnapshot().revision ?? 0
   const startedAt = performance.now()
   grid.patchRows(updates, {
     recomputeSort: false,
@@ -491,6 +627,63 @@ const runPatchBenchmark = async (
     appliedMs: applied.appliedMs,
     revision: applied.revision,
   }
+}
+
+const switchComputeMode = (mode: DataGridClientComputeMode): void => {
+  const grid = activeGrid.value
+  if (!grid.api.compute.hasSupport()) {
+    benchmarkStatus.value = "Compute mode unsupported for active runtime"
+    return
+  }
+  const changed = grid.api.compute.switchMode(mode)
+  const nextMode = grid.api.compute.getMode()
+  if (runtimeMode.value === "worker-owned") {
+    workerComputeMode.value = nextMode
+  } else {
+    mainComputeMode.value = nextMode
+  }
+  diagnosticsSnapshot.value = grid.api.diagnostics.getAll()
+  benchmarkStatus.value = changed
+    ? `Compute mode switched to ${nextMode ?? mode}`
+    : `Compute mode already ${nextMode ?? mode}`
+}
+
+const handleComputeModeChange = (event: Event): void => {
+  const target = event.target
+  if (!(target instanceof HTMLSelectElement)) {
+    return
+  }
+  const mode = target.value === "worker" ? "worker" : "sync"
+  switchComputeMode(mode)
+}
+
+const saveRuntimeState = (): void => {
+  const grid = activeGrid.value
+  const snapshot = grid.api.state.get()
+  if (runtimeMode.value === "worker-owned") {
+    workerStateSnapshot.value = snapshot
+  } else {
+    mainStateSnapshot.value = snapshot
+  }
+  benchmarkStatus.value = `State saved (${runtimeMode.value})`
+}
+
+const restoreRuntimeState = (): void => {
+  const grid = activeGrid.value
+  const snapshot = runtimeMode.value === "worker-owned"
+    ? workerStateSnapshot.value
+    : mainStateSnapshot.value
+  if (!snapshot) {
+    benchmarkStatus.value = `No saved state for ${runtimeMode.value}`
+    return
+  }
+  grid.api.state.set(snapshot, {
+    applyColumns: true,
+    applySelection: true,
+    applyViewport: true,
+  })
+  diagnosticsSnapshot.value = grid.api.diagnostics.getAll()
+  benchmarkStatus.value = `State restored (${runtimeMode.value})`
 }
 
 const runABBenchmark = async (): Promise<void> => {
@@ -541,8 +734,12 @@ const resetDataset = (): void => {
 }
 
 onBeforeUnmount(() => {
-  unsubscribeMain()
-  unsubscribeWorker()
+  for (const unsubscribe of unsubscribeMainEvents) {
+    unsubscribe()
+  }
+  for (const unsubscribe of unsubscribeWorkerEvents) {
+    unsubscribe()
+  }
   if (typeof window !== "undefined" && window.__affinoWorkerBench) {
     delete window.__affinoWorkerBench
   }
@@ -611,6 +808,18 @@ if (typeof window !== "undefined") {
             </select>
           </label>
 
+          <label>
+            <span>Compute mode (active runtime)</span>
+            <select
+              :disabled="!activeComputeSupported || runningBenchmark"
+              :value="activeComputeMode ?? 'sync'"
+              @change="handleComputeModeChange"
+            >
+              <option value="sync">sync</option>
+              <option value="worker">worker</option>
+            </select>
+          </label>
+
           <div class="datagrid-worker-page__actions">
             <button data-bench-run-ab type="button" :disabled="runningBenchmark" @click="runABBenchmark">
               {{ runningBenchmark ? "Benchmark running…" : "Run A/B patch benchmark" }}
@@ -618,6 +827,8 @@ if (typeof window !== "undefined") {
             <button data-bench-run-pressure type="button" :disabled="runningBenchmark" @click="runPressureFromUi">
               {{ runningBenchmark ? "Benchmark running…" : "Run pressure scenario" }}
             </button>
+            <button type="button" :disabled="runningBenchmark" @click="saveRuntimeState">Save state</button>
+            <button type="button" :disabled="runningBenchmark" @click="restoreRuntimeState">Restore state</button>
             <button data-bench-reset type="button" @click="resetDataset">Reset dataset</button>
           </div>
 
@@ -633,6 +844,14 @@ if (typeof window !== "undefined") {
             <div>
               <dt>Worker revision</dt>
               <dd>{{ workerRevision }}</dd>
+            </div>
+            <div>
+              <dt>Projection stage</dt>
+              <dd>{{ activeProjectionStage }}</dd>
+            </div>
+            <div>
+              <dt>Stale stages</dt>
+              <dd>{{ activeStaleStages }}</dd>
             </div>
             <div class="datagrid-worker-page__metrics-status">
               <dt>Status</dt>
@@ -703,6 +922,63 @@ if (typeof window !== "undefined") {
                   {{ formatMs(lastPressureReport?.patchAppliedP95Ms ?? null) }} /
                   {{ formatMs(lastPressureReport?.patchAppliedP99Ms ?? null) }}
                 </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="datagrid-worker-page__benchmark">
+          <h2>Diagnostics (active runtime)</h2>
+          <table>
+            <tbody>
+              <tr>
+                <th>Row model</th>
+                <td>{{ diagnosticsSnapshot.rowModel.kind }}</td>
+              </tr>
+              <tr>
+                <th>Revision / Rows</th>
+                <td>{{ diagnosticsSnapshot.rowModel.revision ?? "—" }} / {{ diagnosticsSnapshot.rowModel.rowCount }}</td>
+              </tr>
+              <tr>
+                <th>Loading / Warming</th>
+                <td>{{ diagnosticsSnapshot.rowModel.loading ? "yes" : "no" }} / {{ diagnosticsSnapshot.rowModel.warming ? "yes" : "no" }}</td>
+              </tr>
+              <tr>
+                <th>Compute</th>
+                <td>
+                  {{
+                    diagnosticsSnapshot.compute
+                      ? `${diagnosticsSnapshot.compute.effectiveMode} (${diagnosticsSnapshot.compute.transportKind})`
+                      : "unsupported"
+                  }}
+                </td>
+              </tr>
+              <tr>
+                <th>Derived cache</th>
+                <td>{{ activeDerivedCacheSummary }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="datagrid-worker-page__benchmark">
+          <h2>Event stream</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Runtime</th>
+                <th>Event</th>
+                <th>Revision</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="eventLog.length === 0">
+                <td colspan="3">No events yet</td>
+              </tr>
+              <tr v-for="entry in eventLog.slice(0, 10)" :key="entry.id">
+                <td>{{ entry.runtime }}</td>
+                <td>{{ entry.event }}</td>
+                <td>{{ entry.revision ?? "—" }}</td>
               </tr>
             </tbody>
           </table>

@@ -5,8 +5,8 @@
 ## Public API
 
 ```ts
-api.refreshCellsByRowKeys(rowKeys, columnKeys, options?)
-api.refreshCellsByRanges([{ rowKey, columnKeys }], options?)
+api.view.refreshCellsByRowKeys(rowKeys, columnKeys, options?)
+api.view.refreshCellsByRanges([{ rowKey, columnKeys }], options?)
 ```
 
 - `rowKeys`: row ids (`string | number`).
@@ -18,7 +18,7 @@ api.refreshCellsByRanges([{ rowKey, columnKeys }], options?)
 
 - Refresh invalidation is batched in `requestAnimationFrame` in core.
 - Only cells intersecting current viewport + visible columns are emitted to repaint pipeline.
-- No full `rowModel.refresh()` or `columnModel` recalculation is triggered.
+- No full `api.view.refresh()` or `columnModel` recalculation is triggered.
 - Sort/filter/group/selection/pinned-column state remains unchanged.
 
 ## Vue adapter notes
